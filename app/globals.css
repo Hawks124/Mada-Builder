@@ -1,26 +1,100 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Monochrome Zinc Light Mode */
+  --background: #fafafa; /* zinc-50 */
+  --foreground: #09090b; /* zinc-950 */
+  
+  --muted: #f4f4f5; /* zinc-100 */
+  --muted-foreground: #71717a; /* zinc-500 */
+  
+  --border: #e4e4e7; /* zinc-200 */
+  
+  --primary: #18181b; /* zinc-900 */
+  --primary-foreground: #fafafa;
+  
+  --radius: 0.5rem;
+}
+
+.dark {
+  /* Monochrome Zinc Dark Mode */
+  --background: #09090b; /* zinc-950 */
+  --foreground: #fafafa; /* zinc-50 */
+  
+  --muted: #27272a; /* zinc-800 */
+  --muted-foreground: #a1a1aa; /* zinc-400 */
+  
+  --border: #27272a; /* zinc-800 */
+  
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  
+  --radius: var(--radius);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Smooth Theme Transition ── */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 450ms cubic-bezier(0.23, 1, 0.32, 1),
+              border-color 450ms cubic-bezier(0.23, 1, 0.32, 1),
+              color 450ms cubic-bezier(0.23, 1, 0.32, 1),
+              fill 450ms cubic-bezier(0.23, 1, 0.32, 1),
+              stroke 450ms cubic-bezier(0.23, 1, 0.32, 1) !important;
+  transition-delay: 0s !important;
+}
+
+/* Custom Scrollbar */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+}
+
+/* ── Metal Scan Animation (Community CTA — Madagascar dot map) ── */
+@keyframes metal-sweep {
+  0% {
+    transform: translateX(-120%) translateY(-50%) rotate(160deg);
+  }
+  100% {
+    transform: translateX(220%) translateY(100%) rotate(160deg);
+  }
 }

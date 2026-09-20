@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# internal working docs — local only, never deployed (pro repo = code only)
+DESIGN.md
+STACK.md
+CLAUDE.md
+AGENTS.md
