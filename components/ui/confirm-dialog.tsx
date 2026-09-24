@@ -1,11 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  WarningCircleIcon,
-  XCircleIcon,
-  InfoIcon,
-} from "@phosphor-icons/react";
+import { WarningCircleIcon, XCircleIcon, InfoIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -70,8 +66,7 @@ export function ConfirmDialog({
   if (!open) return null;
 
   const isDanger = tone === "danger";
-  const matched =
-    !requireConfirmText || input.trim() === requireConfirmText.expected;
+  const matched = !requireConfirmText || input.trim() === requireConfirmText.expected;
 
   return (
     <div
@@ -104,9 +99,7 @@ export function ConfirmDialog({
             <h3 className="text-lg font-bold tracking-tight text-foreground leading-snug">
               {title}
             </h3>
-            <div className="text-sm text-muted-foreground leading-relaxed">
-              {description}
-            </div>
+            <div className="text-sm text-muted-foreground leading-relaxed">{description}</div>
           </div>
         </div>
 
@@ -154,9 +147,7 @@ export function ConfirmDialog({
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                requireConfirmText.placeholder ?? requireConfirmText.expected
-              }
+              placeholder={requireConfirmText.placeholder ?? requireConfirmText.expected}
               autoComplete="off"
               className={cn(
                 "w-full bg-background border rounded-xl px-3.5 py-2.5 text-sm font-medium text-foreground outline-none transition-all placeholder:text-muted-foreground/40",

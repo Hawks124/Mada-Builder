@@ -3,11 +3,7 @@ import { db } from "@/db";
 import { appeals } from "@/db/schema";
 import { users } from "@/db/schema";
 import { ProfileError } from "@/services/users.service";
-import {
-  APPEALS_BUCKET,
-  uploadObject,
-  type SupabaseClientLike,
-} from "@/lib/supabase/storage";
+import { APPEALS_BUCKET, uploadObject, type SupabaseClientLike } from "@/lib/supabase/storage";
 
 /**
  * Domaine appels — le SEUL chemin d'écriture d'un banni (avec la
@@ -43,11 +39,7 @@ function detectEvidenceKind(buffer: Buffer): EvidenceKind | null {
     buffer.subarray(8, 12).toString("ascii") === "WEBP"
   )
     return "webp";
-  if (
-    buffer.length > 5 &&
-    buffer.subarray(0, 5).toString("ascii") === "%PDF-"
-  )
-    return "pdf";
+  if (buffer.length > 5 && buffer.subarray(0, 5).toString("ascii") === "%PDF-") return "pdf";
   return null; // exécutables, SVG, archives : refusés.
 }
 
@@ -139,10 +131,7 @@ export async function submitAppeal(input: {
       .where(and(eq(appeals.userId, row.id), eq(appeals.status, "pending")))
       .limit(1);
     if (pending) {
-      throw new ProfileError(
-        "FORBIDDEN",
-        "Un appel est déjà en cours d'examen.",
-      );
+      throw new ProfileError("FORBIDDEN", "Un appel est déjà en cours d'examen.");
     }
     const elapsed = Date.now() - active.createdAt.getTime();
     if (elapsed < APPEAL_COOLDOWN_MS) {
@@ -156,22 +145,13 @@ export async function submitAppeal(input: {
 
   const explanation = input.explanation.trim();
   if (explanation.length < EXPLANATION_MIN) {
-    throw new ProfileError(
-      "VALIDATION",
-      `Expliquez en au moins ${EXPLANATION_MIN} caractères.`,
-    );
+    throw new ProfileError("VALIDATION", `Expliquez en au moins ${EXPLANATION_MIN} caractères.`);
   }
   if (explanation.length > EXPLANATION_MAX) {
-    throw new ProfileError(
-      "VALIDATION",
-      `Explication trop longue (${EXPLANATION_MAX} max).`,
-    );
+    throw new ProfileError("VALIDATION", `Explication trop longue (${EXPLANATION_MAX} max).`);
   }
   if (input.files.length > APPEAL_MAX_FILES) {
-    throw new ProfileError(
-      "VALIDATION",
-      `${APPEAL_MAX_FILES} pièces maximum.`,
-    );
+    throw new ProfileError("VALIDATION", `${APPEAL_MAX_FILES} pièces maximum.`);
   }
 
   const stamp = Date.now();
@@ -182,10 +162,7 @@ export async function submitAppeal(input: {
     }
     const kind = detectEvidenceKind(file.buffer);
     if (!kind) {
-      throw new ProfileError(
-        "FILE_REJECTED",
-        "Preuves acceptées : images PNG/JPG/WebP ou PDF.",
-      );
+      throw new ProfileError("FILE_REJECTED", "Preuves acceptées : images PNG/JPG/WebP ou PDF.");
     }
     const path = `${row.id}/${stamp}-${i}.${KIND_META[kind].ext}`;
     const { error } = await uploadObject(
@@ -235,7 +212,8 @@ export async function getPendingAppealsCount(): Promise<number> {
 }
 
 /** Appels pending + identité complète (file admin — staff only côté appelant). */
-export async function getPendingAppeals() {  return db
+export async function getPendingAppeals() {
+  return db
     .select({
       id: appeals.id,
       userId: appeals.userId,
@@ -262,17 +240,13 @@ export type PendingAppeal = Awaited<ReturnType<typeof getPendingAppeals>>[number
 /**
  * Tranche un appel : overturned → débanni + statut ; upheld → statut.
  * Retourne l'identité pour la notification décision (best-effort).
- */export async function reviewAppeal(input: {
+ */ export async function reviewAppeal(input: {
   isStaff: boolean;
   appealId: string;
   decision: "upheld" | "overturned";
 }): Promise<{ email: string; displayName: string; userId: string; overturned: boolean }> {
   if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
-  const [appeal] = await db
-    .select()
-    .from(appeals)
-    .where(eq(appeals.id, input.appealId))
-    .limit(1);
+  const [appeal] = await db.select().from(appeals).where(eq(appeals.id, input.appealId)).limit(1);
   if (!appeal) throw new ProfileError("NOT_FOUND", "Appel introuvable.");
   if (appeal.status !== "pending") {
     throw new ProfileError("CONFLICT", "Appel déjà tranché.");
@@ -308,9 +282,7 @@ export type PendingAppeal = Awaited<ReturnType<typeof getPendingAppeals>>[number
  * marqués `overturned` SANS email de décision — la notification de déban
  * couvre (pas de double envoi). Retourne le nombre clôturé (toast admin).
  */
-export async function closePendingAppealsForUser(
-  userId: string,
-): Promise<number> {
+export async function closePendingAppealsForUser(userId: string): Promise<number> {
   const closed = await db
     .update(appeals)
     .set({ status: "overturned", reviewedAt: new Date() })

@@ -19,9 +19,7 @@ export type OtpPending = { email: string; at: number };
 
 function readKey(key: string): OtpPending | null {
   try {
-    const raw = (
-      key === SESSION_KEY ? sessionStorage : localStorage
-    ).getItem(key);
+    const raw = (key === SESSION_KEY ? sessionStorage : localStorage).getItem(key);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (

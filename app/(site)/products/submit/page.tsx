@@ -7,10 +7,7 @@ import { SubmitCategoriesSection } from "@/components/submit/submit-categories-s
 import { SubmitMetadataSection } from "@/components/submit/submit-metadata-section";
 import { SubmitMediaSection } from "@/components/submit/submit-media-section";
 import { SubmitLinksSection } from "@/components/submit/submit-links-section";
-import {
-  SubmitFormProvider,
-  useSubmitForm,
-} from "@/components/submit/submit-form-context";
+import { SubmitFormProvider, useSubmitForm } from "@/components/submit/submit-form-context";
 import { ActionButton } from "@/components/ui/action-button";
 
 function SubmitForm() {
@@ -76,9 +73,7 @@ export default function SubmitProductPage() {
     <React.Suspense
       fallback={
         <main className="min-h-screen bg-background flex items-center justify-center">
-          <p className="text-muted-foreground font-medium">
-            Chargement du formulaire…
-          </p>
+          <p className="text-muted-foreground font-medium">Chargement du formulaire…</p>
         </main>
       }
     >

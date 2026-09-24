@@ -1,11 +1,7 @@
 import Link from "next/link";
 import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
-import {
-  HERO_CATEGORIES,
-  PRODUCT_CATEGORIES,
-  TOTAL_PRODUCT_COUNT,
-} from "@/config/categories";
+import { HERO_CATEGORIES, PRODUCT_CATEGORIES, TOTAL_PRODUCT_COUNT } from "@/config/categories";
 import { getMakersCount } from "@/services/users.service";
 
 /**
@@ -31,17 +27,11 @@ export async function HeroCategories() {
     <div className="relative w-full flex flex-col gap-6">
       {/* ─── Stats Bar ─── */}
       <div className="flex items-center gap-2 pl-2">
-        <StatPill
-          value={TOTAL_PRODUCT_COUNT.toLocaleString("fr")}
-          label="produits"
-        />
+        <StatPill value={TOTAL_PRODUCT_COUNT.toLocaleString("fr")} label="produits" />
         <div className="h-3.5 w-px bg-border/60 mx-1.5" />
         <StatPill value={makersValue} label="makers" />
         <div className="h-3.5 w-px bg-border/60 mx-1.5" />
-        <StatPill
-          value={String(PRODUCT_CATEGORIES.length)}
-          label="catégories"
-        />
+        <StatPill value={String(PRODUCT_CATEGORIES.length)} label="catégories" />
       </div>
 
       {/* ─── VERCEL STYLE ANIMATED BORDER WRAPPER ─── */}

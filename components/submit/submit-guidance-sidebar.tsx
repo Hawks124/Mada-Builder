@@ -9,7 +9,6 @@ import {
   QuestionIcon,
   LockIcon,
   EyeSlashIcon,
-  DatabaseIcon,
   TrashIcon,
   BookOpenIcon,
   ArrowSquareOutIcon,
@@ -42,16 +41,13 @@ import {
 // Shared micro-components (local only — not exported)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SectionHeading({
-  icon: Icon,
-  label,
-}: {
-  icon: React.ElementType;
-  label: string;
-}) {
+function SectionHeading({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
   return (
     <div className="flex items-center gap-2.5 text-muted-foreground">
-      <Icon weight="duotone" className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-500 shrink-0" />
+      <Icon
+        weight="duotone"
+        className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-500 shrink-0"
+      />
       <h3 className="text-[11px] font-black uppercase tracking-[0.15em]">{label}</h3>
     </div>
   );
@@ -82,7 +78,6 @@ export function SubmitGuidanceSidebar() {
 
   return (
     <div className="flex flex-col gap-12 sticky top-28">
-
       {/* ── 1. Listings responsables ── */}
       <div className="flex flex-col gap-5">
         <div className="flex items-center gap-3">
@@ -95,8 +90,8 @@ export function SubmitGuidanceSidebar() {
           </h2>
         </div>
         <p className="text-[14px] font-medium text-muted-foreground leading-relaxed">
-          Les applications doivent être légales, éthiques et représentées
-          honnêtement. Aucun spam ou produit dupliqué.
+          Les applications doivent être légales, éthiques et représentées honnêtement. Aucun spam ou
+          produit dupliqué.
         </p>
         <button className="self-start text-[12px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 hover:opacity-70 transition-opacity border-b-2 border-emerald-600/30 pb-0.5 cursor-pointer">
           LIRE LES RÈGLES
@@ -178,7 +173,9 @@ export function SubmitGuidanceSidebar() {
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[13px] font-bold text-foreground">{g.title}</span>
-                  <span className="text-[12px] font-medium text-muted-foreground leading-relaxed">{g.desc}</span>
+                  <span className="text-[12px] font-medium text-muted-foreground leading-relaxed">
+                    {g.desc}
+                  </span>
                 </div>
               </div>
             );
@@ -192,8 +189,8 @@ export function SubmitGuidanceSidebar() {
       <div className="flex flex-col gap-5">
         <SectionHeading icon={BookOpenIcon} label="Guides des stores" />
         <p className="text-[12px] font-medium text-muted-foreground leading-relaxed">
-         Anticipez les refus : lisez les règles officielles des plateformes
-          que vous ciblez avant de soumettre.
+          Anticipez les refus : lisez les règles officielles des plateformes que vous ciblez avant
+          de soumettre.
         </p>
         <div className="flex flex-col gap-1">
           {STORE_GUIDES.map((guide) => (
@@ -227,17 +224,13 @@ export function SubmitGuidanceSidebar() {
       {/* ── 6. Support ── */}
       <div className="flex flex-col gap-4 bg-muted/20 p-6 rounded-[28px] border border-border/40">
         <div className="flex items-center gap-3">
-          <LifebuoyIcon
-            weight="fill"
-            className="w-6 h-6 text-emerald-600 dark:text-emerald-500"
-          />
+          <LifebuoyIcon weight="fill" className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
           <h4 className="text-[15px] font-black tracking-tight text-foreground">
-            Besoin d'aide ?
+            Besoin d&apos;aide ?
           </h4>
         </div>
         <p className="text-[13px] font-medium text-muted-foreground leading-relaxed">
-          Notre équipe éditoriale modère chaque produit. Si vous avez une
-          question, contactez-nous.
+          Notre équipe éditoriale modère chaque produit. Si vous avez une question, contactez-nous.
         </p>
         <button className="text-[13px] font-bold text-emerald-600 dark:text-emerald-500 text-left hover:underline">
           Contacter le support &rarr;
@@ -246,6 +239,3 @@ export function SubmitGuidanceSidebar() {
     </div>
   );
 }
-
-
-

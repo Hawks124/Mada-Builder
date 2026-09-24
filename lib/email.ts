@@ -15,9 +15,7 @@ function client(): Resend {
   if (cached) return cached;
   const key = process.env.RESEND_API_KEY;
   if (!key) {
-    throw new Error(
-      "Resend non configuré — RESEND_API_KEY manquante (voir .env.example).",
-    );
+    throw new Error("Resend non configuré — RESEND_API_KEY manquante (voir .env.example).");
   }
   cached = new Resend(key);
   return cached;

@@ -3,29 +3,18 @@
 import * as React from "react";
 import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
-import {
-  GithubLogoIcon,
-  EnvelopeIcon,
-  SealWarningIcon,
-} from "@phosphor-icons/react";
+import { GithubLogoIcon, EnvelopeIcon, SealWarningIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  requestEmailCodeAction,
-  verifyEmailCodeAction,
-} from "@/app/actions/auth";
+import { requestEmailCodeAction, verifyEmailCodeAction } from "@/app/actions/auth";
 
 import {
   readRememberedProvider,
   writeRememberedProvider,
   type RememberedProvider,
 } from "@/components/auth/auth-remember";
-import {
-  clearOtpPending,
-  readOtpPending,
-  writeOtpPending,
-} from "@/lib/otp-pending";
+import { clearOtpPending, readOtpPending, writeOtpPending } from "@/lib/otp-pending";
 
 // Erreurs redirigées par /auth/callback (?error=) — libellés FR stables,
 // jamais de reflet brut du provider (anti-fuite).
@@ -45,18 +34,14 @@ const RESEND_COOLDOWN_S = 30;
 export function SigninForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [lastUsed, setLastUsed] = React.useState<RememberedProvider | null>(
-    null,
-  );
+  const [lastUsed, setLastUsed] = React.useState<RememberedProvider | null>(null);
   const [email, setEmail] = React.useState("");
   const [emailSent, setEmailSent] = React.useState(false);
   // Saisie d'un code déjà reçu (autre onglet/appareil) — sans renvoi.
   const [codeEntry, setCodeEntry] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState<RememberedProvider | null>(null);
-  const [otp, setOtp] = React.useState<string[]>(
-    new Array(OTP_LENGTH).fill(""),
-  );
+  const [otp, setOtp] = React.useState<string[]>(new Array(OTP_LENGTH).fill(""));
   const [otpError, setOtpError] = React.useState<string | null>(null);
   const [resendIn, setResendIn] = React.useState(0);
   const otpRefs = React.useRef<(HTMLInputElement | null)[]>([]);
@@ -192,8 +177,8 @@ export function SigninForm() {
           </h1>
           <p className="text-base text-muted-foreground font-medium leading-relaxed">
             Nous avons envoyé un code à 6 chiffres à{" "}
-            <span className="font-bold text-foreground">{email}</span> (valable
-            10 minutes). Vous préférez cliquer ? Le lien est dans le mail.
+            <span className="font-bold text-foreground">{email}</span> (valable 10 minutes). Vous
+            préférez cliquer ? Le lien est dans le mail.
           </p>
         </div>
 
@@ -226,9 +211,7 @@ export function SigninForm() {
                 if (v !== "" && i < OTP_LENGTH - 1) {
                   otpRefs.current[i + 1]?.focus();
                 }
-                const code = [...otp.slice(0, i), v, ...otp.slice(i + 1)].join(
-                  "",
-                );
+                const code = [...otp.slice(0, i), v, ...otp.slice(i + 1)].join("");
                 if (code.length === OTP_LENGTH) {
                   void verifyOtpCode(code);
                 }
@@ -256,9 +239,7 @@ export function SigninForm() {
                 if (text.length === OTP_LENGTH) {
                   void verifyOtpCode(text);
                 } else {
-                  otpRefs.current[
-                    Math.min(text.length, OTP_LENGTH - 1)
-                  ]?.focus();
+                  otpRefs.current[Math.min(text.length, OTP_LENGTH - 1)]?.focus();
                 }
               }}
               className="h-14 sm:h-16 w-full min-w-0 rounded-xl bg-neutral border border-zinc-200 dark:border-zinc-900  text-center text-2xl font-black tabular-nums text-foreground outline-none focus:border-foreground/60 transition-colors disabled:opacity-50"
@@ -267,10 +248,7 @@ export function SigninForm() {
         </div>
 
         {otpError && (
-          <p
-            role="alert"
-            className="text-[13px] font-bold text-red-600 dark:text-red-400"
-          >
+          <p role="alert" className="text-[13px] font-bold text-red-600 dark:text-red-400">
             {otpError}
           </p>
         )}
@@ -320,9 +298,7 @@ export function SigninForm() {
       )}
       {/* Titre d'accueil (état par défaut — la vérification a le sien). */}
       <div className="flex flex-col gap-2 mb-7">
-        <h1 className="text-4xl font-black tracking-tight text-foreground">
-          Bienvenue
-        </h1>
+        <h1 className="text-4xl font-black tracking-tight text-foreground">Bienvenue</h1>
         <p className="text-base text-muted-foreground font-medium">
           Connectez-vous pour voter, soumettre et suivre vos produits.
         </p>

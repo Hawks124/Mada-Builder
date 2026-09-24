@@ -46,10 +46,7 @@ export function VoteButton({
         onClick={handleClick}
         aria-pressed={voted}
         aria-label={`Voter pour ${productName}`}
-        className={cn(
-          "flex flex-col items-center gap-1 group cursor-pointer",
-          className,
-        )}
+        className={cn("flex flex-col items-center gap-1 group cursor-pointer", className)}
       >
         <CaretUpIcon
           weight="fill"
@@ -61,9 +58,7 @@ export function VoteButton({
         <span
           className={cn(
             "text-[22px] font-black tracking-tighter leading-none tabular-nums",
-            voted
-              ? "text-emerald-600 dark:text-emerald-400"
-              : "text-foreground",
+            voted ? "text-emerald-600 dark:text-emerald-400" : "text-foreground",
           )}
         >
           {formatCompactCount(count)}
@@ -97,9 +92,7 @@ export function VoteButton({
         <span
           className={cn(
             "text-xl font-black tracking-tighter tabular-nums",
-            voted
-              ? "text-emerald-600 dark:text-emerald-400"
-              : "text-foreground",
+            voted ? "text-emerald-600 dark:text-emerald-400" : "text-foreground",
           )}
         >
           {formatCompactCount(count)}
@@ -124,10 +117,7 @@ export function VoteButton({
     >
       <CaretUpIcon
         weight="fill"
-        className={cn(
-          "w-4 h-4",
-          voted ? "text-emerald-500" : "text-muted-foreground",
-        )}
+        className={cn("w-4 h-4", voted ? "text-emerald-500" : "text-muted-foreground")}
       />
       {formatCompactCount(count)}
     </button>

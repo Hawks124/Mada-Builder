@@ -20,9 +20,7 @@ function logExchangeDev(message: string): void {
   console.error(`[auth:exchange] ${message}`);
 }
 
-export async function exchangeHashForSession(
-  tokenHash: string,
-): Promise<ExchangeResult> {
+export async function exchangeHashForSession(tokenHash: string): Promise<ExchangeResult> {
   if (!tokenHash) {
     logExchangeDev("hash vide");
     return { ok: false, reason: "empty" };

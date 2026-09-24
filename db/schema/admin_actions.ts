@@ -1,12 +1,5 @@
 import { v7 as uuidv7 } from "uuid";
-import {
-  index,
-  pgEnum,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users";
 
 /**
@@ -47,9 +40,7 @@ export const adminActions = pgTable(
     action: adminActionEnum("action").notNull(),
     // Motif de ban / vide ailleurs pour l'instant (note reviewer : V1.5).
     note: text("note"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("admin_actions_target_created_idx").on(t.targetId, t.createdAt)],
 );

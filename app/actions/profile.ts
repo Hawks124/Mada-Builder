@@ -7,12 +7,7 @@ import { createClient, getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import {
-  ProfileError,
-  deleteAccount,
-  updateAvatar,
-  updateProfile,
-} from "@/services/users.service";
+import { ProfileError, deleteAccount, updateAvatar, updateProfile } from "@/services/users.service";
 import { AVATAR_BUCKET } from "@/lib/supabase/storage";
 import { withToast } from "@/lib/toast";
 import { captureError } from "@/lib/monitoring";
@@ -111,12 +106,7 @@ export async function uploadMyAvatar(
   }
   try {
     const supabase = await createClient();
-    const { avatarUrl, username } = await updateAvatar(
-      supabase,
-      user.id,
-      user.id,
-      file,
-    );
+    const { avatarUrl, username } = await updateAvatar(supabase, user.id, user.id, file);
     revalidateMaker(username);
     return { ok: true, message: "Avatar mis à jour.", avatarUrl };
   } catch (e) {

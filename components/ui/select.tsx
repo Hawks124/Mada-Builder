@@ -74,7 +74,14 @@ export function Select({
             <span className="text-muted-foreground/30 truncate">{placeholder}</span>
           )}
         </span>
-        <CaretDownIcon weight="bold" className={cn("text-muted-foreground/60 transition-transform duration-200 shrink-0", size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4", isOpen && "rotate-180")} />
+        <CaretDownIcon
+          weight="bold"
+          className={cn(
+            "text-muted-foreground/60 transition-transform duration-200 shrink-0",
+            size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4",
+            isOpen && "rotate-180",
+          )}
+        />
       </button>
 
       {isOpen && (
@@ -94,7 +101,9 @@ export function Select({
               }}
               className={cn(
                 "flex items-center gap-3 rounded-xl px-4 py-3 text-left text-[15px] font-bold transition-colors cursor-pointer",
-                value === option.id ? "bg-foreground/5 text-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                value === option.id
+                  ? "bg-foreground/5 text-foreground"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               )}
             >
               {option.icon}
@@ -106,7 +115,9 @@ export function Select({
                   </span>
                 )}
               </span>
-              {value === option.id && <CheckCircle weight="fill" className="w-4 h-4 text-emerald-500 shrink-0" />}
+              {value === option.id && (
+                <CheckCircle weight="fill" className="w-4 h-4 text-emerald-500 shrink-0" />
+              )}
             </button>
           ))}
         </div>

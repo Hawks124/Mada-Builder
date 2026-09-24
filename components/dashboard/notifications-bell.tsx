@@ -1,12 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  BellIcon,
-  SealCheckIcon,
-  CaretUpIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { BellIcon, SealCheckIcon, CaretUpIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 type NotificationTone = "success" | "milestone" | "alert";
@@ -44,15 +39,9 @@ const MOCK_NOTIFICATIONS: DashboardNotification[] = [
 ];
 
 const TONE_ICON: Record<NotificationTone, React.ReactNode> = {
-  success: (
-    <SealCheckIcon weight="fill" className="h-5 w-5 text-emerald-500 shrink-0" />
-  ),
-  milestone: (
-    <CaretUpIcon weight="fill" className="h-5 w-5 text-amber-500 shrink-0" />
-  ),
-  alert: (
-    <WarningCircleIcon weight="fill" className="h-5 w-5 text-red-500 shrink-0" />
-  ),
+  success: <SealCheckIcon weight="fill" className="h-5 w-5 text-emerald-500 shrink-0" />,
+  milestone: <CaretUpIcon weight="fill" className="h-5 w-5 text-amber-500 shrink-0" />,
+  alert: <WarningCircleIcon weight="fill" className="h-5 w-5 text-red-500 shrink-0" />,
 };
 
 // Circular bell + unread dot, next to the submit CTA.
@@ -66,10 +55,7 @@ export function NotificationsBell() {
   React.useEffect(() => {
     if (!isOpen) return;
     const handlePointerDown = (event: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };

@@ -21,11 +21,7 @@ import {
   roleNotifySubject,
   roleNotifyText,
 } from "@/lib/email-templates/role-notify";
-import {
-  banNotifyHtml,
-  banNotifySubject,
-  banNotifyText,
-} from "@/lib/email-templates/ban-notify";
+import { banNotifyHtml, banNotifySubject, banNotifyText } from "@/lib/email-templates/ban-notify";
 import {
   unbanNotifyHtml,
   unbanNotifySubject,
@@ -91,11 +87,7 @@ export async function banUserAction(input: {
     if (input.userId === id) {
       return { ok: false, message: "Vous ne pouvez pas vous bannir vous-même." };
     }
-    const { email, displayName, reason } = await banUser(
-      true,
-      input.userId,
-      input.reason,
-    );
+    const { email, displayName, reason } = await banUser(true, input.userId, input.reason);
     await logAdminAction({
       actorId: id,
       targetId: input.userId,
@@ -131,9 +123,7 @@ export async function banUserAction(input: {
 }
 
 /** Débannir — notifié (unban-notify) + appels clos, jamais muet. */
-export async function unbanUserAction(input: {
-  userId: string;
-}): Promise<AdminActionState> {
+export async function unbanUserAction(input: { userId: string }): Promise<AdminActionState> {
   try {
     const { id } = await requireStaffId();
     const { email, displayName } = await unbanUser(true, input.userId);
@@ -142,9 +132,7 @@ export async function unbanUserAction(input: {
       targetId: input.userId,
       action: "unban",
     });
-    const closed = await closePendingAppealsForUser(input.userId).catch(
-      () => 0,
-    );
+    const closed = await closePendingAppealsForUser(input.userId).catch(() => 0);
     try {
       await sendEmail({
         to: email,
@@ -159,9 +147,7 @@ export async function unbanUserAction(input: {
     return {
       ok: true,
       message:
-        closed > 0
-          ? `Utilisateur débanni (${closed} appel(s) clos).`
-          : "Utilisateur débanni.",
+        closed > 0 ? `Utilisateur débanni (${closed} appel(s) clos).` : "Utilisateur débanni.",
     };
   } catch (e) {
     return mapAdminError(e, "admin.unban");
@@ -230,35 +216,19 @@ const ACTION_LABELS: Record<string, string> = {
 
 export async function getUserHistoryAction(input: {
   userId: string;
-}): Promise<
-  | { ok: true; history: UserHistory }
-  | { ok: false; error: string }
-> {
+}): Promise<{ ok: true; history: UserHistory } | { ok: false; error: string }> {
   try {
     await requireStaffId();
     const [[bans], [unbans], [appealsCount]] = await Promise.all([
       db
         .select({ value: count() })
         .from(adminActions)
-        .where(
-          and(
-            eq(adminActions.targetId, input.userId),
-            eq(adminActions.action, "ban"),
-          ),
-        ),
+        .where(and(eq(adminActions.targetId, input.userId), eq(adminActions.action, "ban"))),
       db
         .select({ value: count() })
         .from(adminActions)
-        .where(
-          and(
-            eq(adminActions.targetId, input.userId),
-            eq(adminActions.action, "unban"),
-          ),
-        ),
-      db
-        .select({ value: count() })
-        .from(appeals)
-        .where(eq(appeals.userId, input.userId)),
+        .where(and(eq(adminActions.targetId, input.userId), eq(adminActions.action, "unban"))),
+      db.select({ value: count() }).from(appeals).where(eq(appeals.userId, input.userId)),
     ]);
     const events = await db
       .select({
@@ -300,8 +270,7 @@ export async function loadMoreUsersAction(input: {
   status?: "all" | "banned";
   cursor?: string | null;
 }): Promise<
-  | { ok: true; items: AdminListItem[]; nextCursor: string | null }
-  | { ok: false; error: string }
+  { ok: true; items: AdminListItem[]; nextCursor: string | null } | { ok: false; error: string }
 > {
   try {
     await requireStaffId();
@@ -335,11 +304,7 @@ export async function setUserRoleAction(input: {
 }): Promise<AdminActionState> {
   try {
     const adminId = await requireAdminId();
-    const { email, displayName, role } = await setUserRole(
-      adminId,
-      input.userId,
-      input.role,
-    );
+    const { email, displayName, role } = await setUserRole(adminId, input.userId, input.role);
     await logAdminAction({
       actorId: adminId,
       targetId: input.userId,
@@ -351,8 +316,7 @@ export async function setUserRoleAction(input: {
     try {
       const admin = createAdminClient();
       const { data } = await admin.auth.admin.getUserById(input.userId);
-      const current =
-        (data.user?.app_metadata ?? {}) as Record<string, unknown>;
+      const current = (data.user?.app_metadata ?? {}) as Record<string, unknown>;
       const { error } = await admin.auth.admin.updateUserById(input.userId, {
         app_metadata: { ...current, role },
       });
@@ -381,8 +345,7 @@ export async function setUserRoleAction(input: {
     revalidatePath("/admin/users");
     return {
       ok: true,
-      message:
-        role === "moderateur" ? "Modérateur nommé." : "Rôle retiré.",
+      message: role === "moderateur" ? "Modérateur nommé." : "Rôle retiré.",
     };
   } catch (e) {
     return mapAdminError(e, "admin.role");

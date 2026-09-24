@@ -39,15 +39,17 @@ async function run() {
     .webp({ quality: 82 })
     .toBuffer();
   const outMeta = await sharp(out).toBuffer({ resolveWithObject: true });
-  ok(`sortie 512x512 (got ${outMeta.info.width}x${outMeta.info.height})`, outMeta.info.width === 512);
+  ok(
+    `sortie 512x512 (got ${outMeta.info.width}x${outMeta.info.height})`,
+    outMeta.info.width === 512,
+  );
   ok(`sortie < 2 Mo (${(out.length / 1024).toFixed(0)} Ko)`, out.length < 2 * 1024 * 1024);
-  console.log(`  entrée ${(big.length / 1024 / 1024).toFixed(2)} Mo → ${(out.length / 1024).toFixed(0)} Ko`);
+  console.log(
+    `  entrée ${(big.length / 1024 / 1024).toFixed(2)} Mo → ${(out.length / 1024).toFixed(0)} Ko`,
+  );
 
   // 2. SVG-like rejeté.
-  ok(
-    "rejet fauxmage",
-    detect(Buffer.from("<svg xmlns='x'></svg>")) === null,
-  );
+  ok("rejet fauxmage", detect(Buffer.from("<svg xmlns='x'></svg>")) === null);
 
   // 3. Trop petit rejeté (< 128px).
   const tiny = await sharp({
@@ -60,7 +62,12 @@ async function run() {
 
   // 4. PNG carré OK.
   const square = await sharp({
-    create: { width: 800, height: 800, channels: 4, background: { r: 10, g: 200, b: 100, alpha: 1 } },
+    create: {
+      width: 800,
+      height: 800,
+      channels: 4,
+      background: { r: 10, g: 200, b: 100, alpha: 1 },
+    },
   })
     .png()
     .toBuffer();

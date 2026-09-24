@@ -1,10 +1,6 @@
 // Canal toast partagé (lib/toast.ts) : tones, truncate, round-trip
 // encode, URLs relatives/absolues. Usage: npx tsx scripts/verify-toast-params.ts
-import {
-  isToastTone,
-  parseToastParam,
-  withToast,
-} from "../lib/toast";
+import { isToastTone, parseToastParam, withToast } from "../lib/toast";
 
 let pass = 0;
 const ok = (name: string, cond: boolean) => {
@@ -33,6 +29,9 @@ ok("query existante (&)", u2.includes("tab=x&toast="));
 const roundTrip = parseToastParam(
   decodeURIComponent(new URL(u1, "http://x").searchParams.get("toast") ?? ""),
 );
-ok("round-trip accents", roundTrip?.tone === "info" && roundTrip?.message === "Vous êtes déconnecté·e.");
+ok(
+  "round-trip accents",
+  roundTrip?.tone === "info" && roundTrip?.message === "Vous êtes déconnecté·e.",
+);
 
 console.log(`\n${pass} checks OK`);

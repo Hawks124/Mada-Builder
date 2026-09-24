@@ -23,11 +23,7 @@ import { LifecyclePill } from "@/components/ui/lifecycle-pill";
 import { PRODUCT_CATEGORIES, getCategoryById } from "@/config/categories";
 import { getRatingById } from "@/config/ratings";
 import { formatCompactCount } from "@/components/dashboard/dashboard-mock";
-import {
-  ADMIN_PRODUCTS,
-  PRICING_ORDER,
-  type AdminProduct,
-} from "@/components/admin/admin-mock";
+import { ADMIN_PRODUCTS, PRICING_ORDER, type AdminProduct } from "@/components/admin/admin-mock";
 
 type SortId = "newest" | "oldest" | "votes" | "pricing";
 
@@ -54,8 +50,7 @@ function sortApps(apps: AdminProduct[], sort: SortId): AdminProduct[] {
     case "pricing":
       return list.sort(
         (a, b) =>
-          (PRICING_ORDER[a.pricing] ?? 99) - (PRICING_ORDER[b.pricing] ?? 99) ||
-          b.votes - a.votes,
+          (PRICING_ORDER[a.pricing] ?? 99) - (PRICING_ORDER[b.pricing] ?? 99) || b.votes - a.votes,
       );
     case "newest":
     default:
@@ -70,8 +65,7 @@ export function ProductsTable() {
   const [query, setQuery] = React.useState("");
   const [categoryId, setCategoryId] = React.useState("all");
   const [sort, setSort] = React.useState<SortId>("newest");
-  const [deleteTarget, setDeleteTarget] =
-    React.useState<AdminProduct | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<AdminProduct | null>(null);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = sortApps(
@@ -81,8 +75,7 @@ export function ProductsTable() {
         a.name.toLowerCase().includes(normalizedQuery) ||
         a.tagline.toLowerCase().includes(normalizedQuery) ||
         a.maker.name.toLowerCase().includes(normalizedQuery);
-      const matchesCategory =
-        categoryId === "all" || a.categoryId === categoryId;
+      const matchesCategory = categoryId === "all" || a.categoryId === categoryId;
       return matchesQuery && matchesCategory;
     }),
     sort,
@@ -115,9 +108,7 @@ export function ProductsTable() {
             ...PRODUCT_CATEGORIES.map((c) => ({
               id: c.id,
               label: c.name,
-              icon: (
-                <c.icon weight="fill" className="w-4 h-4 shrink-0" />
-              ),
+              icon: <c.icon weight="fill" className="w-4 h-4 shrink-0" />,
             })),
           ]}
         />
@@ -152,11 +143,7 @@ export function ProductsTable() {
       ) : (
         <div className="flex flex-col">
           {filtered.map((app) => (
-            <AdminProductRow
-              key={app.id}
-              app={app}
-              onDelete={() => setDeleteTarget(app)}
-            />
+            <AdminProductRow key={app.id} app={app} onDelete={() => setDeleteTarget(app)} />
           ))}
         </div>
       )}
@@ -185,13 +172,7 @@ export function ProductsTable() {
   );
 }
 
-function AdminProductRow({
-  app,
-  onDelete,
-}: {
-  app: AdminProduct;
-  onDelete: () => void;
-}) {
+function AdminProductRow({ app, onDelete }: { app: AdminProduct; onDelete: () => void }) {
   const category = getCategoryById(app.categoryId);
   const rating = getRatingById(app.audienceId);
 
@@ -269,11 +250,7 @@ function AdminProductRow({
             href={`/makers/${app.maker.username}`}
             className="flex items-center gap-1.5 shrink-0 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
           >
-            <AvatarImage
-              src={app.maker.avatarUrl}
-              name={app.maker.name}
-              size={16}
-            />
+            <AvatarImage src={app.maker.avatarUrl} name={app.maker.name} size={16} />
             <span className="hidden sm:inline">{app.maker.name}</span>
             <span aria-hidden="true">·</span>
             <span className="whitespace-nowrap">{app.launchedAt}</span>
@@ -324,10 +301,5 @@ function AdminProductRow({
 }
 
 function Dot() {
-  return (
-    <span
-      className="w-0.75 h-0.75 rounded-full bg-border shrink-0"
-      aria-hidden="true"
-    />
-  );
+  return <span className="w-0.75 h-0.75 rounded-full bg-border shrink-0" aria-hidden="true" />;
 }

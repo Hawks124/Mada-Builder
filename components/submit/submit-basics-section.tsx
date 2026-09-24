@@ -28,15 +28,8 @@ const AUDIENCE_RATINGS = AGE_RATINGS.map((r) => ({
 }));
 
 export function SubmitBasicsSection() {
-  const {
-    productType,
-    setProductType,
-    audience,
-    setAudience,
-    lifecycle,
-    setLifecycle,
-    editApp,
-  } = useSubmitForm();
+  const { productType, setProductType, audience, setAudience, lifecycle, setLifecycle, editApp } =
+    useSubmitForm();
   const [desc, setDesc] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -48,9 +41,9 @@ export function SubmitBasicsSection() {
     const before = text.substring(0, start);
     const selected = text.substring(start, end);
     const after = text.substring(end);
-    
+
     setDesc(before + prefix + selected + suffix + after);
-    
+
     // Reset focus and cursor position after react state update
     setTimeout(() => {
       if (textareaRef.current) {
@@ -64,13 +57,14 @@ export function SubmitBasicsSection() {
     <div className="flex flex-col gap-10">
       <div className="flex flex-col gap-1">
         <h2 className="text-2xl font-black tracking-tight">Généralités</h2>
-        <p className="text-[14px] font-medium text-muted-foreground">Les informations essentielles que les utilisateurs verront en premier.</p>
+        <p className="text-[14px] font-medium text-muted-foreground">
+          Les informations essentielles que les utilisateurs verront en premier.
+        </p>
       </div>
 
       <div className="flex flex-col gap-10">
-        
         {/* App Name */}
-        <InputField 
+        <InputField
           label="Nom du produit"
           subtitle="Le nom officiel de votre produit."
           placeholder="ex: Bantay Budget"
@@ -79,7 +73,7 @@ export function SubmitBasicsSection() {
         />
 
         {/* Tagline */}
-        <InputField 
+        <InputField
           label="Tagline"
           subtitle="Une ligne accrocheuse — jusqu'à 80 caractères."
           placeholder="Envoyez de l'argent, payez vos factures et épargnez dans une seule application."
@@ -95,11 +89,7 @@ export function SubmitBasicsSection() {
               Type de produit
               <FieldBadge variant="required" />
             </label>
-            <Select 
-              value={productType}
-              onChange={setProductType}
-              options={PRODUCT_TYPE_OPTIONS}
-            />
+            <Select value={productType} onChange={setProductType} options={PRODUCT_TYPE_OPTIONS} />
           </div>
           <div className="flex flex-col gap-2 relative z-20">
             <label className="text-[14px] font-bold text-foreground flex items-center gap-2">
@@ -125,14 +115,10 @@ export function SubmitBasicsSection() {
               Audience & Âge
               <FieldBadge variant="required" />
             </label>
-            <Select 
-              value={audience}
-              onChange={setAudience}
-              options={AUDIENCE_RATINGS}
-            />
+            <Select value={audience} onChange={setAudience} options={AUDIENCE_RATINGS} />
             {audience === "kids" && (
               <div className="mt-2">
-                <InputField 
+                <InputField
                   label="Lien vers la politique de sécurité enfants"
                   subtitle="Store compliance: Les apps ciblant les enfants (-13) nécessitent une politique de confidentialité claire."
                   placeholder="URL Politique de sécurité enfants"
@@ -150,20 +136,54 @@ export function SubmitBasicsSection() {
               Description détaillée
               <FieldBadge variant="required" />
             </span>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest border border-border/40 bg-muted/5 rounded px-2 py-1">Markdown supporté</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest border border-border/40 bg-muted/5 rounded px-2 py-1">
+              Markdown supporté
+            </span>
           </label>
-          <span className="text-[12px] font-medium text-muted-foreground">Expliquez la valeur de votre produit. Structurez avec le Markdown.</span>
+          <span className="text-[12px] font-medium text-muted-foreground">
+            Expliquez la valeur de votre produit. Structurez avec le Markdown.
+          </span>
           <div className="w-full bg-background rounded-2xl border border-border/60 overflow-hidden focus-within:border-foreground/30 hover:border-foreground/20 transition-colors mt-0.5 flex flex-col group">
             <div className="flex items-center gap-2 px-3 py-2 bg-background border-b border-border/40">
-              <button onClick={() => insertMarkdown("**", "**")} type="button" className="p-1.5 rounded text-muted-foreground/60 hover:bg-muted hover:text-foreground font-serif text-[15px] italic font-bold transition-colors">B</button>
-              <button onClick={() => insertMarkdown("*", "*")} type="button" className="p-1.5 rounded text-muted-foreground/60 hover:bg-muted hover:text-foreground font-serif text-[15px] italic transition-colors">I</button>
+              <button
+                onClick={() => insertMarkdown("**", "**")}
+                type="button"
+                className="p-1.5 rounded text-muted-foreground/60 hover:bg-muted hover:text-foreground font-serif text-[15px] italic font-bold transition-colors"
+              >
+                B
+              </button>
+              <button
+                onClick={() => insertMarkdown("*", "*")}
+                type="button"
+                className="p-1.5 rounded text-muted-foreground/60 hover:bg-muted hover:text-foreground font-serif text-[15px] italic transition-colors"
+              >
+                I
+              </button>
               <div className="w-px h-4 bg-border/40 mx-2" />
-              <button onClick={() => insertMarkdown("[", "](url)")} type="button" className="p-1.5 rounded text-muted-foreground/60 hover:bg-muted hover:text-foreground transition-colors"><Link weight="bold" className="w-4 h-4" /></button>
-              <button onClick={() => insertMarkdown("- ")} type="button" className="p-1.5 rounded text-muted-foreground/60 hover:bg-muted hover:text-foreground transition-colors"><ListBullets weight="bold" className="w-4 h-4" /></button>
+              <button
+                onClick={() => insertMarkdown("[", "](url)")}
+                type="button"
+                className="p-1.5 rounded text-muted-foreground/60 hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <Link weight="bold" className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => insertMarkdown("- ")}
+                type="button"
+                className="p-1.5 rounded text-muted-foreground/60 hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <ListBullets weight="bold" className="w-4 h-4" />
+              </button>
               <div className="w-px h-4 bg-border/40 mx-2" />
-              <button onClick={() => insertMarkdown("`", "`")} type="button" className="p-1.5 rounded text-muted-foreground/60 hover:bg-muted hover:text-foreground transition-colors"><Code weight="bold" className="w-4 h-4" /></button>
+              <button
+                onClick={() => insertMarkdown("`", "`")}
+                type="button"
+                className="p-1.5 rounded text-muted-foreground/60 hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <Code weight="bold" className="w-4 h-4" />
+              </button>
             </div>
-            <textarea 
+            <textarea
               ref={textareaRef}
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
@@ -173,7 +193,6 @@ export function SubmitBasicsSection() {
             />
           </div>
         </div>
-
       </div>
     </div>
   );

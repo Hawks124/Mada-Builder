@@ -45,14 +45,14 @@ export function ThemeToggle() {
       onClick={handleToggle}
       className={cn(
         "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted/60 text-foreground transition-all duration-300 ease-out cursor-pointer hover:bg-muted/80 ring-1 ring-border/20",
-        isAnimating && "scale-90"
+        isAnimating && "scale-90",
       )}
       aria-label="Toggle theme"
     >
       <div
         className={cn(
           "absolute inset-0 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]",
-          isDark ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0"
+          isDark ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0",
         )}
       >
         <MoonIcon weight="bold" className="h-[18px] w-[18px] text-foreground" />
@@ -61,7 +61,7 @@ export function ThemeToggle() {
       <div
         className={cn(
           "absolute inset-0 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]",
-          !isDark ? "rotate-0 scale-100 opacity-100" : "rotate-90 scale-50 opacity-0"
+          !isDark ? "rotate-0 scale-100 opacity-100" : "rotate-90 scale-50 opacity-0",
         )}
       >
         <SunIcon weight="bold" className="h-[18px] w-[18px] text-foreground" />

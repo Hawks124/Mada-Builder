@@ -20,9 +20,7 @@ export const pageViews = pgTable(
       .$defaultFn(() => uuidv7()),
     // Chemin normalisé (sans query) — ex. "/", "/makers/kaliana".
     path: text("path").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     index("page_views_path_created_idx").on(t.path, t.createdAt),

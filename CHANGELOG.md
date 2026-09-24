@@ -5,11 +5,13 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 ## [Non versionné]
 
 ### Ajouté
+
 - Rien pour l'instant — les lots en cours alimentent cette section avant release.
 
 ## [0.1.0] — 2026-09-24 — Fondations, identité & modération
 
 ### Ajouté
+
 - Auth Supabase : Google, GitHub, email OTP custom (Resend, code 6 chiffres, 10 min, single-active, création paresseuse, anti-énumération).
 - Gate onboarding `/bienvenue` inbypassable (flag + données propres, placeholder GitHub-sans-email géré).
 - Profil maker : lecture publique, édition validée (Zod whitelist), avatar (sharp 512px WebP, magic-bytes), suppression RGPD réelle (auth → storage → ligne).
@@ -21,8 +23,10 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 - Observabilité : Sentry (erreurs, sans PII), scripts `verify-*`, rate-limit Upstash fail-open.
 
 ### Sécurité
+
 - RLS deny-all par défaut (`auth_otp`, `appeals`, `admin_actions`, `page_views`) ; `users` : lecture/écriture soi uniquement + garde banni ; clés de chiffrement jamais loggées.
 - Secrets jamais dans `app/`/`components/`, jamais dans les logs, jamais côté client.
 
 ### Non-inclus (V1 restant, par ordre)
+
 Listings produits · leaderboard + vote · catégories/recherche · revenus vérifiés (Stripe/RevenueCat) · monétisation · digest email.

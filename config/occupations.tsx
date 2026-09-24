@@ -103,7 +103,6 @@ export const OCCUPATIONS: Occupation[] = [
 /** Résout une occupation depuis son id, avec fallback sur le défaut. */
 export function getOccupationById(id: string): Occupation {
   return (
-    OCCUPATIONS.find((o) => o.id === id) ??
-    OCCUPATIONS.find((o) => o.id === DEFAULT_OCCUPATION_ID)!
+    OCCUPATIONS.find((o) => o.id === id) ?? OCCUPATIONS.find((o) => o.id === DEFAULT_OCCUPATION_ID)!
   );
 }

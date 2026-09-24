@@ -12,11 +12,7 @@ import { getOnboardingRedirect } from "@/app/actions/onboarding";
  * récente — même règle que proxy.ts, défense en profondeur).
  * Sinon / (pas de 403 qui confirme l'existence de l'admin).
  */
-export default async function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Double-check server : session + rôle staff dès que le backend est
   // configuré (même garde env-absente que le proxy).
   // Périmètre sensible : invité PROUVÉ → /signin, incident → / (fail-closed

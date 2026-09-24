@@ -11,10 +11,7 @@ export function UmamiTracker() {
 
   return (
     <Script
-      src={
-        process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL ??
-        "https://cloud.umami.is/script.js"
-      }
+      src={process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL ?? "https://cloud.umami.is/script.js"}
       data-website-id={websiteId}
       data-domains={process.env.NEXT_PUBLIC_UMAMI_DOMAINS}
       strategy="afterInteractive"

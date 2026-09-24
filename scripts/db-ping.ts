@@ -12,10 +12,7 @@ async function main() {
     SELECT table_name FROM information_schema.tables
     WHERE table_schema = 'public' ORDER BY 1
   `;
-  console.log(
-    "TABLES:",
-    tables.map((t) => t.table_name).join(", ") || "(aucune)",
-  );
+  console.log("TABLES:", tables.map((t) => t.table_name).join(", ") || "(aucune)");
   await sql.end();
 }
 

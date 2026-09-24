@@ -28,12 +28,7 @@ export class ApiError extends Error {
   readonly code: ApiErrorCode;
   readonly status: number;
   readonly data?: Record<string, unknown>;
-  constructor(
-    code: ApiErrorCode,
-    status: number,
-    message: string,
-    data?: Record<string, unknown>,
-  ) {
+  constructor(code: ApiErrorCode, status: number, message: string, data?: Record<string, unknown>) {
     super(message);
     this.code = code;
     this.status = status;
@@ -77,11 +72,7 @@ export function apiCatch(e: unknown, op: string): Response {
     return apiError(e.code, e.message, PROFILE_STATUS[e.code]);
   }
   captureError(e instanceof Error ? e : new Error(String(e)), { op });
-  return apiError(
-    "INTERNAL",
-    "Erreur interne. Réessayez dans un instant.",
-    500,
-  );
+  return apiError("INTERNAL", "Erreur interne. Réessayez dans un instant.", 500);
 }
 
 /**

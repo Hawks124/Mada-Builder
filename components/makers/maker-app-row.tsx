@@ -17,10 +17,7 @@ import { AgeBadge } from "@/components/ui/age-badge";
 import { TagPill } from "@/components/ui/tag-pill";
 import { LifecyclePill } from "@/components/ui/lifecycle-pill";
 import { VoteButton } from "@/components/votes/vote-button";
-import {
-  formatCompactAr,
-  type DashboardApp,
-} from "@/components/dashboard/dashboard-mock";
+import { formatCompactAr, type DashboardApp } from "@/components/dashboard/dashboard-mock";
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   web: <GlobeIcon weight="fill" className="w-3.5 h-3.5" />,
@@ -29,12 +26,7 @@ const PLATFORM_ICONS: Record<string, React.ReactNode> = {
 };
 
 function Dot() {
-  return (
-    <span
-      className="w-0.75 h-0.75 rounded-full bg-border shrink-0"
-      aria-hidden="true"
-    />
-  );
+  return <span className="w-0.75 h-0.75 rounded-full bg-border shrink-0" aria-hidden="true" />;
 }
 
 // Row publique maker — asymétrique aérée, info de découverte complète.
@@ -101,9 +93,7 @@ export function MakerAppRow({ app }: { app: DashboardApp }) {
           <Dot />
           <AgeBadge value={rating.badge} size="xs" />
           <Dot />
-          <span className="text-muted-foreground font-semibold">
-            {app.pricing}
-          </span>
+          <span className="text-muted-foreground font-semibold">{app.pricing}</span>
         </div>
 
         {/* Bottom split — tags left, context right */}
@@ -122,12 +112,7 @@ export function MakerAppRow({ app }: { app: DashboardApp }) {
 
       {/* Rail */}
       <div className="flex flex-col items-end justify-center gap-2.5 shrink-0">
-        <VoteButton
-          productId={app.id}
-          productName={app.name}
-          votes={app.votes}
-          variant="pill"
-        />
+        <VoteButton productId={app.id} productName={app.name} votes={app.votes} variant="pill" />
 
         {app.revenue &&
           (app.revenue.displayMode === "badge_only" ? (

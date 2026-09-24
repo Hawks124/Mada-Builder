@@ -2,20 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import {
-  CheckIcon,
-  XIcon,
-  ArrowLeftIcon,
-} from "@phosphor-icons/react";
+import { CheckIcon, XIcon, ArrowLeftIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 // Verdict — SEUL endroit où l'approbation existe (anti-clic accidentel).
 // Approve = un clic (réversible côté admin). Reject = motif obligatoire.
 // Backend : approveProduct / rejectProduct + email maker.
 export function ReviewVerdict({ productName }: { productName: string }) {
-  const [verdict, setVerdict] = React.useState<"approved" | "rejected" | null>(
-    null,
-  );
+  const [verdict, setVerdict] = React.useState<"approved" | "rejected" | null>(null);
   const [rejecting, setRejecting] = React.useState(false);
   const [rejectReason, setRejectReason] = React.useState("");
 

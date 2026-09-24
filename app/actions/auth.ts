@@ -18,11 +18,7 @@ import {
   verifyEmailCode,
 } from "@/services/otp.service";
 import { sendEmail } from "@/lib/email";
-import {
-  otpEmailHtml,
-  otpEmailSubject,
-  otpEmailText,
-} from "@/lib/email-templates/otp-email";
+import { otpEmailHtml, otpEmailSubject, otpEmailText } from "@/lib/email-templates/otp-email";
 import { withToast } from "@/lib/toast";
 import { exchangeHashForSession } from "@/lib/supabase/exchange";
 import { captureError } from "@/lib/monitoring";
@@ -91,13 +87,7 @@ export async function linkProvider(provider: LinkableProvider): Promise<void> {
     const cause = error ?? new Error("linkIdentity sans url");
     captureError(cause, { op: "auth.link", provider });
     logAuthErrorDev("link", cause);
-    redirect(
-      withToast(
-        "/settings",
-        "err",
-        linkErrorMessage(error?.message ?? ""),
-      ),
-    );
+    redirect(withToast("/settings", "err", linkErrorMessage(error?.message ?? "")));
   }
   redirect(data.url);
 }
@@ -157,9 +147,7 @@ export async function unlinkProvider(provider: LinkableProvider): Promise<void> 
   if (error) {
     captureError(error, { op: "auth.unlink", provider });
     logAuthErrorDev("unlink", error);
-    redirect(
-      withToast("/settings", "err", "Retrait impossible. Réessayez."),
-    );
+    redirect(withToast("/settings", "err", "Retrait impossible. Réessayez."));
   }
   // Miroir providers[] resynchronisé au prochain login ; revalidation immédiate.
   revalidatePath("/settings");

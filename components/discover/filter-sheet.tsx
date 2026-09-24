@@ -34,9 +34,7 @@ function FilterChip({
       onClick={onClick}
       className={cn(
         "relative border text-left px-3 py-2 rounded-full flex items-center gap-2 transition-all duration-200 cursor-pointer text-[13px] font-bold",
-        isSelected
-          ? selectedClass
-          : cn("border-border/40 bg-muted/20 text-foreground", hoverClass),
+        isSelected ? selectedClass : cn("border-border/40 bg-muted/20 text-foreground", hoverClass),
       )}
     >
       {IconComp && (
@@ -48,25 +46,14 @@ function FilterChip({
           )}
         />
       )}
-      <span
-        className={cn(
-          "whitespace-nowrap",
-          isSelected ? "text-background" : "text-foreground",
-        )}
-      >
+      <span className={cn("whitespace-nowrap", isSelected ? "text-background" : "text-foreground")}>
         {label}
       </span>
     </button>
   );
 }
 
-function FilterGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-3">
       <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
@@ -89,11 +76,7 @@ export function FilterSheet() {
   const [selectedAges, setSelectedAges] = useState<string[]>([]);
   const [selectedLifecycle, setSelectedLifecycle] = useState<string[]>([]);
 
-  const toggleMulti = (
-    set: string[],
-    setFn: (v: string[]) => void,
-    id: string,
-  ) => {
+  const toggleMulti = (set: string[], setFn: (v: string[]) => void, id: string) => {
     setFn(set.includes(id) ? set.filter((x) => x !== id) : [...set, id]);
   };
 
@@ -123,9 +106,7 @@ export function FilterSheet() {
     };
   }, [isOpen]);
 
-  const displayedCats = showAllCats
-    ? PRODUCT_CATEGORIES
-    : PRODUCT_CATEGORIES.slice(0, 9);
+  const displayedCats = showAllCats ? PRODUCT_CATEGORIES : PRODUCT_CATEGORIES.slice(0, 9);
 
   return (
     <>
@@ -160,17 +141,12 @@ export function FilterSheet() {
           <div className="relative w-full max-w-[500px] max-h-[85vh] bg-background border border-border shadow-2xl rounded-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Sticky Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 shrink-0">
-              <h2 className="text-[17px] font-extrabold tracking-tight">
-                Filtres de recherche
-              </h2>
+              <h2 className="text-[17px] font-extrabold tracking-tight">Filtres de recherche</h2>
               <button
                 onClick={() => setIsOpen(false)}
                 className="w-8 h-8 rounded-full bg-muted/60 flex items-center justify-center hover:bg-muted transition-colors"
               >
-                <XIcon
-                  weight="bold"
-                  className="w-4 h-4 text-muted-foreground"
-                />
+                <XIcon weight="bold" className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
 
@@ -189,9 +165,7 @@ export function FilterSheet() {
                     label={c.name}
                     icon={c.icon}
                     isSelected={selectedCat === c.id}
-                    onClick={() =>
-                      setSelectedCat(selectedCat === c.id ? null : c.id)
-                    }
+                    onClick={() => setSelectedCat(selectedCat === c.id ? null : c.id)}
                     hoverClass={c.hoverClass}
                     selectedClass={c.selectedClass}
                   />
@@ -201,15 +175,10 @@ export function FilterSheet() {
                   onClick={() => setShowAllCats(!showAllCats)}
                   className="flex items-center gap-1 px-3 py-2 rounded-full border border-dashed border-border/60 text-muted-foreground text-[12px] font-bold hover:bg-muted/50 hover:text-foreground transition-colors cursor-pointer"
                 >
-                  {showAllCats
-                    ? "Voir moins"
-                    : `+ ${PRODUCT_CATEGORIES.length - 9} de plus`}
+                  {showAllCats ? "Voir moins" : `+ ${PRODUCT_CATEGORIES.length - 9} de plus`}
                   <CaretDownIcon
                     weight="bold"
-                    className={cn(
-                      "w-3 h-3 transition-transform",
-                      showAllCats && "rotate-180",
-                    )}
+                    className={cn("w-3 h-3 transition-transform", showAllCats && "rotate-180")}
                   />
                 </button>
               </FilterGroup>
@@ -224,9 +193,7 @@ export function FilterSheet() {
                     label={p.label}
                     icon={p.icon}
                     isSelected={selectedPlatforms.includes(p.id)}
-                    onClick={() =>
-                      toggleMulti(selectedPlatforms, setSelectedPlatforms, p.id)
-                    }
+                    onClick={() => toggleMulti(selectedPlatforms, setSelectedPlatforms, p.id)}
                   />
                 ))}
               </FilterGroup>
@@ -241,9 +208,7 @@ export function FilterSheet() {
                     label={p.label}
                     icon={p.icon}
                     isSelected={selectedPricing.includes(p.id)}
-                    onClick={() =>
-                      toggleMulti(selectedPricing, setSelectedPricing, p.id)
-                    }
+                    onClick={() => toggleMulti(selectedPricing, setSelectedPricing, p.id)}
                   />
                 ))}
               </FilterGroup>
@@ -258,9 +223,7 @@ export function FilterSheet() {
                     label={t.label}
                     icon={t.icon}
                     isSelected={selectedTypes.includes(t.id)}
-                    onClick={() =>
-                      toggleMulti(selectedTypes, setSelectedTypes, t.id)
-                    }
+                    onClick={() => toggleMulti(selectedTypes, setSelectedTypes, t.id)}
                   />
                 ))}
               </FilterGroup>
@@ -274,9 +237,7 @@ export function FilterSheet() {
                     key={r.id}
                     label={`${r.badge} — ${r.label}`}
                     isSelected={selectedAges.includes(r.id)}
-                    onClick={() =>
-                      toggleMulti(selectedAges, setSelectedAges, r.id)
-                    }
+                    onClick={() => toggleMulti(selectedAges, setSelectedAges, r.id)}
                   />
                 ))}
               </FilterGroup>
@@ -291,9 +252,7 @@ export function FilterSheet() {
                     label={l.label}
                     icon={l.icon}
                     isSelected={selectedLifecycle.includes(l.id)}
-                    onClick={() =>
-                      toggleMulti(selectedLifecycle, setSelectedLifecycle, l.id)
-                    }
+                    onClick={() => toggleMulti(selectedLifecycle, setSelectedLifecycle, l.id)}
                     hoverClass={`hover:${l.pillClass.split(" ").join(" hover:")}`}
                     selectedClass={l.pillClass}
                     iconWeight="bold"

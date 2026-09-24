@@ -40,15 +40,9 @@ export async function requireApiUser(
 ): Promise<ApiUser> {
   const header = req.headers.get("authorization");
   const token =
-    header && /^bearer\s+/i.test(header)
-      ? header.replace(/^bearer\s+/i, "").trim()
-      : null;
+    header && /^bearer\s+/i.test(header) ? header.replace(/^bearer\s+/i, "").trim() : null;
   if (!token) {
-    throw new ApiError(
-      "UNAUTHORIZED",
-      401,
-      "Authentification requise.",
-    );
+    throw new ApiError("UNAUTHORIZED", 401, "Authentification requise.");
   }
 
   let authId: string;
@@ -71,11 +65,7 @@ export async function requireApiUser(
     ) {
       throw new ApiError("UNAUTHORIZED", 401, "Session invalide ou expirée.");
     }
-    throw new ApiError(
-      "INTERNAL",
-      503,
-      "Service d'authentification momentanément indisponible.",
-    );
+    throw new ApiError("INTERNAL", 503, "Service d'authentification momentanément indisponible.");
   }
 
   const [row] = await db

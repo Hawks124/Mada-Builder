@@ -16,13 +16,11 @@ export async function uploadAvatarObject(
   path: string,
   buffer: Buffer,
 ): Promise<{ error?: string }> {
-  const { error } = await supabase.storage
-    .from(AVATAR_BUCKET)
-    .upload(path, buffer, {
-      contentType: "image/webp",
-      cacheControl: "31536000",
-      upsert: false,
-    });
+  const { error } = await supabase.storage.from(AVATAR_BUCKET).upload(path, buffer, {
+    contentType: "image/webp",
+    cacheControl: "31536000",
+    upsert: false,
+  });
   return error ? { error: error.message } : {};
 }
 
@@ -50,10 +48,7 @@ export async function deleteAvatarObject(
   await supabase.storage.from(AVATAR_BUCKET).remove([path]);
 }
 
-export function avatarPublicUrl(
-  supabase: SupabaseClientLike,
-  path: string,
-): string {
+export function avatarPublicUrl(supabase: SupabaseClientLike, path: string): string {
   const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }

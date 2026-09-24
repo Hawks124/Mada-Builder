@@ -41,12 +41,7 @@ export function attemptsExhausted(attempts: number): boolean {
  * `reason` interne pour les logs (jamais de PII, §16).
  */
 export class OtpError extends Error {
-  readonly reason:
-    | "invalid"
-    | "expired"
-    | "exhausted"
-    | "throttled"
-    | "unavailable";
+  readonly reason: "invalid" | "expired" | "exhausted" | "throttled" | "unavailable";
   constructor(reason: OtpError["reason"]) {
     super("Code incorrect ou expiré.");
     this.reason = reason;
@@ -74,8 +69,7 @@ async function resolveLink(
     options: { redirectTo },
   });
   if (error) return null;
-  const { action_link: actionLink, hashed_token: tokenHash } =
-    data.properties ?? {};
+  const { action_link: actionLink, hashed_token: tokenHash } = data.properties ?? {};
   if (!actionLink || !tokenHash) return null;
   return { actionLink, tokenHash };
 }
@@ -131,10 +125,7 @@ async function generateLink(
  * users, actionLink null (le lien naît au verify après validation).
  * Throttle → OtpError "throttled" (l'action répondra OK silencieux).
  */
-export async function requestEmailCode(input: {
-  email: string;
-  redirectTo: string;
-}): Promise<{
+export async function requestEmailCode(input: { email: string; redirectTo: string }): Promise<{
   code: string;
   expiresAt: Date;
   actionLink: string | null;
@@ -230,10 +221,7 @@ export async function verifyEmailCode(input: {
       await db.delete(authOtp).where(eq(authOtp.id, row.id));
       throw new OtpError("exhausted");
     }
-    await db
-      .update(authOtp)
-      .set({ attempts })
-      .where(eq(authOtp.id, row.id));
+    await db.update(authOtp).set({ attempts }).where(eq(authOtp.id, row.id));
     throw new OtpError("invalid");
   }
 

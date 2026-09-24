@@ -1,8 +1,4 @@
-import {
-  HammerIcon,
-  FlaskIcon,
-  RocketLaunchIcon,
-} from "@phosphor-icons/react/dist/ssr";
+import { HammerIcon, FlaskIcon, RocketLaunchIcon } from "@phosphor-icons/react/dist/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
 /**
@@ -31,8 +27,7 @@ export const LIFECYCLE_STATUS: LifecycleStatus[] = [
     label: "En développement",
     description: "Encore en chantier, pas utilisable",
     icon: HammerIcon,
-    pillClass:
-      "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    pillClass: "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400",
     textClass: "text-amber-600 dark:text-amber-400",
   },
   {
@@ -40,8 +35,7 @@ export const LIFECYCLE_STATUS: LifecycleStatus[] = [
     label: "Bêta",
     description: "Testable, en phase de test",
     icon: FlaskIcon,
-    pillClass:
-      "border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    pillClass: "border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-400",
     textClass: "text-sky-600 dark:text-sky-400",
   },
   {
@@ -49,8 +43,7 @@ export const LIFECYCLE_STATUS: LifecycleStatus[] = [
     label: "Lancé",
     description: "En production, utilisable",
     icon: RocketLaunchIcon,
-    pillClass:
-      "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    pillClass: "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     textClass: "text-emerald-600 dark:text-emerald-400",
   },
 ];

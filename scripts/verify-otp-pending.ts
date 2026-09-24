@@ -18,9 +18,7 @@ globalThis.sessionStorage = mockStorage();
 globalThis.localStorage = mockStorage();
 
 async function main() {
-  const { readOtpPending, writeOtpPending, clearOtpPending } = await import(
-    "../lib/otp-pending"
-  );
+  const { readOtpPending, writeOtpPending, clearOtpPending } = await import("../lib/otp-pending");
   let pass = 0;
   const ok = (name: string, cond: boolean) => {
     console.log(`${cond ? "PASS" : "FAIL"} — ${name}`);
@@ -66,10 +64,7 @@ async function main() {
     JSON.stringify({ email: "", at: Date.now() }),
   );
   ok("email vide → null", readOtpPending() === null);
-  g.sessionStorage.setItem(
-    "builder-otp-pending-session",
-    JSON.stringify({ email: "a@b.c" }),
-  );
+  g.sessionStorage.setItem("builder-otp-pending-session", JSON.stringify({ email: "a@b.c" }));
   ok("sans at → null", readOtpPending() === null);
 
   console.log(`\n${pass} checks OK`);

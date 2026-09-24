@@ -16,10 +16,7 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const hash = searchParams.get("h") ?? "";
   const rawNext = searchParams.get("next") ?? "/dashboard";
-  const next =
-    rawNext.startsWith("/") && !rawNext.startsWith("//")
-      ? rawNext
-      : "/dashboard";
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/dashboard";
 
   const failUrl = (reason: string) => {
     const url = new URL("/signin", origin);
@@ -28,10 +25,7 @@ export async function GET(request: Request) {
     return url;
   };
   const okUrl = () => {
-    return new URL(
-      withToast(next, "ok", "Connexion réussie. Bienvenue !"),
-      origin,
-    );
+    return new URL(withToast(next, "ok", "Connexion réussie. Bienvenue !"), origin);
   };
 
   if (hash.trim() === "") {

@@ -13,7 +13,10 @@ function isEnabled(): boolean {
   return process.env.NODE_ENV === "production";
 }
 
-export function captureError(error: unknown, context?: Record<string, unknown>): string | undefined {
+export function captureError(
+  error: unknown,
+  context?: Record<string, unknown>,
+): string | undefined {
   if (!isEnabled()) return undefined;
   return Sentry.captureException(error, context ? { extra: context } : undefined);
 }

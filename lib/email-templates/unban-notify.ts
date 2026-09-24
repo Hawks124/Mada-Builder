@@ -4,11 +4,7 @@
  * typographie soignée, pas de carte ni de fond.
  */
 
-import {
-  BRAND_CSS_BASE,
-  BRAND_CSS_DARK,
-  emailBrandHtml,
-} from "@/lib/email-templates/brand";
+import { BRAND_CSS_BASE, BRAND_CSS_DARK, emailBrandHtml } from "@/lib/email-templates/brand";
 import { emailModerationFooterHtml, emailModerationFooterText } from "@/lib/email-templates/footer";
 
 function escapeHtml(value: string): string {

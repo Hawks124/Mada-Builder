@@ -142,7 +142,7 @@ export default function DashboardShell({
       <aside
         className={cn(
           "hidden lg:flex shrink-0 flex-col border-r border-border/40 sticky top-0 h-screen py-6 transition-all duration-300",
-          collapsed ? "w-[76px] px-3" : "w-64 px-4",
+          collapsed ? "w-19 px-3" : "w-64 px-4",
         )}
       >
         <SidebarBody
@@ -192,11 +192,7 @@ export default function DashboardShell({
             title={sidebarUser?.name ?? "Kaliana R."}
           >
             {sidebarUser?.avatarUrl ? (
-              <AvatarImage
-                src={sidebarUser.avatarUrl}
-                name={sidebarUser.name}
-                size={32}
-              />
+              <AvatarImage src={sidebarUser.avatarUrl} name={sidebarUser.name} size={32} />
             ) : (
               (sidebarUser?.initials ?? "KR")
             )}
@@ -205,10 +201,7 @@ export default function DashboardShell({
 
         <div className="flex-1 min-w-0">{children}</div>
       </div>
-      <SignOutConfirm
-        open={signoutOpen}
-        onCancel={() => setSignoutOpen(false)}
-      />
+      <SignOutConfirm open={signoutOpen} onCancel={() => setSignoutOpen(false)} />
     </div>
   );
 }
@@ -232,22 +225,21 @@ function SidebarBody({
 }) {
   const router = useRouter();
   // Sortie gardée : lien ou déconnexion en attente de confirmation.
-  const [confirmNav, setConfirmNav] = React.useState<
-    { href: string } | { signout: true } | null
-  >(null);
+  const [confirmNav, setConfirmNav] = React.useState<{ href: string } | { signout: true } | null>(
+    null,
+  );
 
   // Intercepte les sorties quand un formulaire est sale (le beforeunload
   // natif ne couvre QUE refresh/fermeture — pas la navigation SPA).
   // Lien vers la page courante = jamais bloqué (pas de perte possible).
-  const guarded =
-    (href: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
-      if (href === pathname || !hasUnsavedChanges()) {
-        onNavigate?.();
-        return;
-      }
-      e.preventDefault();
-      setConfirmNav({ href });
-    };
+  const guarded = (href: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (href === pathname || !hasUnsavedChanges()) {
+      onNavigate?.();
+      return;
+    }
+    e.preventDefault();
+    setConfirmNav({ href });
+  };
 
   const confirmLeave = () => {
     const target = confirmNav;
@@ -286,18 +278,14 @@ function SidebarBody({
         >
           <LogoMark className="h-8 w-8 shrink-0 shadow-sm transform transition-all duration-300 group-hover:scale-110 group-hover:-rotate-6" />
           {!collapsed && (
-            <span className="font-bold text-lg tracking-tight whitespace-nowrap">
-              Mada-Made
-            </span>
+            <span className="font-bold text-lg tracking-tight whitespace-nowrap">Mada-Made</span>
           )}
         </Link>
         {onToggle && (
           <button
             type="button"
             onClick={onToggle}
-            aria-label={
-              collapsed ? "Agrandir la sidebar" : "Réduire la sidebar"
-            }
+            aria-label={collapsed ? "Agrandir la sidebar" : "Réduire la sidebar"}
             aria-pressed={collapsed}
             className="flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors cursor-pointer shrink-0"
           >
@@ -331,9 +319,7 @@ function SidebarBody({
         )}
       >
         <PlusIcon weight="bold" className="h-4 w-4 shrink-0" />
-        {!collapsed && (
-          <span className="whitespace-nowrap">Nouveau produit</span>
-        )}
+        {!collapsed && <span className="whitespace-nowrap">Nouveau produit</span>}
       </Link>
 
       {/* Nav */}
@@ -350,29 +336,20 @@ function SidebarBody({
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "flex items-center rounded-xl transition-colors",
-                collapsed
-                  ? "justify-center px-0 py-3"
-                  : "gap-3 px-4 py-3 text-[15px]",
+                collapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3 text-[15px]",
                 isActive
                   ? "bg-muted/70 text-foreground font-bold"
                   : "text-muted-foreground font-medium hover:bg-muted/50 hover:text-foreground",
               )}
             >
-              <Icon
-                weight={isActive ? "fill" : "bold"}
-                className="h-5 w-5 shrink-0"
-              />
-              {!collapsed && (
-                <span className="whitespace-nowrap">{item.label}</span>
-              )}
+              <Icon weight={isActive ? "fill" : "bold"} className="h-5 w-5 shrink-0" />
+              {!collapsed && <span className="whitespace-nowrap">{item.label}</span>}
             </Link>
           );
         })}
 
         {/* Sign out — last, red-tinted, confirmé via dialog partagé */}
-        <div
-          className={cn(!collapsed && "mt-1 pt-1 border-t border-border/40")}
-        >
+        <div className={cn(!collapsed && "mt-1 pt-1 border-t border-border/40")}>
           <button
             type="button"
             onClick={() => {
@@ -387,16 +364,12 @@ function SidebarBody({
             aria-label="Se déconnecter"
             className={cn(
               "w-full flex items-center rounded-xl transition-colors cursor-pointer",
-              collapsed
-                ? "justify-center px-0 py-3"
-                : "gap-3 px-4 py-3 text-[15px]",
+              collapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3 text-[15px]",
               "text-muted-foreground font-medium hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400",
             )}
           >
             <SignOutIcon weight="bold" className="h-5 w-5 shrink-0" />
-            {!collapsed && (
-              <span className="whitespace-nowrap">Se déconnecter</span>
-            )}
+            {!collapsed && <span className="whitespace-nowrap">Se déconnecter</span>}
           </button>
         </div>
       </nav>
@@ -413,11 +386,7 @@ function SidebarBody({
           title={sidebarUser?.name ?? "Kaliana R."}
         >
           {sidebarUser?.avatarUrl ? (
-            <AvatarImage
-              src={sidebarUser.avatarUrl}
-              name={sidebarUser.name}
-              size={36}
-            />
+            <AvatarImage src={sidebarUser.avatarUrl} name={sidebarUser.name} size={36} />
           ) : (
             (sidebarUser?.initials ?? "KR")
           )}

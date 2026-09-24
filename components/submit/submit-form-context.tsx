@@ -1,10 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  MOCK_APPS,
-  type DashboardApp,
-} from "@/components/dashboard/dashboard-mock";
+import { MOCK_APPS, type DashboardApp } from "@/components/dashboard/dashboard-mock";
 import { DEFAULT_LIFECYCLE_ID } from "@/config/lifecycle";
 
 interface SubmitFormState {
@@ -22,8 +19,7 @@ interface SubmitFormContextValue extends SubmitFormState {
   setLifecycle: (value: string) => void;
 }
 
-const SubmitFormContext =
-  React.createContext<SubmitFormContextValue | null>(null);
+const SubmitFormContext = React.createContext<SubmitFormContextValue | null>(null);
 
 /** Lookup mock — remplacé par getProductById au backend. */
 function findEditApp(editId: string | null): DashboardApp | null {
@@ -42,12 +38,8 @@ export function SubmitFormProvider({
 
   // Defaults mirror the section-local defaults, sauf en édition où
   // les valeurs existantes pré-remplissent le formulaire.
-  const [productType, setProductType] = React.useState(
-    editApp?.productTypeId ?? "app_web",
-  );
-  const [audience, setAudience] = React.useState(
-    editApp?.audienceId ?? "all",
-  );
+  const [productType, setProductType] = React.useState(editApp?.productTypeId ?? "app_web");
+  const [audience, setAudience] = React.useState(editApp?.audienceId ?? "all");
   const [lifecycle, setLifecycle] = React.useState<string>(
     editApp?.lifecycle ?? DEFAULT_LIFECYCLE_ID,
   );
@@ -66,11 +58,7 @@ export function SubmitFormProvider({
     [productType, audience, lifecycle, editApp],
   );
 
-  return (
-    <SubmitFormContext.Provider value={value}>
-      {children}
-    </SubmitFormContext.Provider>
-  );
+  return <SubmitFormContext.Provider value={value}>{children}</SubmitFormContext.Provider>;
 }
 
 export function useSubmitForm(): SubmitFormContextValue {

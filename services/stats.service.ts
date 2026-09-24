@@ -33,10 +33,7 @@ export async function logPageView(rawPath: string): Promise<void> {
   }
 }
 
-async function countSince(
-  days: number,
-  onlyPath?: string,
-): Promise<number> {
+async function countSince(days: number, onlyPath?: string): Promise<number> {
   const conditions = [gte(pageViews.createdAt, daysAgo(days))];
   if (onlyPath) conditions.push(eq(pageViews.path, onlyPath));
   const [{ value }] = await db
@@ -66,7 +63,8 @@ export async function getUsersTotal(): Promise<number> {
 }
 
 /** Makers bannis (non supprimés) — stat modération. */
-export async function getBannedCount(): Promise<number> {  const [{ value }] = await db
+export async function getBannedCount(): Promise<number> {
+  const [{ value }] = await db
     .select({ value: count() })
     .from(users)
     .where(and(isNull(users.deletedAt), isNotNull(users.bannedAt)));

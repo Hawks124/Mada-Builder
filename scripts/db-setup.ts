@@ -77,7 +77,9 @@ async function main() {
       await sql.unsafe(stmt);
       applied++;
     }
-    console.log(`OK: db/setup.sql appliqué (${applied}/${statements.length}, trigger, RLS, buckets).`);
+    console.log(
+      `OK: db/setup.sql appliqué (${applied}/${statements.length}, trigger, RLS, buckets).`,
+    );
   } finally {
     await sql.end();
   }

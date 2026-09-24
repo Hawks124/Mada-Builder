@@ -32,10 +32,6 @@ export async function apiLimit(
     return;
   }
   if (!allowed) {
-    throw new ApiError(
-      "RATE_LIMITED",
-      429,
-      "Trop de requêtes. Réessayez dans une minute.",
-    );
+    throw new ApiError("RATE_LIMITED", 429, "Trop de requêtes. Réessayez dans une minute.");
   }
 }

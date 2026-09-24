@@ -20,7 +20,9 @@ export function ProductReviewForm() {
 
       {/* Star Rating Picker */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Note globale</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          Note globale
+        </span>
         <div className="flex items-center gap-2">
           {[1, 2, 3, 4, 5].map((star) => (
             <button
@@ -34,7 +36,7 @@ export function ProductReviewForm() {
                 weight="fill"
                 className={cn(
                   "w-7 h-7 transition-colors",
-                  star <= (hovered || rating) ? "text-amber-500" : "text-border"
+                  star <= (hovered || rating) ? "text-amber-500" : "text-border",
                 )}
               />
             </button>
@@ -49,7 +51,9 @@ export function ProductReviewForm() {
 
       {/* Text Area */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Votre commentaire</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          Votre commentaire
+        </span>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -60,13 +64,15 @@ export function ProductReviewForm() {
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-[11px] text-muted-foreground">Votre avis sera visible publiquement sur la fiche produit.</p>
+        <p className="text-[11px] text-muted-foreground">
+          Votre avis sera visible publiquement sur la fiche produit.
+        </p>
         <button
           disabled={!rating || !text.trim()}
           className="flex items-center gap-2 px-5 py-2.5 bg-foreground text-background rounded-full text-[13px] font-bold hover:opacity-90 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
         >
           <PaperPlaneRightIcon weight="fill" className="w-4 h-4" />
-          Publier l'avis
+          Publier l&apos;avis
         </button>
       </div>
     </div>

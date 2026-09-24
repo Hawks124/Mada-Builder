@@ -73,8 +73,7 @@ export default function ReglesPage() {
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <p className="text-[14px] font-medium text-muted-foreground flex-1">
-            Une question, un litige, un signalement ? La communauté vit aussi
-            hors ligne.
+            Une question, un litige, un signalement ? La communauté vit aussi hors ligne.
           </p>
           <Link
             href={FACEBOOK_GROUP_URL}

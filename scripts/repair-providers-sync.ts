@@ -20,15 +20,12 @@ async function main() {
       console.log(`SKIP ${row.id}: auth introuvable (${error?.message ?? "?"})`);
       continue;
     }
-    const live = [...new Set(
-      (data.user.identities ?? [])
-        .map((i) => i.provider)
-        .filter((p) => KNOWN.has(p)),
-    )];
+    const live = [
+      ...new Set((data.user.identities ?? []).map((i) => i.provider).filter((p) => KNOWN.has(p))),
+    ];
     const merged = [...new Set([...row.providers, ...live])];
     const changed =
-      merged.length !== row.providers.length ||
-      merged.some((p) => !row.providers.includes(p));
+      merged.length !== row.providers.length || merged.some((p) => !row.providers.includes(p));
     if (!changed) continue;
     console.log(`REPAIR ${row.id}: [${row.providers.join(",")}] → [${merged.join(",")}]`);
     await db

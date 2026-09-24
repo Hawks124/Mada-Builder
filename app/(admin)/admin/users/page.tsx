@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/dashboard/page-header";
-import {
-  UsersTable,
-} from "@/components/admin/users-table";
+import { UsersTable } from "@/components/admin/users-table";
 import type { AdminUserRow } from "@/components/admin/user-row";
 import { MOCK_ADMIN_USERS } from "@/components/admin/admin-mock";
 import { requireStaffId } from "@/app/actions/admin";
@@ -12,10 +10,7 @@ import {
   getAdminUsers,
   type AdminUserStatus,
 } from "@/services/users.service";
-import {
-  getPendingAppeals,
-  getPendingAppealsCount,
-} from "@/services/appeals.service";
+import { getPendingAppeals, getPendingAppealsCount } from "@/services/appeals.service";
 import type { AppealRow } from "@/components/admin/appeals-panel";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBannedCount, getUsersTotal } from "@/services/stats.service";
@@ -44,9 +39,7 @@ const MOCK_ROWS: AdminUserRow[] = MOCK_ADMIN_USERS.map((u) => ({
   joinedAt: null,
 }));
 
-function toRows(
-  items: Awaited<ReturnType<typeof getAdminUsers>>["items"],
-): AdminUserRow[] {
+function toRows(items: Awaited<ReturnType<typeof getAdminUsers>>["items"]): AdminUserRow[] {
   return items.map((u) => ({
     id: u.id,
     username: u.username,
@@ -55,10 +48,10 @@ function toRows(
     email: u.email,
     providers: u.providers,
     role: u.role,
-        status: u.bannedAt ? "banned" : ("active" as const),
-        banReason: u.banReason,
-        bannedAt: u.bannedAt ? u.bannedAt.toISOString() : null,
-        appeals: u.appealsCount,
+    status: u.bannedAt ? "banned" : ("active" as const),
+    banReason: u.banReason,
+    bannedAt: u.bannedAt ? u.bannedAt.toISOString() : null,
+    appeals: u.appealsCount,
     joinedAt: u.createdAt.toISOString(),
   }));
 }

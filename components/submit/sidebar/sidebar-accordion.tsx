@@ -19,24 +19,26 @@ function AccordionItem({ question, answer, isOpen, onToggle }: AccordionItemProp
         onClick={onToggle}
         className="w-full flex items-center justify-between gap-3 py-4 text-left group cursor-pointer"
       >
-        <span className={cn(
-          "text-[13px] font-bold leading-snug transition-colors",
-          isOpen ? "text-foreground" : "text-foreground/70 group-hover:text-foreground"
-        )}>
+        <span
+          className={cn(
+            "text-[13px] font-bold leading-snug transition-colors",
+            isOpen ? "text-foreground" : "text-foreground/70 group-hover:text-foreground",
+          )}
+        >
           {question}
         </span>
         <CaretDownIcon
           weight="bold"
           className={cn(
             "w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200",
-            isOpen && "rotate-180"
+            isOpen && "rotate-180",
           )}
         />
       </button>
-      <div 
+      <div
         className={cn(
           "grid transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)]",
-          isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+          isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
         )}
       >
         <div className="overflow-hidden">

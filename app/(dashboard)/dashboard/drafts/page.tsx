@@ -41,8 +41,8 @@ export default function DashboardDraftsPage() {
             Aucun brouillon pour le moment
           </p>
           <p className="text-[13px] font-medium text-muted-foreground leading-relaxed">
-            Quand la soumission sera finalisée, vos fiches non publiées
-            s&apos;enregistreront ici automatiquement.
+            Quand la soumission sera finalisée, vos fiches non publiées s&apos;enregistreront ici
+            automatiquement.
           </p>
         </div>
         <Link

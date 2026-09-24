@@ -3,19 +3,11 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  KeyIcon,
-  TrashIcon,
-  ArrowClockwiseIcon,
-  PlugsConnectedIcon,
-} from "@phosphor-icons/react";
+import { KeyIcon, TrashIcon, ArrowClockwiseIcon, PlugsConnectedIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SupportedProviders } from "@/components/dashboard/supported-providers";
-import {
-  MOCK_APPS,
-  formatCompactAr,
-} from "@/components/dashboard/dashboard-mock";
+import { MOCK_APPS, formatCompactAr } from "@/components/dashboard/dashboard-mock";
 
 export type RevenueProvider = "stripe" | "revenuecat";
 
@@ -91,10 +83,8 @@ function getProductVisual(productId: string): {
 // ré-affichés). Delete via le shared dialog, mock local en attendant la
 // server action.
 export function ApiConnections() {
-  const [connections, setConnections] =
-    React.useState<ApiConnection[]>(MOCK_CONNECTIONS);
-  const [deleteTarget, setDeleteTarget] =
-    React.useState<ApiConnection | null>(null);
+  const [connections, setConnections] = React.useState<ApiConnection[]>(MOCK_CONNECTIONS);
+  const [deleteTarget, setDeleteTarget] = React.useState<ApiConnection | null>(null);
 
   const confirmDelete = () => {
     if (!deleteTarget) return;
@@ -107,18 +97,15 @@ export function ApiConnections() {
       {connections.length === 0 ? (
         <div className="flex flex-col items-center gap-4 rounded-4xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
           <div className="h-14 w-14 rounded-3xl bg-muted/60 flex items-center justify-center">
-            <KeyIcon
-              weight="duotone"
-              className="h-7 w-7 text-muted-foreground"
-            />
+            <KeyIcon weight="duotone" className="h-7 w-7 text-muted-foreground" />
           </div>
           <div className="flex flex-col gap-2 max-w-md">
             <h2 className="text-xl font-extrabold tracking-tight text-foreground">
               Aucune clé connectée
             </h2>
             <p className="text-[14px] font-medium text-muted-foreground leading-relaxed">
-              Connectez une clé en lecture seule depuis la fiche de votre
-              produit pour afficher vos revenus vérifiés.
+              Connectez une clé en lecture seule depuis la fiche de votre produit pour afficher vos
+              revenus vérifiés.
             </p>
           </div>
         </div>
@@ -159,10 +146,7 @@ export function ApiConnections() {
                         : "border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-400",
                     )}
                   >
-                    <span
-                      className="h-1 w-1 rounded-full bg-current"
-                      aria-hidden="true"
-                    />
+                    <span className="h-1 w-1 rounded-full bg-current" aria-hidden="true" />
                     {conn.status === "active" ? "Active" : "En échec"}
                   </span>
                 </div>
@@ -183,11 +167,7 @@ export function ApiConnections() {
                       alt={meta.label}
                       width={48}
                       height={48}
-                      className={cn(
-                        "object-contain shrink-0",
-                        meta.inlineClass,
-                        meta.darkClass,
-                      )}
+                      className={cn("object-contain shrink-0", meta.inlineClass, meta.darkClass)}
                     />
                     <span className="truncate">
                       {meta.label} · synchronisé {conn.lastSyncedText}
@@ -207,11 +187,11 @@ export function ApiConnections() {
 
                 {/* Actions */}
                 <div className="col-start-3 sm:col-start-4 row-start-1 row-span-2 hidden sm:flex items-center gap-1">
-              {conn.status === "failing" && (
-                <Link
-                  href={`/products/submit?edit=${conn.productId}`}
-                  className="flex items-center gap-1.5 rounded-full border border-border/60 px-4 py-2 text-[13px] font-bold text-foreground hover:border-foreground/30 hover:bg-muted/50 transition-colors whitespace-nowrap"
-                >
+                  {conn.status === "failing" && (
+                    <Link
+                      href={`/products/submit?edit=${conn.productId}`}
+                      className="flex items-center gap-1.5 rounded-full border border-border/60 px-4 py-2 text-[13px] font-bold text-foreground hover:border-foreground/30 hover:bg-muted/50 transition-colors whitespace-nowrap"
+                    >
                       <PlugsConnectedIcon weight="bold" className="w-4 h-4" />
                       Reconnecter
                     </Link>
@@ -230,11 +210,11 @@ export function ApiConnections() {
 
                 {/* Actions — mobile */}
                 <div className="col-span-3 flex sm:hidden items-center gap-2 pt-1">
-              {conn.status === "failing" && (
-                <Link
-                  href={`/products/submit?edit=${conn.productId}`}
-                  className="flex items-center gap-1.5 rounded-full border border-border/60 px-4 py-2 text-[13px] font-bold text-foreground transition-colors"
-                >
+                  {conn.status === "failing" && (
+                    <Link
+                      href={`/products/submit?edit=${conn.productId}`}
+                      className="flex items-center gap-1.5 rounded-full border border-border/60 px-4 py-2 text-[13px] font-bold text-foreground transition-colors"
+                    >
                       <PlugsConnectedIcon weight="bold" className="w-4 h-4" />
                       Reconnecter
                     </Link>

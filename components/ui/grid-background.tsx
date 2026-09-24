@@ -10,19 +10,14 @@ interface GridBackgroundProps {
   showBottomFade?: boolean;
 }
 
-export function GridBackground({ 
-  className, 
+export function GridBackground({
+  className,
   variant = "svg",
   showGlows = true,
-  showBottomFade = true
+  showBottomFade = true,
 }: GridBackgroundProps) {
   return (
-    <div
-      className={cn(
-        "absolute inset-0 -z-10 pointer-events-none overflow-hidden",
-        className,
-      )}
-    >
+    <div className={cn("absolute inset-0 -z-10 pointer-events-none overflow-hidden", className)}>
       {/* Soul: Madagascar Flag Homage Glow */}
       {showGlows && (
         <>

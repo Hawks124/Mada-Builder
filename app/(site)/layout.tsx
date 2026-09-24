@@ -6,11 +6,7 @@ import { getOnboardingRedirect, isViewerDegraded } from "@/app/actions/onboardin
 // Public shell — global navbar + content wrapper.
 // Authenticated areas live under (dashboard) without this navbar.
 // Gate /bienvenue (profils incomplets) — inbypassable par navigation.
-export default async function SiteLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   let degraded = false;
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     const dest = await getOnboardingRedirect().catch(() => null);

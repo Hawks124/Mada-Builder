@@ -20,12 +20,9 @@ const TONE_CLASS: Record<DeltaTone, string> = {
 };
 
 function DeltaIcon({ tone }: { tone: DeltaTone }) {
-  if (tone === "up")
-    return <CaretUpIcon weight="fill" className="h-3 w-3" aria-hidden="true" />;
+  if (tone === "up") return <CaretUpIcon weight="fill" className="h-3 w-3" aria-hidden="true" />;
   if (tone === "down")
-    return (
-      <CaretDownIcon weight="fill" className="h-3 w-3" aria-hidden="true" />
-    );
+    return <CaretDownIcon weight="fill" className="h-3 w-3" aria-hidden="true" />;
   return null;
 }
 
@@ -124,10 +121,7 @@ export function OverviewStats({
           {
             label: "En attente",
             value: `${totals.pendingCount}`,
-            delta:
-              totals.pendingCount > 0
-                ? "revue sous 24 h"
-                : "rien en file de revue",
+            delta: totals.pendingCount > 0 ? "revue sous 24 h" : "rien en file de revue",
             tone: "neutral",
           },
           {
@@ -142,9 +136,7 @@ export function OverviewStats({
     <div
       className={cn(
         "grid gap-x-6 gap-y-10",
-        mode === "public"
-          ? "grid-cols-2 md:grid-cols-3"
-          : "grid-cols-2 lg:grid-cols-4",
+        mode === "public" ? "grid-cols-2 md:grid-cols-3" : "grid-cols-2 lg:grid-cols-4",
       )}
     >
       {stats.map((stat) => (
@@ -161,19 +153,12 @@ export function OverviewStats({
             <span className="flex items-center gap-1.5 text-[28px] md:text-3xl font-black tracking-tighter text-foreground tabular-nums leading-none">
               {stat.value}
               {stat.star && (
-                <StarIcon
-                  weight="fill"
-                  className="w-5 h-5 text-yellow-500"
-                  aria-hidden="true"
-                />
+                <StarIcon weight="fill" className="w-5 h-5 text-yellow-500" aria-hidden="true" />
               )}
             </span>
           )}
           <span
-            className={cn(
-              "flex items-center gap-1 text-[12px] font-bold",
-              TONE_CLASS[stat.tone],
-            )}
+            className={cn("flex items-center gap-1 text-[12px] font-bold", TONE_CLASS[stat.tone])}
           >
             <DeltaIcon tone={stat.tone} />
             {stat.delta}

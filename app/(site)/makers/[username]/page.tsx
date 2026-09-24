@@ -118,11 +118,7 @@ async function loadProfile(
   }
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<Params>;
-}): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { username } = await params;
   const { profile, demo } = await loadProfile(username);
   if (!profile || demo) return { robots: { index: false, follow: false } };
@@ -132,11 +128,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function MakerPage({
-  params,
-}: {
-  params: Promise<Params>;
-}) {
+export default async function MakerPage({ params }: { params: Promise<Params> }) {
   const { username } = await params;
   const { profile } = await loadProfile(username);
   if (!profile) notFound();
@@ -144,17 +136,14 @@ export default async function MakerPage({
   // Compteur vitrine anonyme (même pattern que la home).
   after(() => logPageView(`/makers/${profile.username}`));
 
-  const occupation =
-    getOccupationById(profile.occupation) ?? getOccupationById("maker")!;
+  const occupation = getOccupationById(profile.occupation) ?? getOccupationById("maker")!;
   const location = [profile.city, profile.country].filter(Boolean).join(", ");
   const links = SOCIAL_DEFS.flatMap((def) => {
     const href =
       def.id === "website"
         ? (profile.websiteUrl ?? profile.socialLinks.website)
         : profile.socialLinks[def.id];
-    return typeof href === "string" && href !== ""
-      ? [{ ...def, href }]
-      : [];
+    return typeof href === "string" && href !== "" ? [{ ...def, href }] : [];
   });
   const initials = profile.displayName
     .split(/[\s_.-]+/)
@@ -170,11 +159,7 @@ export default async function MakerPage({
         <div className="flex flex-col gap-5">
           <div className="flex items-center gap-5 md:gap-6">
             {profile.avatarUrl ? (
-              <AvatarImage
-                src={profile.avatarUrl}
-                name={profile.displayName}
-                size={96}
-              />
+              <AvatarImage src={profile.avatarUrl} name={profile.displayName} size={96} />
             ) : (
               <span
                 aria-hidden="true"
@@ -194,11 +179,7 @@ export default async function MakerPage({
                   </span>
                 )}
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-[11px] font-bold text-muted-foreground shrink-0">
-                  <occupation.icon
-                    weight="fill"
-                    className="w-3.5 h-3.5"
-                    aria-hidden="true"
-                  />
+                  <occupation.icon weight="fill" className="w-3.5 h-3.5" aria-hidden="true" />
                   {occupation.label}
                 </span>
               </div>
@@ -209,11 +190,7 @@ export default async function MakerPage({
               )}
               {location !== "" && (
                 <p className="flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
-                  <MapPinIcon
-                    weight="fill"
-                    className="w-4 h-4"
-                    aria-hidden="true"
-                  />
+                  <MapPinIcon weight="fill" className="w-4 h-4" aria-hidden="true" />
                   {location}
                 </p>
               )}
@@ -233,10 +210,7 @@ export default async function MakerPage({
                   aria-label={`${social.label} de ${profile.displayName} (nouvel onglet)`}
                   className="flex items-center justify-center h-10 w-10 rounded-full border border-border/40 text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-muted/50 transition-colors"
                 >
-                  <social.icon
-                    weight="fill"
-                    className="w-[18px] h-[18px]"
-                  />
+                  <social.icon weight="fill" className="w-[18px] h-[18px]" />
                 </Link>
               ))}
             </div>
@@ -244,23 +218,15 @@ export default async function MakerPage({
         </div>
 
         {/* Stats publiques (§6D strict) — zéros sans produits, jamais de mock */}
-        <OverviewStats
-          totals={ZERO_TOTALS}
-          mode="public"
-          revenueDisplay="full"
-        />
+        <OverviewStats totals={ZERO_TOTALS} mode="public" revenueDisplay="full" />
 
         <div className="w-full h-px bg-border/40" />
 
         {/* Produits publiés — rows leaderboard, colonne maker implicite */}
         <div className="flex flex-col gap-6">
           <div className="flex items-baseline gap-3">
-            <h2 className="text-2xl font-black tracking-tight text-foreground">
-              Produits
-            </h2>
-            <span className="text-[13px] font-medium text-muted-foreground">
-              0 publié
-            </span>
+            <h2 className="text-2xl font-black tracking-tight text-foreground">Produits</h2>
+            <span className="text-[13px] font-medium text-muted-foreground">0 publié</span>
           </div>
 
           {/* Milestone listings : lister ici les produits publiés du maker. */}

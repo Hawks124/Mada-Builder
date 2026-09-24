@@ -14,8 +14,9 @@ import { cn, slugifyName } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { LifecyclePill } from "@/components/ui/lifecycle-pill";
+import type { ProductCardProps } from "@/components/product/product-card";
 
-export function DirectoryCard({ product }: { product: any }) {
+export function DirectoryCard({ product }: { product: ProductCardProps }) {
   const category = getCategoryById(product.categoryId);
   const CategoryIcon = category?.icon;
 
@@ -67,9 +68,7 @@ export function DirectoryCard({ product }: { product: any }) {
                 category.chipClass,
               )}
             >
-              {CategoryIcon && (
-                <CategoryIcon weight="bold" className="w-3.5 h-3.5" />
-              )}
+              {CategoryIcon && <CategoryIcon weight="bold" className="w-3.5 h-3.5" />}
               {category.name}
             </div>
           )}
@@ -87,10 +86,7 @@ export function DirectoryCard({ product }: { product: any }) {
           </div>
 
           <div className="flex items-center gap-1 text-[12px] font-black text-foreground bg-muted/60 border border-border/40 px-2 py-1 rounded-[6px]">
-            <StarIcon
-              weight="fill"
-              className="w-[14px] h-[14px] text-yellow-500"
-            />
+            <StarIcon weight="fill" className="w-[14px] h-[14px] text-yellow-500" />
             {product.rating}
           </div>
 
@@ -117,18 +113,11 @@ export function DirectoryCard({ product }: { product: any }) {
               weight="fill"
               className="w-[18px] h-[18px] text-muted-foreground mb-0.5"
             />
-            <span className="text-[13px] font-black">
-              {Math.floor(product.votes / 3)}
-            </span>
+            <span className="text-[13px] font-black">{Math.floor(product.votes / 3)}</span>
           </div>
           <div className="flex flex-col items-center justify-center p-2 rounded-xl bg-background border border-border shadow-sm min-w-[56px] group-hover:border-foreground/30 transition-colors">
-            <CaretUpIcon
-              weight="bold"
-              className="w-[20px] h-[20px] text-emerald-500 -mt-1"
-            />
-            <span className="text-[14px] font-black leading-none">
-              {product.votes}
-            </span>
+            <CaretUpIcon weight="bold" className="w-[20px] h-[20px] text-emerald-500 -mt-1" />
+            <span className="text-[14px] font-black leading-none">{product.votes}</span>
           </div>
         </div>
 
@@ -138,18 +127,14 @@ export function DirectoryCard({ product }: { product: any }) {
           className="flex items-center gap-1.5 hover:opacity-80 transition-opacity z-10"
           onClick={(e) => e.stopPropagation()} // Prevent card click
         >
-          <span className="text-[11px] font-bold text-muted-foreground">
-            par
-          </span>
+          <span className="text-[11px] font-bold text-muted-foreground">par</span>
           <AvatarImage
             src={product.makerAvatar}
             name={product.maker}
             size={18}
             className="grayscale group-hover:grayscale-0 transition-opacity ml-0.5"
           />
-          <span className="text-[12px] font-black text-foreground">
-            {product.maker}
-          </span>
+          <span className="text-[12px] font-black text-foreground">{product.maker}</span>
         </Link>
       </div>
 

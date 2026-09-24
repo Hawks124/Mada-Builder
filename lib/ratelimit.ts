@@ -70,9 +70,7 @@ export async function checkLimit(input: {
   const limiter = limiterFor(input.namespace, input.window);
   if (!limiter) return { allowed: true };
   try {
-    const { success } = await limiter.limit(
-      buildLimitKey(input.namespace, input.id),
-    );
+    const { success } = await limiter.limit(buildLimitKey(input.namespace, input.id));
     return { allowed: success };
   } catch {
     captureMessage("Upstash injoignable — rate-limit contourné", "warning");

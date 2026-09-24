@@ -145,16 +145,12 @@
         "users_username_unique": {
           "name": "users_username_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "username"
-          ]
+          "columns": ["username"]
         },
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -427,12 +423,8 @@
           "name": "appeals_user_id_users_id_fk",
           "tableFrom": "appeals",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -514,12 +506,8 @@
           "name": "admin_actions_actor_id_users_id_fk",
           "tableFrom": "admin_actions",
           "tableTo": "users",
-          "columnsFrom": [
-            "actor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -527,12 +515,8 @@
           "name": "admin_actions_target_id_users_id_fk",
           "tableFrom": "admin_actions",
           "tableTo": "users",
-          "columnsFrom": [
-            "target_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["target_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -548,32 +532,17 @@
     "public.user_role": {
       "name": "user_role",
       "schema": "public",
-      "values": [
-        "user",
-        "moderateur",
-        "admin"
-      ]
+      "values": ["user", "moderateur", "admin"]
     },
     "public.appeal_status": {
       "name": "appeal_status",
       "schema": "public",
-      "values": [
-        "pending",
-        "upheld",
-        "overturned"
-      ]
+      "values": ["pending", "upheld", "overturned"]
     },
     "public.admin_action": {
       "name": "admin_action",
       "schema": "public",
-      "values": [
-        "ban",
-        "unban",
-        "promote",
-        "demote",
-        "appeal_upheld",
-        "appeal_overturned"
-      ]
+      "values": ["ban", "unban", "promote", "demote", "appeal_upheld", "appeal_overturned"]
     }
   },
   "schemas": {},

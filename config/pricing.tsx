@@ -21,11 +21,11 @@ export type PricingModel = {
  *              filter-sheet (chips), product-card (badge).
  */
 export const PRICING_MODELS: PricingModel[] = [
-  { id: "free",                     label: "Gratuit",            icon: Gift },
-  { id: "freemium",                 label: "Freemium",           icon: Sparkle },
-  { id: "paid",                     label: "Payant",             icon: Tag },
-  { id: "subscription",             label: "Abonnement",         icon: ArrowsClockwise },
-  { id: "one_time_purchase",        label: "Achat unique",       icon: ShoppingCart },
+  { id: "free", label: "Gratuit", icon: Gift },
+  { id: "freemium", label: "Freemium", icon: Sparkle },
+  { id: "paid", label: "Payant", icon: Tag },
+  { id: "subscription", label: "Abonnement", icon: ArrowsClockwise },
+  { id: "one_time_purchase", label: "Achat unique", icon: ShoppingCart },
   { id: "open_source_donationware", label: "Open Source / Dons", icon: Heart },
 ];
 

@@ -3,11 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getSessionUser, getViewer } from "@/lib/supabase/server";
-import {
-  ProfileError,
-  completeProfile,
-  getOnboardingStatus,
-} from "@/services/users.service";
+import { ProfileError, completeProfile, getOnboardingStatus } from "@/services/users.service";
 import { withToast } from "@/lib/toast";
 import { captureError } from "@/lib/monitoring";
 
@@ -32,9 +28,7 @@ export async function completeMyProfile(
   const user = await getSessionUser();
   if (!user) redirect("/signin");
   const next = sanitizeNext(
-    typeof formData.get("next") === "string"
-      ? (formData.get("next") as string)
-      : null,
+    typeof formData.get("next") === "string" ? (formData.get("next") as string) : null,
   );
   const input: { displayName?: string; email?: string; occupation?: string } = {};
   const rawName = formData.get("displayName");

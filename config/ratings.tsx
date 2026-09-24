@@ -23,8 +23,7 @@ export const AGE_RATINGS: AgeRating[] = [
     id: "kids",
     label: "Enfants / -13 ans",
     badge: "4+",
-    description:
-      "Nécessite une politique de confidentialité claire (store compliance).",
+    description: "Nécessite une politique de confidentialité claire (store compliance).",
   },
   {
     id: "teens",

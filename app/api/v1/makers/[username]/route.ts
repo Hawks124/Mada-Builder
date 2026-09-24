@@ -1,4 +1,11 @@
-import { ApiError, apiCatch, apiOk, corsPreflight, iso, methodNotAllowed } from "@/lib/api/response";
+import {
+  ApiError,
+  apiCatch,
+  apiOk,
+  corsPreflight,
+  iso,
+  methodNotAllowed,
+} from "@/lib/api/response";
 import { apiLimit } from "@/lib/api/ratelimit";
 import { fetchUserProfile } from "@/services/users.service";
 

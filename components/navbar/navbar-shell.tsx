@@ -128,10 +128,7 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
       {isMobileMenuOpen && (
         <div className="md:hidden absolute top-18 left-0 w-full h-[calc(100vh-72px)] bg-background/95 backdrop-blur-xl p-6 flex flex-col gap-6 z-40 border-t border-border/40 overflow-y-auto">
           <div className="w-full mb-2">
-            <SearchInput
-              variant="page"
-              placeholder="Rechercher des produits..."
-            />
+            <SearchInput variant="page" placeholder="Rechercher des produits..." />
           </div>
 
           <div className="flex flex-col gap-1">
@@ -242,9 +239,7 @@ function MobileNavItem({
     "flex items-center justify-between p-3.5 -mx-3.5 rounded-2xl transition-colors group";
 
   if (dead) {
-    return (
-      <div className={`${className} opacity-60 cursor-default`}>{inner}</div>
-    );
+    return <div className={`${className} opacity-60 cursor-default`}>{inner}</div>;
   }
 
   return (

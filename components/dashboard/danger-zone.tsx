@@ -37,7 +37,7 @@ export function DangerZone({
           e instanceof Error &&
           "digest" in e &&
           typeof (e as { digest?: unknown }).digest === "string" &&
-          ((e as { digest: string }).digest.startsWith("NEXT_REDIRECT"))
+          (e as { digest: string }).digest.startsWith("NEXT_REDIRECT")
         ) {
           throw e;
         }
@@ -59,8 +59,7 @@ export function DangerZone({
             {username && (
               <>
                 {" "}
-                Votre identifiant :{" "}
-                <span className="font-bold text-foreground">@{username}</span>
+                Votre identifiant : <span className="font-bold text-foreground">@{username}</span>
               </>
             )}
           </p>
@@ -76,10 +75,7 @@ export function DangerZone({
         </button>
       </div>
       {error && (
-        <p
-          role="alert"
-          className="text-[13px] font-bold text-red-600 dark:text-red-400"
-        >
+        <p role="alert" className="text-[13px] font-bold text-red-600 dark:text-red-400">
           {error}
         </p>
       )}
@@ -90,8 +86,7 @@ export function DangerZone({
         title="Supprimer votre compte ?"
         description={
           <>
-            Tout ce qui suit sera définitivement supprimé de nos systèmes,
-            conformément à notre{" "}
+            Tout ce qui suit sera définitivement supprimé de nos systèmes, conformément à notre{" "}
             <Link
               href="/confidentialite"
               className="font-bold text-foreground underline decoration-border/60 underline-offset-4 hover:decoration-foreground transition-colors"

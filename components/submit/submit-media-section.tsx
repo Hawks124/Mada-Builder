@@ -7,16 +7,12 @@ import { cn } from "@/lib/utils";
 import { FieldBadge } from "@/components/ui/field-badge";
 
 export function SubmitMediaSection() {
-  const [orientation, setOrientation] = useState<"portrait" | "landscape">(
-    "portrait",
-  );
+  const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
 
   return (
     <div className="flex flex-col gap-10">
       <div className="flex flex-col gap-1">
-        <h2 className="text-2xl font-black tracking-tight">
-          Logo & captures d'écran
-        </h2>
+        <h2 className="text-2xl font-black tracking-tight">Logo &amp; captures d&apos;écran</h2>
         <p className="text-[14px] font-medium text-muted-foreground">
           Téléversez un logo carré et des aperçus de votre produit en action.
         </p>
@@ -61,8 +57,7 @@ export function SubmitMediaSection() {
               <FieldBadge variant="required" />
             </label>
             <p className="text-[12px] font-medium text-muted-foreground leading-relaxed">
-              Au moins 1 capture requise, jusqu&apos;à 4 — PNG, JPG, ou WebP,
-              max 6 Mo chacune.
+              Au moins 1 capture requise, jusqu&apos;à 4 — PNG, JPG, ou WebP, max 6 Mo chacune.
             </p>
           </div>
 

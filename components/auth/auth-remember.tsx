@@ -22,10 +22,7 @@ function clear() {
 
 export function writeRememberedProvider(provider: RememberedProvider): void {
   try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ provider, at: Date.now() }),
-    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ provider, at: Date.now() }));
   } catch {
     /* private mode — pas d'historique */
   }
@@ -78,9 +75,7 @@ export function AuthRemember() {
         const { data } = await supabase.auth.getUser();
         let best: { provider: string; at: number } | null = null;
         for (const identity of data.user?.identities ?? []) {
-          const at = identity.last_sign_in_at
-            ? Date.parse(identity.last_sign_in_at)
-            : 0;
+          const at = identity.last_sign_in_at ? Date.parse(identity.last_sign_in_at) : 0;
           if (identity.provider && at > (best?.at ?? -1)) {
             best = { provider: identity.provider, at };
           }

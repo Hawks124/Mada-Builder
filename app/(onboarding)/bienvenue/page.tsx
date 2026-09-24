@@ -3,10 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BienvenueForm } from "@/components/onboarding/bienvenue-form";
 import { getSessionUser, createClient } from "@/lib/supabase/server";
-import {
-  getOnboardingFormData,
-  getOnboardingStatus,
-} from "@/services/users.service";
+import { getOnboardingFormData, getOnboardingStatus } from "@/services/users.service";
 
 export const metadata: Metadata = {
   title: "Bienvenue",
@@ -28,8 +25,7 @@ function ErrorState() {
         Vérification impossible
       </h1>
       <p className="text-base text-muted-foreground font-medium leading-relaxed">
-        Nous n&apos;avons pas pu vérifier votre profil (réseau). Rien
-        n&apos;est perdu — réessayez.
+        Nous n&apos;avons pas pu vérifier votre profil (réseau). Rien n&apos;est perdu — réessayez.
       </p>
       <Link
         href="/bienvenue"
@@ -69,9 +65,7 @@ export default async function BienvenuePage({
     const { data } = await supabase.auth.getUserIdentities();
     let best: { provider: string; at: number } | null = null;
     for (const identity of data?.identities ?? []) {
-      const at = identity.last_sign_in_at
-        ? Date.parse(identity.last_sign_in_at)
-        : 0;
+      const at = identity.last_sign_in_at ? Date.parse(identity.last_sign_in_at) : 0;
       if (identity.provider && at >= (best?.at ?? -1)) {
         best = { provider: identity.provider, at };
       }

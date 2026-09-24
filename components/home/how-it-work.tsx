@@ -16,14 +16,15 @@ interface CommentCaMarcheModalProps {
   onClose: () => void;
 }
 
-export function CommentCaMarcheModal({
-  isOpen,
-  onClose,
-}: CommentCaMarcheModalProps) {
+export function CommentCaMarcheModal({ isOpen, onClose }: CommentCaMarcheModalProps) {
   const [mounted, setMounted] = useState(false);
 
+  // Mount différé d'une frame (pas de setState synchrone dans l'effect :
+  // règle react-hooks — le rAF rend la mise à jour asynchrone, effet
+  // visuel identique).
   useEffect(() => {
-    setMounted(true);
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
   }, []);
 
   // Prevent scroll when open
@@ -43,9 +44,7 @@ export function CommentCaMarcheModal({
       <div
         className={cn(
           "fixed inset-0 z-100 bg-background/60 backdrop-blur-md transition-opacity duration-300",
-          isOpen
-            ? "opacity-100 pointer-events-auto"
-            : "opacity-0 pointer-events-none",
+          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
         )}
         onClick={onClose}
       />
@@ -71,9 +70,9 @@ export function CommentCaMarcheModal({
 
         <div className="px-6 md:px-12 pb-12 flex flex-col gap-12">
           <p className="text-lg md:text-xl text-muted-foreground font-medium leading-relaxed">
-            Ici, pas de déclarations sur l'honneur. Les chiffres que vous voyez
-            sont lus en temps réel depuis les comptes financiers des créateurs.
-            Le standard absolu de transparence.
+            Ici, pas de déclarations sur l&apos;honneur. Les chiffres que vous voyez sont lus en
+            temps réel depuis les comptes financiers des créateurs. Le standard absolu de
+            transparence.
           </p>
 
           <div className="flex flex-col gap-10 relative">
@@ -91,11 +90,8 @@ export function CommentCaMarcheModal({
                 </h3>
                 <p className="text-muted-foreground font-medium leading-relaxed">
                   Depuis son espace Builder Platform, le maker crée une clé API{" "}
-                  <strong className="text-foreground">
-                    Restreinte (Lecture Seule)
-                  </strong>{" "}
-                  sur son compte Stripe ou RevenueCat. Il contrôle la connexion
-                  à 100%.
+                  <strong className="text-foreground">Restreinte (Lecture Seule)</strong> sur son
+                  compte Stripe ou RevenueCat. Il contrôle la connexion à 100%.
                 </p>
                 <div className="flex gap-4 mt-3">
                   <Image
@@ -126,18 +122,13 @@ export function CommentCaMarcheModal({
                   Un Job agrège les données
                 </h3>
                 <p className="text-muted-foreground font-medium leading-relaxed">
-                  Chaque heure, notre système interroge l'API pour extraire le
-                  MRR actif. Les impayés, les annulations et les essais gratuits
-                  sont strictement ignorés. Seul l'argent comptant récurrent est
-                  pris en compte.
+                  Chaque heure, notre système interroge l&apos;API pour extraire le MRR actif. Les
+                  impayés, les annulations et les essais gratuits sont strictement ignorés. Seul
+                  l&apos;argent comptant récurrent est pris en compte.
                 </p>
                 <div className="flex items-center gap-2 mt-2 -ml-1">
                   <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-xs font-bold text-foreground">
-                    <ChartLineUpIcon
-                      weight="fill"
-                      className="text-emerald-500 w-4 h-4"
-                    />{" "}
-                    MRR & ARR
+                    <ChartLineUpIcon weight="fill" className="text-emerald-500 w-4 h-4" /> MRR & ARR
                   </span>
                 </div>
               </div>
@@ -153,13 +144,13 @@ export function CommentCaMarcheModal({
                   Le monde entier voit le badge
                 </h3>
                 <p className="text-muted-foreground font-medium leading-relaxed">
-                  La fiche produit affiche fièrement le montant certifié. Pour
-                  les makers discrets, il est possible d'afficher uniquement le
-                  Badge de Certification sans le montant exact.
+                  La fiche produit affiche fièrement le montant certifié. Pour les makers discrets,
+                  il est possible d&apos;afficher uniquement le Badge de Certification sans le
+                  montant exact.
                 </p>
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 text-[10px] font-black uppercase tracking-widest w-fit mt-2 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                  <SealCheckIcon weight="fill" className="w-3.5 h-3.5" />{" "}
-                  Vérifié via Stripe & RevenueCat
+                  <SealCheckIcon weight="fill" className="w-3.5 h-3.5" /> Vérifié via Stripe &
+                  RevenueCat
                 </div>
               </div>
             </div>
@@ -184,9 +175,7 @@ export function CommentCaMarcheModal({
                 <ShieldCheckIcon weight="fill" className="w-5 h-5" />
               </div>
               <div className="flex flex-col gap-1 pt-0.5">
-                <span className="text-sm font-extrabold text-foreground">
-                  Zéro Data Client
-                </span>
+                <span className="text-sm font-extrabold text-foreground">Zéro Data Client</span>
                 <span className="text-xs font-medium text-muted-foreground leading-relaxed">
                   Nous ne lisons jamais ni les noms ni les emails des acheteurs.
                 </span>

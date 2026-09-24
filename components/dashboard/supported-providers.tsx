@@ -88,11 +88,7 @@ const PROVIDERS: SupportedProvider[] = [
 
 // Tous les fournisseurs, même flow de connexion en lecture seule.
 // Les monogrammes attendent les vrais SVG dans /logos (V1.5).
-export function SupportedProviders({
-  connections,
-}: {
-  connections: ApiConnection[];
-}) {
+export function SupportedProviders({ connections }: { connections: ApiConnection[] }) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
@@ -100,8 +96,8 @@ export function SupportedProviders({
           Fournisseurs supportés
         </h2>
         <p className="text-[14px] font-medium text-muted-foreground leading-relaxed">
-          Même connexion en lecture seule pour tous. Polar, Lemon Squeezy et
-          Paddle arrivent en V1.5.
+          Même connexion en lecture seule pour tous. Polar, Lemon Squeezy et Paddle arrivent en
+          V1.5.
         </p>
       </div>
 
@@ -109,15 +105,10 @@ export function SupportedProviders({
         {PROVIDERS.map((provider) => {
           const linked =
             provider.status === "connected"
-              ? connections.filter(
-                  (c) => c.provider === (provider.id as RevenueProvider),
-                ).length
+              ? connections.filter((c) => c.provider === (provider.id as RevenueProvider)).length
               : 0;
           return (
-            <div
-              key={provider.id}
-              className="flex flex-col items-center text-center gap-2 py-3"
-            >
+            <div key={provider.id} className="flex flex-col items-center text-center gap-2 py-3">
               <div className="h-11 w-11 rounded-2xl bg-background border border-border/40 flex items-center justify-center shrink-0 overflow-hidden">
                 {provider.logo ? (
                   <Image
@@ -143,10 +134,7 @@ export function SupportedProviders({
                 </span>
                 {provider.status === "connected" ? (
                   <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-[3px] text-[9px] font-black uppercase tracking-[0.14em] leading-none text-emerald-600 dark:text-emerald-400">
-                    <span
-                      className="h-1 w-1 rounded-full bg-current"
-                      aria-hidden="true"
-                    />
+                    <span className="h-1 w-1 rounded-full bg-current" aria-hidden="true" />
                     Connecté{linked > 0 ? ` · ${linked}` : ""}
                   </span>
                 ) : (

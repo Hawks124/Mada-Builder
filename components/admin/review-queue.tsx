@@ -14,10 +14,7 @@ import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { LifecyclePill } from "@/components/ui/lifecycle-pill";
 import { TagPill } from "@/components/ui/tag-pill";
-import {
-  MOCK_REVIEW_QUEUE,
-  type ReviewItem,
-} from "@/components/admin/admin-mock";
+import { MOCK_REVIEW_QUEUE, type ReviewItem } from "@/components/admin/admin-mock";
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   web: <GlobeIcon weight="fill" className="w-3.5 h-3.5" />,
@@ -39,10 +36,7 @@ export function ReviewQueue() {
     return (
       <div className="flex flex-col items-center gap-4 rounded-4xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
         <div className="h-14 w-14 rounded-3xl bg-emerald-500/10 flex items-center justify-center">
-          <CheckIcon
-            weight="bold"
-            className="h-7 w-7 text-emerald-600 dark:text-emerald-400"
-          />
+          <CheckIcon weight="bold" className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
         </div>
         <div className="flex flex-col gap-2 max-w-md">
           <h2 className="text-xl font-extrabold tracking-tight text-foreground">

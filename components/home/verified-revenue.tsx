@@ -113,9 +113,7 @@ export function VerifiedRevenueCard({
           >
             Vérifié
           </span>
-          <span className="text-[9px] text-muted-foreground font-medium">
-            · {lastSyncedText}
-          </span>
+          <span className="text-[9px] text-muted-foreground font-medium">· {lastSyncedText}</span>
         </div>
       </div>
 
@@ -124,9 +122,7 @@ export function VerifiedRevenueCard({
         <h3 className="text-lg font-extrabold tracking-tight text-foreground leading-none line-clamp-1">
           {appName}
         </h3>
-        <p className="text-[13px] text-muted-foreground font-medium line-clamp-1">
-          {appTagline}
-        </p>
+        <p className="text-[13px] text-muted-foreground font-medium line-clamp-1">{appTagline}</p>
       </div>
 
       {/* ── MRR HERO ── */}
@@ -139,18 +135,11 @@ export function VerifiedRevenueCard({
             <span className="text-4xl font-black tracking-tighter text-foreground tabular-nums leading-none">
               {formatCompact(mrr)}
             </span>
-            <span className="text-base font-bold text-muted-foreground">
-              {currency}
-            </span>
+            <span className="text-base font-bold text-muted-foreground">{currency}</span>
           </div>
         </div>
 
-        <span
-          className={cn(
-            "text-sm font-black mb-1",
-            isUp ? "text-emerald-600" : "text-red-500",
-          )}
-        >
+        <span className={cn("text-sm font-black mb-1", isUp ? "text-emerald-600" : "text-red-500")}>
           {isUp ? "▲" : "▼"} {pct}%
         </span>
       </div>
@@ -179,10 +168,7 @@ export function VerifiedRevenueCard({
       {/* ── SPARKLINE CHART ── */}
       <div className="w-full h-28 mt-2 rounded-b-4xl">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={historyData}
-            margin={{ top: 2, right: 0, left: 0, bottom: 0 }}
-          >
+          <AreaChart data={historyData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient
                 id={`grad-${appName.replace(/\s+/g, "-")}`}
@@ -210,9 +196,7 @@ export function VerifiedRevenueCard({
                 fontSize: "10px",
               }}
               formatter={(v) =>
-                v !== undefined
-                  ? [`${formatCompact(Number(v))} ${currency}`, "MRR"]
-                  : ["—", "MRR"]
+                v !== undefined ? [`${formatCompact(Number(v))} ${currency}`, "MRR"] : ["—", "MRR"]
               }
             />
             <Area
@@ -244,10 +228,7 @@ export function VerifiedRevenueCard({
           />
           <span className="text-xs font-bold text-foreground">{makerName}</span>
           {makerVerified && (
-            <SealCheckIcon
-              weight="fill"
-              className="w-3.5 h-3.5 text-blue-500 -ml-1"
-            />
+            <SealCheckIcon weight="fill" className="w-3.5 h-3.5 text-blue-500 -ml-1" />
           )}
         </Link>
 

@@ -7,15 +7,15 @@
   --background: #fafafa; /* zinc-50 */
   --foreground: #09090b; /* zinc-950 */
   --neutral: #ffffff;
-  
+
   --muted: #f4f4f5; /* zinc-100 */
   --muted-foreground: #71717a; /* zinc-500 */
-  
+
   --border: #e4e4e7; /* zinc-200 */
-  
+
   --primary: #18181b; /* zinc-900 */
   --primary-foreground: #fafafa;
-  
+
   --radius: 0.5rem;
 }
 
@@ -24,12 +24,12 @@
   --background: #09090b; /* zinc-950 */
   --foreground: #fafafa; /* zinc-50 */
   --neutral: #000000;
-  
+
   --muted: #27272a; /* zinc-800 */
   --muted-foreground: #a1a1aa; /* zinc-400 */
-  
+
   --border: #27272a; /* zinc-800 */
-  
+
   --primary: #fafafa;
   --primary-foreground: #18181b;
 }
@@ -42,7 +42,7 @@
   --color-border: var(--border);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  
+
   --radius: var(--radius);
 
   --font-sans: var(--font-geist-sans);
@@ -59,11 +59,12 @@ body {
 .theme-transition *,
 .theme-transition *::before,
 .theme-transition *::after {
-  transition: background-color 450ms cubic-bezier(0.23, 1, 0.32, 1),
-              border-color 450ms cubic-bezier(0.23, 1, 0.32, 1),
-              color 450ms cubic-bezier(0.23, 1, 0.32, 1),
-              fill 450ms cubic-bezier(0.23, 1, 0.32, 1),
-              stroke 450ms cubic-bezier(0.23, 1, 0.32, 1) !important;
+  transition:
+    background-color 450ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 450ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 450ms cubic-bezier(0.23, 1, 0.32, 1),
+    fill 450ms cubic-bezier(0.23, 1, 0.32, 1),
+    stroke 450ms cubic-bezier(0.23, 1, 0.32, 1) !important;
   transition-delay: 0s !important;
 }
 

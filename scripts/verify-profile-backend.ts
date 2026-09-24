@@ -49,10 +49,7 @@ async function main() {
   });
   if (e1) throw new Error(`createUser: ${e1.message}`);
   createdIds.push(u1.user.id);
-  const row1 = await db
-    .select()
-    .from(users)
-    .where(eqId(u1.user.id));
+  const row1 = await db.select().from(users).where(eqId(u1.user.id));
   check("trigger crée public.users", row1.length === 1);
   check("username slugifié", row1[0]?.username.startsWith("verif-testeur") ?? false);
   check("role défaut user", row1[0]?.role === "user");
@@ -68,19 +65,13 @@ async function main() {
   if (e2) throw new Error(`createUser#2: ${e2.message}`);
   createdIds.push(u2.user.id);
   const row2 = await db.select().from(users).where(eqId(u2.user.id));
-  check(
-    "collision → suffixe",
-    (row2[0]?.username ?? "").match(/verif-testeur-\d+$/) !== null,
-  );
+  check("collision → suffixe", (row2[0]?.username ?? "").match(/verif-testeur-\d+$/) !== null);
 
   // 3. Lecture publique : allowlist (email ABSENT du payload).
   // NOTE : fetchUserProfile (pur) — getUserProfile (caché Next) en app.
   const pub = await fetchUserProfile(row1[0].username);
   check("profil public lu", pub?.username === row1[0].username);
-  check(
-    "email jamais exposé",
-    pub !== null && !("email" in (pub as object)),
-  );
+  check("email jamais exposé", pub !== null && !("email" in (pub as object)));
 
   // 4. RLS négatif : anon ne peut ni insérer ni modifier.
   const anonInsert = await anon.from("users").insert({
@@ -116,11 +107,10 @@ async function main() {
 
   // 6. RLS cross-user : un authentifié ne lit QUE sa ligne.
   // (magiclink → session → client authentifié → SELECT users.)
-  const { data: linkData, error: linkError } =
-    await admin.auth.admin.generateLink({
-      type: "magiclink",
-      email: email1,
-    });
+  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email: email1,
+  });
   if (linkError || !linkData.properties?.email_otp) {
     throw new Error("generateLink a échoué.");
   }
@@ -145,9 +135,7 @@ async function main() {
   // l'isolation des lignes : soi visible, autrui invisible.
   const crossRead = await userClient.from("users").select("id");
   const seesOnlySelf =
-    crossRead.error === null &&
-    crossRead.data.length === 1 &&
-    crossRead.data[0].id === u1.user.id;
+    crossRead.error === null && crossRead.data.length === 1 && crossRead.data[0].id === u1.user.id;
   check("authentifié ne voit que sa ligne", seesOnlySelf);
   const seesOther = (crossRead.data ?? []).some((r) => r.id === u2.user.id);
   check("autre user invisible", !seesOther);
@@ -157,15 +145,11 @@ async function main() {
   // Les majuscules sont NORMALISÉES (pas rejetées) : meilleure UX, même
   // sécurité (valeur stockée toujours minuscule).
   const upper = usernameSchema.safeParse("Kaliana");
-  check(
-    "username majuscules normalisées",
-    upper.success && upper.data === "kaliana",
-  );
+  check("username majuscules normalisées", upper.success && upper.data === "kaliana");
   check("username réservé rejeté", !usernameSchema.safeParse("admin").success);
   check(
     "candidat slugifié (20 chars max)",
-    buildUsernameCandidate("Andry Rakoto Ramarolahy", "x@y.z") ===
-      "andry-rakoto-ramarol",
+    buildUsernameCandidate("Andry Rakoto Ramarolahy", "x@y.z") === "andry-rakoto-ramarol",
   );
 
   // 7. Nettoyage — aucune trace de test.
@@ -173,10 +157,7 @@ async function main() {
     await admin.auth.admin.deleteUser(id);
     await db.delete(users).where(eqId(id));
   }
-  const leftovers = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(likeEmail(testTag));
+  const leftovers = await db.select({ id: users.id }).from(users).where(likeEmail(testTag));
   check("nettoyage complet", leftovers.length === 0);
 
   console.log(`\n${pass} pass, ${fail} fail.`);

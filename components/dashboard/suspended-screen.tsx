@@ -46,9 +46,7 @@ export function SuspendedScreen({
         ) {
           throw e;
         }
-        setDeleteError(
-          e instanceof Error ? e.message : "Suppression impossible.",
-        );
+        setDeleteError(e instanceof Error ? e.message : "Suppression impossible.");
         setDeleteOpen(false);
       }
     });
@@ -56,10 +54,7 @@ export function SuspendedScreen({
 
   return (
     <div className="relative min-h-screen w-full bg-background text-foreground flex flex-col font-sans selection:bg-foreground selection:text-background">
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 pointer-events-none opacity-80"
-      >
+      <div aria-hidden="true" className="absolute inset-0 pointer-events-none opacity-80">
         <GridBackground variant="css" showBottomFade={false} />
       </div>
       {/* HEADER */}
@@ -101,15 +96,12 @@ export function SuspendedScreen({
         {/* Description sans amalgame du droit à l'oubli */}
         <div className="text-base sm:text-lg font-medium text-muted-foreground leading-relaxed mb-12">
           <p className="mb-2">
-            Bonjour{" "}
-            <span className="text-foreground font-bold "> {displayName}</span>{" "}
-            👋,
+            Bonjour <span className="text-foreground font-bold "> {displayName}</span> 👋,
           </p>
           <p>
-            Votre compte a été restreint par notre équipe de modération. Vos
-            contenus publics restent visibles, mais votre accès en écriture et
-            vos actions sont verrouillés : plus de vote, de soumission, ni de
-            modification de profil, jusqu&apos;à nouvel ordre.
+            Votre compte a été restreint par notre équipe de modération. Vos contenus publics
+            restent visibles, mais votre accès en écriture et vos actions sont verrouillés : plus de
+            vote, de soumission, ni de modification de profil, jusqu&apos;à nouvel ordre.
           </p>
         </div>
 
@@ -119,9 +111,7 @@ export function SuspendedScreen({
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Compte restreint
             </span>
-            <span className="text-sm font-medium font-mono text-muted-foreground">
-              @{username}
-            </span>
+            <span className="text-sm font-medium font-mono text-muted-foreground">@{username}</span>
           </div>
 
           <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/30">
@@ -152,10 +142,10 @@ export function SuspendedScreen({
               Droit à l&apos;oubli (RGPD)
             </span>
             <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
-              Conformément à la réglementation sur la protection des données,
-              votre droit à l&apos;oubli reste entier. Vous pouvez demander à
-              tout moment la suppression définitive de votre compte et de
-              l&apos;ensemble de vos données personnelles de nos serveurs.
+              Conformément à la réglementation sur la protection des données, votre droit à
+              l&apos;oubli reste entier. Vous pouvez demander à tout moment la suppression
+              définitive de votre compte et de l&apos;ensemble de vos données personnelles de nos
+              serveurs.
             </p>
           </div>
 
@@ -168,9 +158,7 @@ export function SuspendedScreen({
             >
               <TrashIcon weight="bold" className="w-4 h-4" />
               <span>
-                {deleting
-                  ? "Suppression en cours…"
-                  : "Supprimer définitivement ce compte"}
+                {deleting ? "Suppression en cours…" : "Supprimer définitivement ce compte"}
               </span>
             </button>
           </div>
@@ -187,8 +175,8 @@ export function SuspendedScreen({
 
         {/* CLAUSE JURIDIQUE & LIENS PRIVACY / TERMS */}
         <div className="border-t border-border/30 pt-6 text-xs text-muted-foreground leading-relaxed">
-          Pour toute précision sur nos règles de modération, vos droits et la
-          gestion de vos données, veuillez consulter nos{" "}
+          Pour toute précision sur nos règles de modération, vos droits et la gestion de vos
+          données, veuillez consulter nos{" "}
           <Link
             href="/terms"
             className="underline underline-offset-2 hover:text-foreground transition-colors font-medium"
@@ -210,13 +198,8 @@ export function SuspendedScreen({
       <aside className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-xl border-t border-border/20 px-6 py-4 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
           <div className="hidden md:flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <CaretDownIcon
-              weight="bold"
-              className="w-4 h-4 animate-bounce text-foreground"
-            />
-            <span>
-              Faites défiler pour consulter le motif &amp; les options de compte
-            </span>
+            <CaretDownIcon weight="bold" className="w-4 h-4 animate-bounce text-foreground" />
+            <span>Faites défiler pour consulter le motif &amp; les options de compte</span>
           </div>
 
           <div className="w-full md:w-auto flex items-center justify-end">
@@ -236,10 +219,7 @@ export function SuspendedScreen({
       </aside>
 
       {/* MODALES */}
-      <SignOutConfirm
-        open={signoutOpen}
-        onCancel={() => setSignoutOpen(false)}
-      />
+      <SignOutConfirm open={signoutOpen} onCancel={() => setSignoutOpen(false)} />
       <ConfirmDialog
         open={deleteOpen}
         tone="danger"
@@ -251,11 +231,7 @@ export function SuspendedScreen({
         onConfirm={confirmDelete}
         onCancel={() => setDeleteOpen(false)}
       />
-      <AppealDialog
-        open={appealOpen}
-        banReason={banReason}
-        onClose={() => setAppealOpen(false)}
-      />
+      <AppealDialog open={appealOpen} banReason={banReason} onClose={() => setAppealOpen(false)} />
     </div>
   );
 }

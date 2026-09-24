@@ -3,13 +3,7 @@ import { cn } from "@/lib/utils";
 
 // Tag pill — pattern unique (fiche détail + rows maker publiques).
 // Jamais de "#" brut : toujours la pill avec icône.
-export function TagPill({
-  label,
-  className,
-}: {
-  label: string;
-  className?: string;
-}) {
+export function TagPill({ label, className }: { label: string; className?: string }) {
   return (
     <span
       className={cn(
