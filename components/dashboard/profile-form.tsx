@@ -21,6 +21,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
 import { registerUnsavedChecker } from "@/lib/unsaved-guard";
 import { AvatarCropDialog } from "@/components/dashboard/avatar-crop-dialog";
+import { TimeZoneField } from "@/components/ui/timezone-field";
 import { updateMyProfile, uploadMyAvatar, type ProfileActionState } from "@/app/actions/profile";
 
 const SOCIALS = [
@@ -254,6 +255,7 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
 
           {/* Identity */}
           <form action={saveAction} onChange={() => setDirty(true)} className="flex flex-col gap-6">
+            <TimeZoneField />
             <InputField
               label="Nom d'affichage"
               subtitle="Visible sur votre page maker et vos fiches."

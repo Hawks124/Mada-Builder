@@ -1,5 +1,6 @@
 import { BRAND_CSS_BASE, BRAND_CSS_DARK, emailBrandHtml } from "@/lib/email-templates/brand";
 import { emailModerationFooterHtml, emailModerationFooterText } from "@/lib/email-templates/footer";
+import { emailGreeting } from "@/lib/greeting";
 
 function escapeHtml(value: string): string {
   return value
@@ -20,11 +21,13 @@ export function appealDecisionText(input: {
   overturned: boolean;
   /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
   return [
     "BuilderPlatform",
     "---",
-    `Bonjour ${input.displayName},`,
+    `${emailGreeting(input.timeZone)} ${input.displayName},`,
     "",
     input.overturned
       ? "Bonne nouvelle : Votre appel a été accepté. Votre compte est rétabli, avec toutes vos données intactes."
@@ -46,6 +49,8 @@ export function appealDecisionHtml(input: {
   overturned: boolean;
   /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
   const name = escapeHtml(input.displayName);
 
@@ -98,7 +103,7 @@ export function appealDecisionHtml(input: {
     <!-- La couleur du titre (Rouge ou Vert) est injectée dynamiquement via le paramètre heroColor -->
     <h1 class="hero" style="color: ${heroColor};">${title}</h1>
     
-    <p class="greeting">Bonjour ${name},</p>
+    <p class="greeting">${emailGreeting(input.timeZone)} ${name},</p>
     <p class="text">${body}</p>
 
     <hr class="divider" />

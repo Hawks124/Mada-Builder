@@ -78,6 +78,13 @@
       "when": 1790243490701,
       "tag": "0010_lazy_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790265516272,
+      "tag": "0011_noisy_vulture",
+      "breakpoints": true
     }
   ]
 }

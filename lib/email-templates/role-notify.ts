@@ -1,5 +1,6 @@
 import { BRAND_CSS_BASE, BRAND_CSS_DARK, emailBrandHtml } from "@/lib/email-templates/brand";
 import { emailLegalHtml, emailLegalText } from "@/lib/email-templates/footer";
+import { emailGreeting } from "@/lib/greeting";
 
 function escapeHtml(value: string): string {
   return value
@@ -18,8 +19,10 @@ export function roleNotifyText(input: {
   promoted: boolean;
   /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
-  const base = `Bonjour ${input.displayName},`;
+  const base = `${emailGreeting(input.timeZone)} ${input.displayName},`;
   const body = input.promoted
     ? "Vous êtes désormais modérateur de la plateforme. Reconnectez-vous pour activer vos accès."
     : "Votre rôle modérateur a pris fin. Votre compte maker reste inchangé : profil, produits et votes sont conservés.";
@@ -33,6 +36,8 @@ export function roleNotifyHtml(input: {
   promoted: boolean;
   /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
   const name = escapeHtml(input.displayName);
   const title = input.promoted ? "Accès Modérateur." : "Mise à jour du rôle.";
@@ -92,7 +97,7 @@ export function roleNotifyHtml(input: {
 
     <h1 class="hero">${title}</h1>
     
-    <p class="greeting">Bonjour ${name},</p>
+    <p class="greeting">${emailGreeting(input.timeZone)} ${name},</p>
     
     <p class="text">
       ${body}

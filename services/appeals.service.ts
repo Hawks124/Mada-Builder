@@ -244,7 +244,13 @@ export type PendingAppeal = Awaited<ReturnType<typeof getPendingAppeals>>[number
   isStaff: boolean;
   appealId: string;
   decision: "upheld" | "overturned";
-}): Promise<{ email: string; displayName: string; userId: string; overturned: boolean }> {
+}): Promise<{
+  email: string;
+  displayName: string;
+  userId: string;
+  overturned: boolean;
+  timeZone: string | null;
+}> {
   if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
   const [appeal] = await db.select().from(appeals).where(eq(appeals.id, input.appealId)).limit(1);
   if (!appeal) throw new ProfileError("NOT_FOUND", "Appel introuvable.");
@@ -252,7 +258,7 @@ export type PendingAppeal = Awaited<ReturnType<typeof getPendingAppeals>>[number
     throw new ProfileError("CONFLICT", "Appel déjà tranché.");
   }
   const [user] = await db
-    .select({ email: users.email, displayName: users.displayName })
+    .select({ email: users.email, displayName: users.displayName, timeZone: users.timeZone })
     .from(users)
     .where(eq(users.id, appeal.userId))
     .limit(1);
@@ -274,6 +280,7 @@ export type PendingAppeal = Awaited<ReturnType<typeof getPendingAppeals>>[number
     displayName: user.displayName,
     userId: appeal.userId,
     overturned: input.decision === "overturned",
+    timeZone: user.timeZone,
   };
 }
 

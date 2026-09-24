@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LogoMark } from "@/components/ui/logo";
 import { AppealDialog } from "@/components/dashboard/appeal-dialog";
 import { deleteMyAccount } from "@/app/actions/profile";
+import { getDaypartGreeting } from "@/lib/greeting";
 import { GridBackground } from "../ui/grid-background";
 
 export function SuspendedScreen({
@@ -96,7 +97,8 @@ export function SuspendedScreen({
         {/* Description sans amalgame du droit à l'oubli */}
         <div className="text-base sm:text-lg font-medium text-muted-foreground leading-relaxed mb-12">
           <p className="mb-2">
-            Bonjour <span className="text-foreground font-bold "> {displayName}</span> 👋,
+            {getDaypartGreeting()}{" "}
+            <span className="text-foreground font-bold "> {displayName}</span> 👋,
           </p>
           <p>
             Votre compte a été restreint par notre équipe de modération. Vos contenus publics

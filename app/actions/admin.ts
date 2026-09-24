@@ -87,7 +87,11 @@ export async function banUserAction(input: {
     if (input.userId === id) {
       return { ok: false, message: "Vous ne pouvez pas vous bannir vous-même." };
     }
-    const { email, displayName, reason } = await banUser(true, input.userId, input.reason);
+    const { email, displayName, reason, timeZone } = await banUser(
+      true,
+      input.userId,
+      input.reason,
+    );
     await logAdminAction({
       actorId: id,
       targetId: input.userId,
@@ -104,12 +108,14 @@ export async function banUserAction(input: {
           banReason: reason,
           dashboardUrl: `${origin}/dashboard`,
           origin,
+          timeZone,
         }),
         text: banNotifyText({
           displayName,
           banReason: reason,
           dashboardUrl: `${origin}/dashboard`,
           origin,
+          timeZone,
         }),
       });
     } catch (e) {
@@ -126,7 +132,7 @@ export async function banUserAction(input: {
 export async function unbanUserAction(input: { userId: string }): Promise<AdminActionState> {
   try {
     const { id } = await requireStaffId();
-    const { email, displayName } = await unbanUser(true, input.userId);
+    const { email, displayName, timeZone } = await unbanUser(true, input.userId);
     await logAdminAction({
       actorId: id,
       targetId: input.userId,
@@ -137,8 +143,8 @@ export async function unbanUserAction(input: { userId: string }): Promise<AdminA
       await sendEmail({
         to: email,
         subject: unbanNotifySubject(),
-        html: unbanNotifyHtml({ displayName, origin: await appOrigin() }),
-        text: unbanNotifyText({ displayName, origin: await appOrigin() }),
+        html: unbanNotifyHtml({ displayName, origin: await appOrigin(), timeZone }),
+        text: unbanNotifyText({ displayName, origin: await appOrigin(), timeZone }),
       });
     } catch (e) {
       captureError(e, { op: "admin.unbanEmail" });
@@ -304,7 +310,11 @@ export async function setUserRoleAction(input: {
 }): Promise<AdminActionState> {
   try {
     const adminId = await requireAdminId();
-    const { email, displayName, role } = await setUserRole(adminId, input.userId, input.role);
+    const { email, displayName, role, timeZone } = await setUserRole(
+      adminId,
+      input.userId,
+      input.role,
+    );
     await logAdminAction({
       actorId: adminId,
       targetId: input.userId,
@@ -335,8 +345,8 @@ export async function setUserRoleAction(input: {
       await sendEmail({
         to: email,
         subject: roleNotifySubject(promoted),
-        html: roleNotifyHtml({ displayName, promoted, origin }),
-        text: roleNotifyText({ displayName, promoted, origin }),
+        html: roleNotifyHtml({ displayName, promoted, origin, timeZone }),
+        text: roleNotifyText({ displayName, promoted, origin, timeZone }),
       });
     } catch (e) {
       captureError(e, { op: "admin.roleEmail" });

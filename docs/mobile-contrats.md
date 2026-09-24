@@ -50,23 +50,25 @@
 
 ## 3. Endpoints
 
-| Méthode & chemin            | Auth              | Corps                                     | Réponse `data`                                                                                                              |
-| --------------------------- | ----------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `GET /me`                   | Bearer (banni OK) | —                                         | profil privé complet (miroir dashboard : tout, y compris `email`, `bannedAt`, `banReason`)                                  |
-| `PATCH /me`                 | Bearer            | JSON partiel (clés inconnues ignorées)    | profil frais complet                                                                                                        |
-| `POST /me/avatar`           | Bearer            | multipart `avatar`                        | `{ avatarUrl }`                                                                                                             |
-| `DELETE /me`                | Bearer (banni OK) | `{"confirm":true}` exigé                  | `{ deleted: true }` → purger les tokens côté client                                                                         |
-| `GET /onboarding`           | Bearer (banni OK) | —                                         | `{ done, missing, form }` (`form.email` vide si placeholder)                                                                |
-| `POST /onboarding`          | Bearer (banni OK) | `{ displayName?, email?, occupation? }`   | `{ username, done, missing }` (`done` = aller au home)                                                                      |
-| `POST /auth/providers/sync` | Bearer            | —                                         | `{ providers: ["google", …] }` (trio connu seul)                                                                            |
-| `GET /appeals/mine`         | Bearer (banni OK) | —                                         | `{ eligible, message }` (toujours 200 ; griser le bouton + afficher `message`)                                              |
-| `POST /appeals`             | Bearer (banni OK) | multipart `explanation` + `evidence` ×0–3 | `{ appealId, seq }` + message `Appel nºX envoyé.`                                                                           |
-| `GET /makers/[username]`    | non               | —                                         | profil public (jamais email/motif ; `bannedAt` = badge Suspendu) ; 404 si inconnu                                           |
-| `GET /meta`                 | non               | —                                         | référentiel : `occupations` (id/label/description), `defaultOccupation`, `providers`, `limits` — **lire, jamais hardcoder** |
+| Méthode & chemin            | Auth              | Corps                                                                                                              | Réponse `data`                                                                                                              |
+| --------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `GET /me`                   | Bearer (banni OK) | —                                                                                                                  | profil privé complet (miroir dashboard : tout, y compris `email`, `bannedAt`, `banReason`)                                  |
+| `PATCH /me`                 | Bearer            | JSON partiel (clés inconnues ignorées ; `timeZone` = IANA réel, jamais bloquant)                                   | profil frais complet                                                                                                        |
+| `POST /me/avatar`           | Bearer            | multipart `avatar`                                                                                                 | `{ avatarUrl }`                                                                                                             |
+| `DELETE /me`                | Bearer (banni OK) | `{"confirm":true}` exigé                                                                                           | `{ deleted: true }` → purger les tokens côté client                                                                         |
+| `GET /onboarding`           | Bearer (banni OK) | —                                                                                                                  | `{ done, missing, form }` (`form.email` vide si placeholder)                                                                |
+| `POST /onboarding`          | Bearer (banni OK) | `{ displayName?, email?, occupation?, timeZone? }` (`timeZone` = IANA réel du device, validé serveur, best-effort) | `{ username, done, missing }` (`done` = aller au home)                                                                      |
+| `POST /auth/providers/sync` | Bearer            | —                                                                                                                  | `{ providers: ["google", …] }` (trio connu seul)                                                                            |
+| `GET /appeals/mine`         | Bearer (banni OK) | —                                                                                                                  | `{ eligible, message }` (toujours 200 ; griser le bouton + afficher `message`)                                              |
+| `POST /appeals`             | Bearer (banni OK) | multipart `explanation` + `evidence` ×0–3                                                                          | `{ appealId, seq }` + message `Appel nºX envoyé.`                                                                           |
+| `GET /makers/[username]`    | non               | —                                                                                                                  | profil public (jamais email/motif ; `bannedAt` = badge Suspendu) ; 404 si inconnu                                           |
+| `GET /meta`                 | non               | —                                                                                                                  | référentiel : `occupations` (id/label/description), `defaultOccupation`, `providers`, `limits` — **lire, jamais hardcoder** |
 
 Règles produit à réimplémenter à l'identique : nom ≥ 2 caractères ;
 occupation = `GET /meta` (vocabulaire fermé servi par le backend — jamais
-hardcodé côté Dart) ;
+hardcodé côté Dart) ; **fuseau** : envoyer `Intl…resolvedOptions().timeZone`
+à l'onboarding et à chaque save profil (les emails partent à l'heure locale
+réelle ; sans fuseau capté, repli neutre UTC) ;
 appel = explication 10–2000 + pièces PNG/JPG/WebP/PDF ≤ 10 Mo, pending unique,
 24 h entre dépôts ; suppression = action irréversible (confirmation forte côté UI).
 

@@ -7,7 +7,8 @@ export function PageHeader({
   subtitle,
   actions,
 }: {
-  title: string;
+  /** string ou nœud (ex. DaypartGreeting) — élargi sans casser les usages. */
+  title: React.ReactNode;
   subtitle: string;
   actions?: React.ReactNode;
 }) {

@@ -6,6 +6,7 @@
 
 import { BRAND_CSS_BASE, BRAND_CSS_DARK, emailBrandHtml } from "@/lib/email-templates/brand";
 import { emailModerationFooterHtml, emailModerationFooterText } from "@/lib/email-templates/footer";
+import { emailGreeting } from "@/lib/greeting";
 
 function escapeHtml(value: string): string {
   return value
@@ -23,11 +24,13 @@ export function unbanNotifyText(input: {
   displayName: string;
   /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
   return [
     "BuilderPlatform",
     "---",
-    `Bonjour ${input.displayName},`,
+    `${emailGreeting(input.timeZone)} ${input.displayName},`,
     "",
     "Bonne nouvelle : votre compte a été rétabli.",
     "Vous retrouvez immédiatement l'accès à toutes vos données, vos projets et vos fonctionnalités.",
@@ -43,6 +46,8 @@ export function unbanNotifyHtml(input: {
   displayName: string;
   /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
   const name = escapeHtml(input.displayName);
 
@@ -88,7 +93,7 @@ export function unbanNotifyHtml(input: {
 
     <h1 class="hero">Compte rétabli.</h1>
     
-    <p class="greeting">Bonjour ${name},</p>
+    <p class="greeting">${emailGreeting(input.timeZone)} ${name},</p>
     
     <p class="text">
       Bonne nouvelle : votre compte a été rétabli. Vous retrouvez immédiatement l'accès à toutes vos données, vos projets et vos fonctionnalités.

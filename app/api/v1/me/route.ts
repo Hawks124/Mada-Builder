@@ -36,6 +36,7 @@ function serialize(row: OwnRow) {
     socialLinks: row.socialLinks,
     country: row.country,
     city: row.city,
+    timeZone: row.timeZone,
     providers: row.providers,
     role: row.role,
     bannedAt: iso(row.bannedAt),

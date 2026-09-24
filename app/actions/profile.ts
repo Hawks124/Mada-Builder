@@ -75,6 +75,19 @@ export async function updateMyProfile(
   const user = await getSessionUser();
   if (!user) return LOGIN_REQUIRED;
   try {
+    // Fuseau IANA réel (champ caché TimeZoneField) — best-effort :
+    // invalide = ignoré (le save profil n'échoue jamais pour ça).
+    let timeZone: string | undefined;
+    const rawTimeZone = formData.get("timeZone");
+    if (typeof rawTimeZone === "string" && rawTimeZone.trim() !== "") {
+      try {
+        if (Intl.supportedValuesOf("timeZone").includes(rawTimeZone.trim())) {
+          timeZone = rawTimeZone.trim();
+        }
+      } catch {
+        // Intl indisponible : on omet, repli neutre.
+      }
+    }
     const { username } = await updateProfile(user.id, user.id, {
       displayName: String(formData.get("displayName") ?? ""),
       bio: String(formData.get("bio") ?? ""),
@@ -82,6 +95,7 @@ export async function updateMyProfile(
       websiteUrl: String(formData.get("websiteUrl") ?? ""),
       ...splitLocation(formData.get("location")),
       socialLinks: socialLinksFrom(formData),
+      ...(timeZone !== undefined ? { timeZone } : {}),
     });
     revalidateMaker(username);
     return { ok: true, message: "Profil enregistré." };

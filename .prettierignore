@@ -9,5 +9,6 @@ next-env.d.ts
 tsconfig.tsbuildinfo
 public/
 html/
+db/migrations/meta/
 *.min.js
 *.min.css

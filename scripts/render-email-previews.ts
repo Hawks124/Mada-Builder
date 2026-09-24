@@ -22,18 +22,32 @@ const pages: Array<[string, string]> = [
       banReason: "Votes automatisés détectés sur trois produits.",
       dashboardUrl: `${ORIGIN}/dashboard`,
       origin: ORIGIN,
+      timeZone: null,
     }),
   ],
-  ["unban.html", unbanNotifyHtml({ displayName: "Aina Rakoto", origin: ORIGIN })],
+  ["unban.html", unbanNotifyHtml({ displayName: "Aina Rakoto", origin: ORIGIN, timeZone: null })],
   [
     "appeal-upheld.html",
-    appealDecisionHtml({ displayName: "Aina Rakoto", overturned: false, origin: ORIGIN }),
+    appealDecisionHtml({
+      displayName: "Aina Rakoto",
+      overturned: false,
+      origin: ORIGIN,
+      timeZone: null,
+    }),
   ],
   [
     "appeal-overturned.html",
-    appealDecisionHtml({ displayName: "Aina Rakoto", overturned: true, origin: ORIGIN }),
+    appealDecisionHtml({
+      displayName: "Aina Rakoto",
+      overturned: true,
+      origin: ORIGIN,
+      timeZone: null,
+    }),
   ],
-  ["role.html", roleNotifyHtml({ displayName: "Aina Rakoto", promoted: true, origin: ORIGIN })],
+  [
+    "role.html",
+    roleNotifyHtml({ displayName: "Aina Rakoto", promoted: true, origin: ORIGIN, timeZone: null }),
+  ],
   [
     "otp.html",
     otpEmailHtml({

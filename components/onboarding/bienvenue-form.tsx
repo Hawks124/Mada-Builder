@@ -8,6 +8,7 @@ import { GridBackground } from "@/components/ui/grid-background";
 import { InputField } from "@/components/ui/input-field";
 import { ActionButton } from "@/components/ui/action-button";
 import { ProfileOccupation } from "@/components/dashboard/profile-occupation";
+import { TimeZoneField } from "@/components/ui/timezone-field";
 import { Spinner } from "@/components/ui/spinner";
 import { LogoMark } from "@/components/ui/logo";
 import { completeMyProfile, type OnboardingState } from "@/app/actions/onboarding";
@@ -112,6 +113,7 @@ export function BienvenueForm({
         <div className="lg:col-span-7 border rounded-[8.5px] bg-background border-border/60 p-6 sm:p-8 shadow-sm">
           <form action={action} className="flex flex-col gap-5">
             <input type="hidden" name="next" value={next} />
+            <TimeZoneField />
 
             <InputField
               label="Votre nom public"

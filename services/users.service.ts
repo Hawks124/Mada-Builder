@@ -93,6 +93,19 @@ export const updateProfileSchema = z.object({
   city: z.string().trim().max(60).optional(),
   country: z.string().trim().max(60).optional(),
   socialLinks: socialLinksSchema.optional(),
+  // Fuseau IANA réel (capté navigateur) — vocabulaire Intl, jamais libre.
+  timeZone: z
+    .string()
+    .trim()
+    .max(64)
+    .refine((tz) => {
+      try {
+        return Intl.supportedValuesOf("timeZone").includes(tz);
+      } catch {
+        return false;
+      }
+    }, "Fuseau inconnu")
+    .optional(),
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
@@ -118,6 +131,7 @@ export async function fetchOwnProfile(userId: string) {
       socialLinks: users.socialLinks,
       country: users.country,
       city: users.city,
+      timeZone: users.timeZone,
       providers: users.providers,
       role: users.role,
       bannedAt: users.bannedAt,
@@ -213,6 +227,7 @@ export async function updateProfile(viewerId: string, targetId: string, rawInput
       city: data.city ?? null,
       country: data.country ?? null,
       socialLinks: data.socialLinks ?? {},
+      ...(data.timeZone !== undefined ? { timeZone: data.timeZone } : {}),
       updatedAt: new Date(),
     })
     .where(eq(users.id, targetId));
@@ -474,7 +489,7 @@ export async function banUser(isStaff: boolean, targetId: string, reason: string
   const clean = reason.trim();
   if (clean === "") throw new ProfileError("VALIDATION", "Motif requis.");
   const [target] = await db
-    .select({ email: users.email, displayName: users.displayName })
+    .select({ email: users.email, displayName: users.displayName, timeZone: users.timeZone })
     .from(users)
     .where(eq(users.id, targetId))
     .limit(1);
@@ -490,13 +505,19 @@ export async function banUser(isStaff: boolean, targetId: string, reason: string
   // Audit via logAdminAction côté appelant (fail-soft). revalidateTag
   // maker au milestone listings (cache persistant — pas de flag avant).
   // Identité retournée pour la notification victime (best-effort).
-  return { ok: true as const, email: target.email, displayName: target.displayName, reason: clean };
+  return {
+    ok: true as const,
+    email: target.email,
+    displayName: target.displayName,
+    reason: clean,
+    timeZone: target.timeZone,
+  };
 }
 
 export async function unbanUser(isStaff: boolean, targetId: string) {
   if (!isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
   const [target] = await db
-    .select({ email: users.email, displayName: users.displayName })
+    .select({ email: users.email, displayName: users.displayName, timeZone: users.timeZone })
     .from(users)
     .where(eq(users.id, targetId))
     .limit(1);
@@ -508,7 +529,12 @@ export async function unbanUser(isStaff: boolean, targetId: string) {
   // Audit via logAdminAction côté appelant (fail-soft). revalidateTag
   // maker au milestone listings (cache persistant — pas de flag avant).
   // Identité retournée pour la notification (best-effort, comme banUser).
-  return { ok: true as const, email: target.email, displayName: target.displayName };
+  return {
+    ok: true as const,
+    email: target.email,
+    displayName: target.displayName,
+    timeZone: target.timeZone,
+  };
 }
 
 // ── Onboarding /bienvenue (complétion profil post-signup) ────────────────────
@@ -616,6 +642,19 @@ const completeProfileSchema = z.object({
     .string()
     .refine((id) => OCCUPATIONS.some((o) => o.id === id), "Occupation inconnue")
     .optional(),
+  // Fuseau IANA réel (capté navigateur) — même refine que updateProfile.
+  timeZone: z
+    .string()
+    .trim()
+    .max(64)
+    .refine((tz) => {
+      try {
+        return Intl.supportedValuesOf("timeZone").includes(tz);
+      } catch {
+        return false;
+      }
+    }, "Fuseau inconnu")
+    .optional(),
 });
 
 export type CompleteProfileInput = z.infer<typeof completeProfileSchema>;
@@ -639,9 +678,14 @@ export async function completeProfile(
   if (!parsed.success) {
     throw new ProfileError("VALIDATION", "Champs invalides.");
   }
-  const { displayName, email: rawEmail, occupation } = parsed.data;
+  const { displayName, email: rawEmail, occupation, timeZone } = parsed.data;
   const email = rawEmail ? rawEmail.trim().toLowerCase() : undefined;
-  if (displayName === undefined && email === undefined && occupation === undefined) {
+  if (
+    displayName === undefined &&
+    email === undefined &&
+    occupation === undefined &&
+    timeZone === undefined
+  ) {
     throw new ProfileError("VALIDATION", "Rien à compléter.");
   }
 
@@ -670,6 +714,7 @@ export async function completeProfile(
       occupation: occupation ?? "maker",
       providers: ["email"],
       onboardingCompleted: true,
+      ...(timeZone !== undefined ? { timeZone } : {}),
     });
     return { username };
   }
@@ -678,6 +723,7 @@ export async function completeProfile(
     displayName?: string;
     email?: string;
     occupation?: string;
+    timeZone?: string;
     onboardingCompleted?: boolean;
     updatedAt: Date;
   } = {
@@ -685,6 +731,7 @@ export async function completeProfile(
   };
   if (displayName !== undefined) patch.displayName = displayName;
   if (occupation !== undefined) patch.occupation = occupation;
+  if (timeZone !== undefined) patch.timeZone = timeZone;
   if (email !== undefined) {
     if (!isPlaceholderEmail(row.email)) {
       if (email !== row.email.trim().toLowerCase()) {
@@ -738,7 +785,12 @@ export async function setUserRole(
   actorId: string,
   targetId: string,
   role: "admin" | "moderateur" | "user",
-): Promise<{ email: string; displayName: string; role: "admin" | "moderateur" | "user" }> {
+): Promise<{
+  email: string;
+  displayName: string;
+  role: "admin" | "moderateur" | "user";
+  timeZone: string | null;
+}> {
   const [actor] = await db
     .select({ role: users.role })
     .from(users)
@@ -756,6 +808,7 @@ export async function setUserRole(
       displayName: users.displayName,
       role: users.role,
       bannedAt: users.bannedAt,
+      timeZone: users.timeZone,
     })
     .from(users)
     .where(eq(users.id, targetId))
@@ -766,7 +819,12 @@ export async function setUserRole(
   const currentRole = target.role as string;
   const nextRole = role as string;
   if (target.role === role) {
-    return { email: target.email, displayName: target.displayName, role };
+    return {
+      email: target.email,
+      displayName: target.displayName,
+      role,
+      timeZone: target.timeZone,
+    };
   }
   // Grade admin inaltérable via UI (les deux sens, SQL founder only).
   if (currentRole === "admin" || nextRole === "admin") {
@@ -795,7 +853,7 @@ export async function setUserRole(
     }
   }
   await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, targetId));
-  return { email: target.email, displayName: target.displayName, role };
+  return { email: target.email, displayName: target.displayName, role, timeZone: target.timeZone };
 }
 
 // ── Vitrine publique (hero) ────────────────────────────────────────────────────

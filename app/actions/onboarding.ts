@@ -30,10 +30,12 @@ export async function completeMyProfile(
   const next = sanitizeNext(
     typeof formData.get("next") === "string" ? (formData.get("next") as string) : null,
   );
-  const input: { displayName?: string; email?: string; occupation?: string } = {};
+  const input: { displayName?: string; email?: string; occupation?: string; timeZone?: string } =
+    {};
   const rawName = formData.get("displayName");
   const rawEmail = formData.get("email");
   const rawOccupation = formData.get("occupation");
+  const rawTimeZone = formData.get("timeZone");
   if (typeof rawName === "string" && rawName.trim() !== "") {
     input.displayName = rawName;
   }
@@ -42,6 +44,18 @@ export async function completeMyProfile(
   }
   if (typeof rawOccupation === "string" && rawOccupation.trim() !== "") {
     input.occupation = rawOccupation;
+  }
+  // Fuseau réel navigateur (TimeZoneField) — best-effort : invalide
+  // = ignoré silencieusement (un champ non essentiel ne bloque jamais
+  // l'onboarding ; le repli neutre s'applique).
+  if (typeof rawTimeZone === "string" && rawTimeZone.trim() !== "") {
+    try {
+      if (Intl.supportedValuesOf("timeZone").includes(rawTimeZone.trim())) {
+        input.timeZone = rawTimeZone.trim();
+      }
+    } catch {
+      // Intl indisponible : on omet, repli neutre.
+    }
   }
   try {
     const { username } = await completeProfile(user.id, user.id, input);
