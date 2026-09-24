@@ -25,6 +25,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # Pinné sur le npm local (11.4.2) : npm 10 exige dans le lock le
+      # peer `webpack` de Sentry (jamais installé, Turbopack oblige) et
+      # fait échouer `npm ci` ; npm 11 l'ignore sainement. Ne pas retirer
+      # sans régénérer le lock sous la même version des deux côtés.
+      - run: npm install -g npm@11.4.2
+
       - run: npm ci
 
       - name: Types
