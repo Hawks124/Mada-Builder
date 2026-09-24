@@ -1,5 +1,6 @@
 import { ArrowRightIcon, CaretUpIcon, StarIcon, GlobeIcon, AppleLogoIcon, GooglePlayLogo, ShieldCheckIcon } from "@phosphor-icons/react";
 import Link from "next/link";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { cn, slugifyName } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 
@@ -56,7 +57,7 @@ export function RelatedProducts() {
             {/* Row 4: Maker + Category + Platforms + Verified */}
             <div className="flex items-center gap-2">
               {/* Avatar + truncated name */}
-              <img src={`https://i.pravatar.cc/150?u=${p.id}`} className="w-5 h-5 rounded-full shrink-0 bg-muted" alt={p.maker} />
+              <AvatarImage src={`https://i.pravatar.cc/150?u=${p.id}`} name={p.maker} size={20} />
               <Link
                 href={`/makers/${slugifyName(p.maker)}`}
                 className="text-[11px] font-semibold text-foreground hover:text-primary transition-colors truncate min-w-0 flex-1"

@@ -1,123 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import {
-  GavelIcon,
-  SealCheckIcon,
-  GithubLogoIcon,
-  XLogoIcon,
-  GlobeIcon,
-} from "@phosphor-icons/react";
+import { AvatarImage } from "@/components/ui/avatar-image";
+import { GavelIcon, CaretDownIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import type { AdminUser } from "@/components/admin/admin-mock";
+import { Spinner } from "@/components/ui/spinner";
+import { StaffIdentity } from "@/components/admin/user-identity";
+import { RowMenu } from "@/components/admin/row-menu";
+import type { UserHistory } from "@/app/actions/admin";
 
-const STACK_VISIBLE = 3;
+/**
+ * Ligne user réelle (DB) — avatar (+ fallback initiales), identité, badges
+ * Admin/Banni, providers liés, date d'inscription, email (lecture admin),
+ * motif + appels si banni. Les compteurs produits reviennent au milestone
+ * listings (pas de table products en fondation — aucun faux chiffre ici).
+ */
+export type AdminUserRow = {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  email: string | null;
+  providers: string[];
+  role: "admin" | "moderateur" | "user";
+  status: "active" | "banned";
+  banReason: string | null;
+  /** ISO du ban en cours (null si actif) — état live, pas d'audit. */
+  bannedAt: string | null;
+  appeals: number;
+  /** ISO — null en démo. */
+  joinedAt: string | null;
+};
 
-// Provider : mini logo + label (GitHub monochrome, Google officiel).
-function ProviderMark({ provider }: { provider: AdminUser["provider"] }) {
-  if (provider === "google") {
-    return (
-      <span className="flex items-center gap-1.5 text-muted-foreground">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/logos/google.svg"
-          alt="Google"
-          className="w-3.5 h-3.5 shrink-0"
-        />
-        Google
-      </span>
-    );
-  }
+// Pastille sémantique (langage dot-notif du repo : rouge = danger/ban,
+// emerald = déban, ambre = grades, neutre = appels).
+function HistoryDot({ action }: { action: string }) {
   return (
-    <span className="flex items-center gap-1.5 text-muted-foreground">
-      <GithubLogoIcon weight="fill" className="w-3.5 h-3.5 shrink-0" />
-      GitHub
-    </span>
-  );
-}
-
-// Stack produits — +N en dernier cercle overlapé (pattern contributeurs),
-// pas en texte séparé.
-function ProductStack({ user }: { user: AdminUser }) {
-  const count = user.products.length;
-  if (count === 0) {
-    return (
-      <span className="text-[12px] font-medium text-muted-foreground/60">
-        Aucun produit
-      </span>
-    );
-  }
-  const visible = user.products.slice(0, STACK_VISIBLE);
-  const extra = count - visible.length;
-  return (
-    <span className="flex items-center gap-2.5">
-      <span className="flex -space-x-2.5">
-        {visible.map((p) => (
-          <span
-            key={p.id}
-            title={p.id}
-            className={cn(
-              "w-9 h-9 rounded-full ring-2 ring-background shrink-0 flex items-center justify-center text-white font-black text-[11px] bg-linear-to-br shadow-sm",
-              p.iconGradient,
-            )}
-          >
-            {p.initials}
-          </span>
-        ))}
-        {extra > 0 && (
-          <span
-            title={`${extra} de plus`}
-            className="w-9 h-9 rounded-full ring-2 ring-background shrink-0 flex items-center justify-center bg-muted border border-border/40 text-[11px] font-black text-muted-foreground tabular-nums"
-          >
-            +{extra}
-          </span>
-        )}
-      </span>
-      <span className="text-[12px] font-bold text-foreground tabular-nums whitespace-nowrap">
-        {count} produit{count > 1 ? "s" : ""}
-      </span>
-    </span>
-  );
-}
-
-// Sociaux + site — liens externes (inspection modération).
-function SocialLinks({ user }: { user: AdminUser }) {
-  const items = [
-    user.socials.github && {
-      href: user.socials.github,
-      label: "GitHub",
-      icon: <GithubLogoIcon weight="fill" className="w-4 h-4" />,
-    },
-    user.socials.x && {
-      href: user.socials.x,
-      label: "X",
-      icon: <XLogoIcon weight="fill" className="w-4 h-4" />,
-    },
-    user.socials.website && {
-      href: user.socials.website,
-      label: "Site web",
-      icon: <GlobeIcon weight="bold" className="w-4 h-4" />,
-    },
-  ].filter(Boolean) as { href: string; label: string; icon: React.ReactNode }[];
-
-  if (items.length === 0) return null;
-
-  return (
-    <span className="flex items-center gap-1 shrink-0">
-      {items.map((item) => (
-        <Link
-          key={item.label}
-          href={item.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={item.label}
-          aria-label={`${item.label} de ${user.displayName} (nouvel onglet)`}
-          className="flex items-center justify-center h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-        >
-          {item.icon}
-        </Link>
-      ))}
-    </span>
+    <span
+      aria-hidden="true"
+      className={cn(
+        "h-1.5 w-1.5 rounded-full shrink-0 self-center",
+        action === "ban" && "bg-red-500",
+        action === "unban" && "bg-emerald-500",
+        (action === "promote" || action === "demote") && "bg-amber-500",
+        (action === "appeal_upheld" || action === "appeal_overturned") &&
+          "bg-muted-foreground/50",
+      )}
+    />
   );
 }
 
@@ -125,22 +54,47 @@ export function UserRow({
   user,
   banning,
   banReason,
+  pending,
+  isSelf,
+  rolePending,
+  showRoleActions,
+  expanded,
+  history,
+  historyLoading,
   onToggleBan,
   onBanReasonChange,
   onCancelBan,
   onConfirmBan,
   onUnban,
+  onToggleRole,
+  onToggleHistory,
 }: {
-  user: AdminUser;
+  user: AdminUserRow;
   banning: boolean;
   banReason: string;
+  pending: boolean;
+  /** Ligne de l'admin connecté : ni ban ni rôle modifiables. */
+  isSelf: boolean;
+  rolePending: boolean;
+  /** Boutons de grade : acteur admin seul (jamais pour un modérateur). */
+  showRoleActions: boolean;
+  expanded: boolean;
+  history: UserHistory | null;
+  historyLoading: boolean;
   onToggleBan: () => void;
   onBanReasonChange: (value: string) => void;
   onCancelBan: () => void;
   onConfirmBan: () => void;
   onUnban: () => void;
+  onToggleRole: () => void;
+  onToggleHistory: () => void;
 }) {
-  const isMaker = user.products.length >= 1;
+  const initials = user.displayName
+    .split(/[\s_.-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
 
   return (
     <div>
@@ -151,62 +105,49 @@ export function UserRow({
           className="shrink-0 self-start hover:opacity-80 transition-opacity"
           aria-label={`Voir le profil de ${user.displayName}`}
         >
-          <img
-            src={user.avatarUrl}
-            alt={user.displayName}
-            className="w-14 h-14 rounded-full object-cover"
-          />
+          {user.avatarUrl ? (
+            <AvatarImage
+              src={user.avatarUrl}
+              name={user.displayName}
+              size={56}
+            />
+          ) : (
+            <span
+              aria-hidden="true"
+              className="w-14 h-14 rounded-full bg-[#EA580C] flex items-center justify-center text-white font-bold text-lg"
+            >
+              {initials || "M"}
+            </span>
+          )}
         </Link>
 
         {/* Colonne centrale */}
         <div className="flex flex-col gap-3 min-w-0 flex-1">
-          {/* Identité */}
-          <div className="flex flex-col gap-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Link
-                href={`/makers/${user.username}`}
-                className="text-[16px] font-extrabold tracking-tight text-foreground hover:text-primary transition-colors truncate"
-              >
-                {user.displayName}
-              </Link>
-              {user.role === "admin" ? (
+          {/* Identité — composant partagé avec la carte appel (même
+              rendu, mêmes infos, mêmes espacements). */}
+          <StaffIdentity
+            id={user.id}
+            username={user.username}
+            displayName={user.displayName}
+            email={user.email}
+            providers={user.providers}
+            joinedAt={user.joinedAt}
+            badges={
+              user.role === "admin" ? (
                 <span className="inline-flex items-center rounded border border-red-500/25 bg-red-500/10 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.14em] text-red-600 dark:text-red-400 shrink-0">
                   Admin
+                </span>
+              ) : user.role === "moderateur" ? (
+                <span className="inline-flex items-center rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400 shrink-0">
+                  Modo
                 </span>
               ) : user.status === "banned" ? (
                 <span className="inline-flex items-center rounded-md border border-red-500/25 bg-red-500/10 px-1.5 py-[3px] text-[9px] font-black uppercase tracking-[0.14em] leading-none text-red-600 dark:text-red-400 shrink-0">
                   Banni
                 </span>
-              ) : null}
-              {isMaker && user.status === "active" && (
-                <SealCheckIcon
-                  weight="fill"
-                  className="w-4 h-4 text-blue-500 shrink-0"
-                  aria-label="Maker vérifié — au moins un produit publié"
-                />
-              )}
-            </div>
-            <p className="flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground truncate">
-              <span className="truncate">@{user.username}</span>
-              <span aria-hidden="true">·</span>
-              <ProviderMark provider={user.provider} />
-              <span aria-hidden="true">·</span>
-              <span className="truncate">{user.joinedText}</span>
-            </p>
-          </div>
-
-          {/* Produits + sociaux — split asymétrique */}
-          <div className="flex items-center justify-between gap-4">
-            <ProductStack user={user} />
-            <SocialLinks user={user} />
-          </div>
-
-          {/* Email — donnée de lecture admin */}
-          {user.email && (
-            <p className="text-[12px] font-medium text-muted-foreground/70 truncate">
-              {user.email}
-            </p>
-          )}
+              ) : null
+            }
+          />
 
           {user.status === "banned" && user.banReason && (
             <p className="text-[12px] font-medium text-red-600 dark:text-red-400 leading-snug">
@@ -215,15 +156,64 @@ export function UserRow({
           )}
         </div>
 
-        {/* Actions — centrées verticalement */}
+        {/* Actions — chevron historique toujours visible (lecture).
+            Desktop : boutons inline. Mobile : menu ⋯ (mêmes gardes,
+            mêmes callbacks — l'identité respire, rien ne s'empile). */}
         <div className="flex items-center self-center gap-1 shrink-0">
-          {user.role !== "admin" &&
+          <button
+            type="button"
+            onClick={onToggleHistory}
+            aria-expanded={expanded}
+            title={expanded ? "Masquer l'historique" : "Voir l'historique"}
+            className={cn(
+              "flex items-center justify-center h-9 w-9 rounded-full border transition-colors cursor-pointer",
+              expanded
+                ? "border-foreground/30 bg-muted/60 text-foreground"
+                : "border-border/40 text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-muted/50",
+            )}
+          >
+            <CaretDownIcon
+              weight="bold"
+              className={cn(
+                "h-4 w-4 transition-transform",
+                expanded && "rotate-180",
+              )}
+            />
+          </button>
+          <span className="hidden md:flex items-center gap-1">
+          {!isSelf && showRoleActions && user.role === "user" && (
+            <button
+              type="button"
+              onClick={onToggleRole}
+              disabled={rolePending}
+              title="Nommer modérateur"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-4 py-2 text-[13px] font-bold text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+            >
+              {rolePending && <Spinner size="xs" />}
+              Rendre modo
+            </button>
+          )}
+          {!isSelf && showRoleActions && user.role === "moderateur" && (
+            <button
+              type="button"
+              onClick={onToggleRole}
+              disabled={rolePending}
+              title="Retirer le rôle modérateur"
+              className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-4 py-2 text-[13px] font-bold text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+            >
+              {rolePending && <Spinner size="xs" />}
+              Rétrograder
+            </button>
+          )}
+          {user.role === "user" &&
             (user.status === "banned" ? (
               <button
                 type="button"
                 onClick={onUnban}
-                className="rounded-full border border-emerald-500/40 px-4 py-2 text-[13px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer whitespace-nowrap"
+                disabled={pending}
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 px-4 py-2 text-[13px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
               >
+                {pending && <Spinner size="xs" />}
                 Débannir
               </button>
             ) : (
@@ -235,19 +225,38 @@ export function UserRow({
                   "flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-bold transition-colors cursor-pointer whitespace-nowrap",
                   banning
                     ? "border-foreground/30 bg-muted/60 text-foreground"
-                    : "border-border/40 text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-muted/50",
+                    : "border-border/40 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10",
                 )}
               >
                 <GavelIcon weight="bold" className="w-4 h-4" />
                 Bannir
               </button>
             ))}
+          </span>
+          {!isSelf &&
+            (user.role === "user" ||
+              (showRoleActions && user.role === "moderateur")) && (
+              <RowMenu
+                canManageRole={showRoleActions}
+                roleLabel={
+                  user.role === "moderateur" ? "Rétrograder" : "Rendre modo"
+                }
+                rolePending={rolePending}
+                onToggleRole={onToggleRole}
+                canBan={user.role === "user"}
+                banLabel={user.status === "banned" ? "Débannir" : "Bannir"}
+                banTone={user.status === "banned" ? "success" : "danger"}
+                actionPending={pending}
+                onAction={user.status === "banned" ? onUnban : onToggleBan}
+              />
+            )}
         </div>
       </div>
 
-      {/* Ban reason — inline, obligatoire */}
+      {/* Ban reason — inline, obligatoire. Indent aligné avatar sur
+          desktop, resserré sur mobile (72 px récupérés). */}
       {banning && user.status === "active" && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pl-[84px] pr-3 pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pl-3 sm:pl-[84px] pr-3 pb-5">
           <input
             type="text"
             value={banReason}
@@ -267,13 +276,158 @@ export function UserRow({
             <button
               type="button"
               onClick={onConfirmBan}
-              disabled={banReason.trim() === ""}
-              className="rounded-full bg-red-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-red-500 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={banReason.trim() === "" || pending}
+              className="rounded-full bg-red-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-red-500 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
-              Confirmer le ban
+              {pending && <Spinner size="xs" />}
+              {pending ? "Ban en cours…" : "Confirmer le ban"}
             </button>
           </div>
         </div>
+      )}
+      {/* Historique paresseux — Zero UI (pas de carte : pile
+          typographique alignée, tons sémantiques). L'état LIVE passe
+          d'abord (vérité d'état, pas d'audit). La ligne de compteurs ne
+          montre QUE les compteurs non nuls : bans/unbans viennent de
+          l'audit post-suivi (un ban pré-suivi vaut 0 — l'afficher serait
+          un mensonge), appels vient de la table (fiable). Zéro "0×". */}
+      {expanded && (
+        <div className="pl-[84px] pr-3 pb-5">
+          {historyLoading || !history ? (
+            <p className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground py-2">
+              <Spinner size="xs" />
+              Chargement de l&apos;historique…
+            </p>
+          ) : (
+            <HistoryBody user={user} history={history} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Corps de l'historique : état live → compteurs non-nuls → timeline.
+ * Cas rendus (aucun n'affiche "0×") :
+ * - banni : "Actuellement banni — motif · depuis le…" (+ timeline si events,
+ *   + note antérieures si vide) ;
+ * - actif avec events : "Banni 1× · appels 2" (seuls les > 0) + timeline ;
+ * - actif sans trace : "Aucune sanction — bon travail."
+ */
+function HistoryBody({
+  user,
+  history,
+}: {
+  user: AdminUserRow;
+  history: UserHistory;
+}) {
+  const parts: string[] = [];
+  if (history.bans > 0) parts.push(`Banni ${history.bans}×`);
+  if (history.unbans > 0) parts.push(`Débanni ${history.unbans}×`);
+  if (history.appeals > 0) parts.push(`appels ${history.appeals}`);
+
+  // Ban fantôme : bans === 0 mais débans/appels > 0 ⇒ l'utilisateur a
+  // FORCÉMENT été banni avant le suivi (on ne débanne ni ne conteste
+  // sans ban). Entrée synthétique en bas de timeline (la plus ancienne),
+  // labellisée "avant le suivi" — ni acteur ni date inventés. Pas pour
+  // un banni en cours : la ligne live "Actuellement banni" le couvre.
+  const ghostBan =
+    user.status !== "banned" &&
+    history.bans === 0 &&
+    (history.unbans > 0 || history.appeals > 0);
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      {user.status === "banned" && (
+        <p className="text-[13px] font-bold text-foreground tabular-nums">
+          Actuellement banni
+          {user.banReason && (
+            <span className="font-medium text-red-600 dark:text-red-400">
+              {" "}
+              — {user.banReason}
+            </span>
+          )}
+          {user.bannedAt && (
+            <span className="font-medium text-muted-foreground">
+              {" "}
+              · depuis le{" "}
+              {new Intl.DateTimeFormat("fr-FR", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              }).format(new Date(user.bannedAt))}
+            </span>
+          )}
+        </p>
+      )}
+      {parts.length > 0 && (
+        <p className="text-[13px] font-bold text-foreground tabular-nums">
+          {parts.join(" · ")}
+        </p>
+      )}
+      {history.events.length === 0 ? (
+        user.status === "banned" || history.appeals > 0 ? (
+          <p className="text-[12px] font-medium text-muted-foreground">
+            Actions antérieures au suivi non détaillées.
+          </p>
+        ) : (
+          <p className="text-[13px] font-medium text-muted-foreground">
+            Aucune sanction — bon travail.
+          </p>
+        )
+      ) : (
+        <ul className="flex flex-col divide-y divide-border/40">
+          {history.events.map((event) => (
+            <li
+              key={event.id}
+              className="flex items-baseline gap-2 py-2 text-[13px] leading-relaxed"
+            >
+              <HistoryDot action={event.action} />
+              <span
+                className={cn(
+                  "font-bold shrink-0",
+                  event.action === "ban" &&
+                    "text-red-600 dark:text-red-400",
+                  event.action === "unban" &&
+                    "text-emerald-600 dark:text-emerald-400",
+                  (event.action === "promote" ||
+                    event.action === "demote") &&
+                    "text-amber-600 dark:text-amber-400",
+                  (event.action === "appeal_upheld" ||
+                    event.action === "appeal_overturned") &&
+                    "text-foreground",
+                )}
+              >
+                {event.label}
+              </span>
+              <span className="text-muted-foreground">
+                par {event.actor}
+              </span>
+              {event.note && (
+                <span className="text-muted-foreground truncate">
+                  — {event.note}
+                </span>
+              )}
+              <span className="ml-auto text-[12px] font-medium text-muted-foreground/70 tabular-nums shrink-0">
+                {new Intl.DateTimeFormat("fr-FR", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                }).format(new Date(event.at))}
+              </span>
+            </li>
+          ))}
+          {ghostBan && (
+            <li className="flex items-baseline gap-2 py-2 text-[13px] leading-relaxed">
+              <HistoryDot action="ban" />
+              <span className="font-bold shrink-0 text-red-600 dark:text-red-400">
+                Banni
+              </span>
+              <span className="text-muted-foreground">avant le suivi</span>
+            </li>
+          )}
+        </ul>
       )}
     </div>
   );

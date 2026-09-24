@@ -45,3 +45,9 @@ DESIGN.md
 STACK.md
 CLAUDE.md
 AGENTS.md
+
+# email previews (generated locally by scripts/render-email-previews.ts)
+html/
+
+# Sentry Config File
+.env.sentry-build-plugin

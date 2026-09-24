@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 // File de revue (§9) : approuver / rejeter + motif. Rien de plus.
-// TODO(auth): role-gate server.
+// Gate staff au layout (admin) — données réelles au milestone listings.
 export default function AdminReviewPage() {
   return (
     <div className="w-full px-6 lg:px-12 pt-10 lg:pt-14 pb-24 flex flex-col gap-10">

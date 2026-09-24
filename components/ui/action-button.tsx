@@ -6,12 +6,17 @@ export interface ActionButtonProps extends React.AnchorHTMLAttributes<HTMLAnchor
   href?: string;
   variant?: "primary" | "ghost" | "outline";
   isFullWidthOnMobile?: boolean;
+  /** Transmis au <button> quand sans href (ex. submit de formulaire). */
+  actionType?: "submit" | "button";
+  disabled?: boolean;
 }
 
 export function ActionButton({ 
   href, 
   variant = "primary", 
   isFullWidthOnMobile = true,
+  actionType = "button",
+  disabled,
   className, 
   children, 
   ...props 
@@ -37,7 +42,12 @@ export function ActionButton({
   }
 
   return (
-    <button className={combinedClasses} {...(props as any)}>
+    <button
+      type={actionType}
+      disabled={disabled}
+      className={cn(combinedClasses, "disabled:opacity-50 disabled:cursor-not-allowed")}
+      {...(props as any)}
+    >
       {children}
     </button>
   )

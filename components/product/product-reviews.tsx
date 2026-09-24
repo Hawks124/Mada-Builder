@@ -1,9 +1,10 @@
 "use client";
-
 import { StarIcon } from "@phosphor-icons/react";
-import { ProductReviewForm } from "./product-review-form";
-import Link from "next/link";
 
+import { ProductReviewForm } from "./product-review-form";
+
+import Link from "next/link";
+import { AvatarImage } from "@/components/ui/avatar-image";
 export function ProductReviews({ id }: { id?: string }) {
   return (
     <div id={id} className="flex flex-col pt-10 border-t border-border/40">
@@ -66,7 +67,7 @@ export function ProductReviews({ id }: { id?: string }) {
           {/* Reviewer header + body */}
           <div className="flex items-start gap-4">
             <Link href="/makers/jas" className="shrink-0 hover:opacity-75 transition-opacity">
-              <img src="https://i.pravatar.cc/150?u=jas" className="w-11 h-11 rounded-full bg-muted" alt="Jas Apusaga" />
+              <AvatarImage src="https://i.pravatar.cc/150?u=jas" name="Jas Apusaga" size={44} />
             </Link>
             <div className="flex flex-col flex-1">
               <div className="flex items-start justify-between gap-4">
@@ -109,7 +110,7 @@ export function ProductReviews({ id }: { id?: string }) {
             {/* Author row */}
             <div className="flex items-start gap-3">
               <Link href="/makers/bryl" className="shrink-0 hover:opacity-75 transition-opacity">
-                <img src="https://i.pravatar.cc/150?u=bryl" className="w-8 h-8 rounded-full bg-muted" alt="Bryl Lim" />
+                <AvatarImage src="https://i.pravatar.cc/150?u=bryl" name="Bryl Lim" size={32} />
               </Link>
               <div className="flex flex-col flex-1">
                 <div className="flex items-center justify-between">

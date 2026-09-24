@@ -1,17 +1,17 @@
 "use client";
 
-import {
-  AreaChart,
-  Area,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 import Link from "next/link";
+import Image from "next/image";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { SealCheckIcon, LockSimpleIcon } from "@phosphor-icons/react";
 import { cn, slugifyName } from "@/lib/utils";
 
 // Real provider logos stored in /public/logos/
-const PROVIDER_LOGO: Record<"Stripe" | "RevenueCat", { src: string; color: string; label: string }> = {
+const PROVIDER_LOGO: Record<
+  "Stripe" | "RevenueCat",
+  { src: string; color: string; label: string }
+> = {
   Stripe: {
     src: "/logos/stripe.svg",
     color: "#635BFF",
@@ -82,8 +82,8 @@ export function VerifiedRevenueCard({
   return (
     <div
       className={cn(
-        "group flex flex-col bg-muted/30 hover:bg-muted/60 rounded-4xl transition-all duration-300 overflow-hidden border border-transparent hover:border-border/40 hover:shadow-lg",
-        className
+        "group flex flex-col bg-muted/30 hover:bg-muted/60 rounded-[10px] transition-all duration-300 overflow-hidden border border-transparent hover:border-border/40 hover:shadow-lg",
+        className,
       )}
     >
       {/* ── HEADER : App icon + provider badge ── */}
@@ -92,7 +92,7 @@ export function VerifiedRevenueCard({
         <div
           className={cn(
             "w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-base bg-linear-to-br shadow-sm shrink-0 transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-2",
-            appIconGradient
+            appIconGradient,
           )}
         >
           {appInitials}
@@ -100,9 +100,11 @@ export function VerifiedRevenueCard({
 
         {/* Provider badge — real logo + brand label */}
         <div className="flex items-center gap-1.5 pt-0.5">
-          <img
+          <Image
             src={PROVIDER_LOGO[provider].src}
             alt={PROVIDER_LOGO[provider].label}
+            width={64}
+            height={16}
             className="h-4 w-auto object-contain"
           />
           <span
@@ -146,7 +148,7 @@ export function VerifiedRevenueCard({
         <span
           className={cn(
             "text-sm font-black mb-1",
-            isUp ? "text-emerald-600" : "text-red-500"
+            isUp ? "text-emerald-600" : "text-red-500",
           )}
         >
           {isUp ? "▲" : "▼"} {pct}%
@@ -177,9 +179,18 @@ export function VerifiedRevenueCard({
       {/* ── SPARKLINE CHART ── */}
       <div className="w-full h-28 mt-2 rounded-b-4xl">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={historyData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+          <AreaChart
+            data={historyData}
+            margin={{ top: 2, right: 0, left: 0, bottom: 0 }}
+          >
             <defs>
-              <linearGradient id={`grad-${appName.replace(/\s+/g, "-")}`} x1="0" y1="0" x2="0" y2="1">
+              <linearGradient
+                id={`grad-${appName.replace(/\s+/g, "-")}`}
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
                 <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
                 <stop offset="100%" stopColor="#10b981" stopOpacity={0.05} />
               </linearGradient>
@@ -194,7 +205,10 @@ export function VerifiedRevenueCard({
                 color: "hsl(var(--foreground))",
               }}
               itemStyle={{ color: "#10b981" }}
-              labelStyle={{ color: "hsl(var(--muted-foreground))", fontSize: "10px" }}
+              labelStyle={{
+                color: "hsl(var(--muted-foreground))",
+                fontSize: "10px",
+              }}
               formatter={(v) =>
                 v !== undefined
                   ? [`${formatCompact(Number(v))} ${currency}`, "MRR"]
@@ -222,14 +236,18 @@ export function VerifiedRevenueCard({
           href={`/makers/${slugifyName(makerName)}`}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity w-fit"
         >
-          <img
+          <AvatarImage
             src={makerAvatar}
-            alt={makerName}
-            className="w-6 h-6 rounded-full grayscale group-hover:grayscale-0 transition-all"
+            name={makerName}
+            size={24}
+            className="grayscale group-hover:grayscale-0 transition-all"
           />
           <span className="text-xs font-bold text-foreground">{makerName}</span>
           {makerVerified && (
-            <SealCheckIcon weight="fill" className="w-3.5 h-3.5 text-blue-500 -ml-1" />
+            <SealCheckIcon
+              weight="fill"
+              className="w-3.5 h-3.5 text-blue-500 -ml-1"
+            />
           )}
         </Link>
 

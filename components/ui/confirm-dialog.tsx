@@ -1,14 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { WarningCircleIcon, XCircleIcon } from "@phosphor-icons/react";
+import {
+  WarningCircleIcon,
+  XCircleIcon,
+  InfoIcon,
+} from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 type ConfirmDialogTone = "danger" | "default";
 
-// Shared confirm dialog — desktop-sized, friction proportionnée :
-// confirm simple par défaut, liste d'impact + saisie requise pour
-// l'irréversible. Backdrop + Escape to dismiss, scroll locked while open.
+/**
+ * Shared confirm dialog — Ergonomie renforcée, 0 scroll mobile,
+ * hiérarchie visuelle stricte et gestion sémantique du tone.
+ */
 export function ConfirmDialog({
   open,
   title,
@@ -18,6 +24,7 @@ export function ConfirmDialog({
   confirmLabel = "Confirmer",
   cancelLabel = "Annuler",
   tone = "default",
+  confirmPending = false,
   onConfirm,
   onCancel,
 }: {
@@ -29,6 +36,7 @@ export function ConfirmDialog({
   confirmLabel?: string;
   cancelLabel?: string;
   tone?: ConfirmDialogTone;
+  confirmPending?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -67,7 +75,7 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) handleCancel();
       }}
@@ -77,91 +85,112 @@ export function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-md rounded-[28px] border border-border/60 bg-background p-7 md:p-8 shadow-2xl flex flex-col gap-5"
+        className="w-full max-w-md rounded-2xl border border-border/80 bg-background p-6 shadow-xl flex flex-col gap-5 animate-in zoom-in-95 duration-150"
       >
-        {/* Icon — top level, not in a row with the copy */}
-        <div
-          className={cn(
-            "h-12 w-12 rounded-full flex items-center justify-center shrink-0",
-            isDanger ? "bg-red-500/10" : "bg-muted/60",
-          )}
-        >
-          <WarningCircleIcon
-            weight="fill"
+        {/* Header : Icône + Titre en alignement compact */}
+        <div className="flex items-start gap-4">
+          <div
             className={cn(
-              "h-6 w-6",
-              isDanger ? "text-red-500" : "text-muted-foreground",
+              "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border",
+              isDanger
+                ? "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400"
+                : "bg-muted border-border/60 text-foreground",
             )}
-          />
-        </div>
+          >
+            <WarningCircleIcon weight="fill" className="h-5 w-5" />
+          </div>
 
-        <div className="flex flex-col gap-1.5 min-w-0">
-          <h3 className="text-xl font-extrabold tracking-tight text-foreground leading-snug">
-            {title}
-          </h3>
-          <div className="text-[14px] font-medium text-muted-foreground leading-relaxed">
-            {description}
+          <div className="flex flex-col gap-1 min-w-0 pt-0.5">
+            <h3 className="text-lg font-bold tracking-tight text-foreground leading-snug">
+              {title}
+            </h3>
+            <div className="text-sm text-muted-foreground leading-relaxed">
+              {description}
+            </div>
           </div>
         </div>
 
+        {/* Details : Adaptés selon le tone (Rouge si danger, Neutre si default) */}
         {details && details.length > 0 && (
-          <ul className="flex flex-col gap-2 rounded-2xl bg-muted/30 border border-border/40 px-5 py-4">
+          <ul
+            className={cn(
+              "flex flex-col gap-2 rounded-xl border p-3.5 text-xs font-medium",
+              isDanger
+                ? "bg-red-500/5 border-red-500/15 text-red-900 dark:text-red-200"
+                : "bg-muted/40 border-border/50 text-foreground",
+            )}
+          >
             {details.map((item) => (
-              <li
-                key={item}
-                className="flex items-center gap-2.5 text-[14px] font-medium text-foreground"
-              >
-                <XCircleIcon
-                  weight="fill"
-                  className="w-4 h-4 text-red-500 shrink-0"
-                  aria-hidden="true"
-                />
-                {item}
+              <li key={item} className="flex items-start gap-2 leading-relaxed">
+                {isDanger ? (
+                  <XCircleIcon
+                    weight="fill"
+                    className="w-4 h-4 text-red-500 shrink-0 mt-0.5"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <InfoIcon
+                    weight="fill"
+                    className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5"
+                    aria-hidden="true"
+                  />
+                )}
+                <span>{item}</span>
               </li>
             ))}
           </ul>
         )}
 
+        {/* Input de confirmation explicite */}
         {requireConfirmText && (
           <div className="flex flex-col gap-2">
-            <label className="text-[13px] font-bold text-foreground leading-relaxed">
-              Pour confirmer, tapez{" "}
-              <code className="font-mono text-[13px] bg-muted border border-border/60 rounded-md px-1.5 py-0.5 text-foreground select-all">
+            <label className="text-xs font-semibold text-foreground leading-relaxed">
+              Pour confirmer, saisissez{" "}
+              <code className="font-mono text-xs bg-muted border border-border/60 rounded px-1.5 py-0.5 text-foreground select-all">
                 {requireConfirmText.expected}
-              </code>{" "}
-              ci-dessous
+              </code>
             </label>
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={requireConfirmText.placeholder ?? requireConfirmText.expected}
+              placeholder={
+                requireConfirmText.placeholder ?? requireConfirmText.expected
+              }
               autoComplete="off"
-              className="w-full bg-background border border-border/60 rounded-2xl px-5 py-3.5 text-[15px] font-medium placeholder:text-muted-foreground/30 text-foreground outline-none focus:border-red-500/50 transition-colors"
+              className={cn(
+                "w-full bg-background border rounded-xl px-3.5 py-2.5 text-sm font-medium text-foreground outline-none transition-all placeholder:text-muted-foreground/40",
+                isDanger
+                  ? "border-border/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+                  : "border-border/80 focus:border-foreground focus:ring-2 focus:ring-foreground/10",
+              )}
             />
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-2.5">
+        {/* Actions : Responsive (empilés sur mobile, alignés à droite sur desktop) */}
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-2.5 pt-1">
           <button
             type="button"
             onClick={handleCancel}
-            className="rounded-full border border-border/60 px-6 py-3 text-[14px] font-bold text-muted-foreground hover:text-foreground hover:border-border transition-colors cursor-pointer"
+            disabled={confirmPending}
+            className="rounded-xl border border-border/80 px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-muted/60 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {cancelLabel}
           </button>
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={!matched}
+            disabled={!matched || confirmPending}
             className={cn(
-              "rounded-full px-6 py-3 text-[14px] font-bold text-white transition-colors",
+              "rounded-xl px-4 py-2.5 text-xs font-semibold text-white transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-sm",
               isDanger
-                ? "bg-red-600 hover:bg-red-500 disabled:hover:bg-red-600"
-                : "bg-foreground hover:opacity-90 disabled:hover:opacity-100",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
+                ? "bg-red-600 hover:bg-red-500 active:bg-red-700 disabled:bg-red-600/50"
+                : "bg-foreground text-background hover:opacity-90 active:opacity-100 disabled:opacity-40",
+              "disabled:cursor-not-allowed",
             )}
           >
+            {confirmPending && <Spinner size="sm" />}
             {confirmLabel}
           </button>
         </div>

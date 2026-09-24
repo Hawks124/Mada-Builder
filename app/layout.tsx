@@ -3,6 +3,11 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { UmamiTracker } from "@/components/analytics/umami";
+import { CookieNotice } from "@/components/legal/cookie-notice";
+import { AuthRemember } from "@/components/auth/auth-remember";
+import { ToastViewport } from "@/components/ui/toast";
+import { Suspense } from "react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,7 +46,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           defaultTheme="system"
           enableSystem
         >
+          <UmamiTracker />
+          <AuthRemember />
+          <Suspense fallback={null}>
+            <ToastViewport />
+          </Suspense>
           {children}
+          <CookieNotice />
         </ThemeProvider>
       </body>
     </html>

@@ -16,7 +16,7 @@ export function ProductVerifiedRevenue() {
         
         {/* Real RevenueCat Badge */}
         <span className="flex items-center gap-1.5 text-[10.5px] font-black uppercase tracking-widest text-[#F36262] dark:text-[#ff7878] border border-[#F36262]/30 bg-[#F36262]/5 dark:bg-[#F36262]/10 px-2.5 py-1 rounded-full shadow-sm">
-          <img src="/logos/revenuecat.svg" alt="RevenueCat" className="w-4 h-4 shrink-0" />
+          <Image src="/logos/revenuecat.svg" alt="RevenueCat" width={16} height={16} className="w-4 h-4 shrink-0" />
           RevenueCat
         </span>
         

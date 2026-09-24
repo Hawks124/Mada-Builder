@@ -1,0 +1,83 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789997910492,
+      "tag": "0000_shiny_scalphunter",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790022625075,
+      "tag": "0001_far_korg",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790072665206,
+      "tag": "0002_clammy_lord_hawal",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790074947710,
+      "tag": "0003_remarkable_mandroid",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790077984639,
+      "tag": "0004_pretty_captain_flint",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790081078554,
+      "tag": "0005_high_hardball",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790097524491,
+      "tag": "0006_clammy_lenny_balinger",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790117806263,
+      "tag": "0007_petite_lockheed",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790156713614,
+      "tag": "0008_loud_red_hulk",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790178827867,
+      "tag": "0009_broken_miss_america",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790243490701,
+      "tag": "0010_lazy_skullbuster",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+ALTER TABLE "auth_otp" ADD COLUMN "token_hash" text;

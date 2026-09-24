@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { StarIcon, ChatCircleIcon } from "@phosphor-icons/react";
+import { StarIcon, ChatCircleTextIcon } from "@phosphor-icons/react";
 import Link from "next/link";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
+import { useVoteWall } from "@/components/votes/use-vote-wall";
 
 export function ProductHeader() {
   return (
@@ -30,7 +32,7 @@ export function ProductHeader() {
               className={cn(
                 "px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-widest mt-1 cursor-pointer transition-all",
                 getCategoryById("finance")!.chipClass,
-                getCategoryById("finance")!.hoverClass
+                getCategoryById("finance")!.hoverClass,
               )}
             >
               {getCategoryById("finance")!.name}
@@ -44,10 +46,11 @@ export function ProductHeader() {
               href="/makers/bryl"
               className="flex items-center gap-2 group/maker"
             >
-              <img
+              <AvatarImage
                 src="https://i.pravatar.cc/150?u=bryl"
-                className="w-5 h-5 rounded-full grayscale group-hover/maker:grayscale-0 transition-all"
-                alt="Bryl Lim"
+                name="Bryl Lim"
+                size={20}
+                className="grayscale group-hover/maker:grayscale-0 transition-all"
               />
               <span className="text-sm font-semibold text-foreground group-hover/maker:text-primary transition-colors">
                 Bryl Lim
@@ -68,7 +71,7 @@ export function ProductHeader() {
               href="#comments"
               className="flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
             >
-              <ChatCircleIcon weight="fill" className="w-4 h-4" />
+              <ChatCircleTextIcon weight="fill" className="w-4 h-4" />
               <span>4 commentaires</span>
             </Link>
           </div>
@@ -83,10 +86,14 @@ export function ProductHeader() {
 
 function AnimatedVoteButton() {
   const [voted, setVoted] = useState(false);
+  const guardedVote = useVoteWall();
 
   return (
     <button
-      onClick={() => setVoted(!voted)}
+      onClick={() => {
+        // TODO(votes): remplacer par la Server Action toggleVote (optimiste).
+        void guardedVote(() => setVoted(!voted));
+      }}
       className="relative group/vote flex flex-col items-center justify-center w-20 md:w-24 py-4 md:py-5 shrink-0 transition-all outline-none cursor-pointer"
     >
       {/* Soft background that only appears on hover or active */}

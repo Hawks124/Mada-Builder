@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { notFound } from "next/navigation";
 import {
   GlobeIcon,
@@ -57,7 +58,8 @@ const SLA_HOURS = 24;
 
 // Cockpit de verdict (§9) — SEUL endroit où l'approbation existe.
 // Preuves à gauche, checklist auto + verdict sticky à droite.
-// TODO(auth): role-gate server + approveProduct/rejectProduct + email.
+// Gate staff au layout (admin). Reste (milestone listings) :
+// approveProduct/rejectProduct + email.
 export default async function AdminReviewDetailPage({
   params,
 }: {
@@ -415,10 +417,10 @@ export default async function AdminReviewDetailPage({
         {/* Rail sticky — mini maker + checklist + verdict */}
         <div className="lg:col-span-4 flex flex-col gap-6 lg:sticky lg:top-8">
           <div className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/20 px-4 py-3">
-            <img
+            <AvatarImage
               src={item.makerAvatar}
-              alt={item.makerName}
-              className="w-10 h-10 rounded-full object-cover shrink-0"
+              name={item.makerName}
+              size={40}
             />
             <div className="flex flex-col min-w-0 flex-1">
               <Link

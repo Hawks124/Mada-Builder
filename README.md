@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mada-Made
 
-## Getting Started
+**Ce que tu construis ici, on le voit ici.** L'annuaire des produits construits par les développeurs malgaches : publie ton produit, gagne ta place au leaderboard quotidien, et prouve optionnellement tes revenus réels (vérifiés en lecture seule, jamais auto-déclarés).
 
-First, run the development server:
+> Statut : `v0.1.0` — fondations, identité & modération. Voir [CHANGELOG.md](./CHANGELOG.md) (pas encore un MVP : listings, leaderboard et revenus vérifiés arrivent).
+
+## Stack
+
+Next.js 16 (App Router) + TypeScript · Tailwind v4 · Postgres (Drizzle) · Supabase Auth (Google, GitHub, email OTP) · Resend · Upstash (rate-limit) · Vercel + pg_cron (jobs).
+
+## Démarrage
 
 ```bash
+npm install
+cp .env.example .env.local   # renseigner : Supabase, Resend, Upstash, ADMIN_EMAILS
+npm run db:setup             # trigger signup, RLS, buckets (idempotent)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Script | Usage |
+|---|---|
+| `npm run db:generate` / `db:migrate:local` | migration Drizzle (générer, appliquer avec `.env.local`) |
+| `npm run db:setup` | `setup.sql` post-migration (31 instructions, rejouable) |
+| `npx tsx scripts/verify-*.ts` | garde-fous (OTP, toasts, emails, API v1…) |
+| `npx tsc --noEmit` + `npx eslint` | vérifs avant chaque lot |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Sans clés Supabase, l'app tourne en mock (voir `docs/auth.md`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Carte des docs
 
-## Learn More
+- [`docs/README.md`](./docs/README.md) — index de la documentation.
+- [`docs/architecture.md`](./docs/architecture.md) — proxy, services, RLS, realtime, jobs.
+- [`docs/auth.md`](./docs/auth.md) — référence du protocole d'authentification.
+- [`docs/mobile-contrats.md`](./docs/mobile-contrats.md) — contrats de l'API v1 (équipe Flutter).
+- [`CHANGELOG.md`](./CHANGELOG.md) — ce qui est livré, version par version.
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — conventions (lire avant toute PR).
 
-To learn more about Next.js, take a look at the following resources:
+## Contribuer
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Projet open source sous licence MIT. Lire [`CONTRIBUTING.md`](./CONTRIBUTING.md) et le [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md). Faille de sécurité → [`SECURITY.md`](./SECURITY.md) (jamais en issue publique).

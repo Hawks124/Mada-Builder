@@ -28,8 +28,9 @@ const SECTIONS = [
   },
 ];
 
-// TODO(Jalon 5): version juridique complète + sanctions graduées.
-// Charte courte d'amorçage, indexable (§7).
+// TODO(Jalon 5): sanctions graduées détaillées + cas limites.
+// Charte communautaire (contrat social lisible) — le contrat juridique
+// vit sur /conditions. Indexable (§7).
 export default function ReglesPage() {
   return (
     <main className="min-h-screen bg-background">

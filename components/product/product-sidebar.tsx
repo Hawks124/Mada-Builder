@@ -1,7 +1,8 @@
 "use client";
-
 import { useState } from "react";
+
 import Link from "next/link";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import {
   ShareNetworkIcon,
   SealCheckIcon,
@@ -121,10 +122,11 @@ export function ProductSidebar() {
       <div className="flex flex-col gap-4 p-4 rounded-2xl border border-border/40 bg-muted/10 hover:border-border/60 transition-all">
         <div className="flex items-center gap-3">
           <Link href="/makers/bryl" className="shrink-0">
-            <img
+            <AvatarImage
               src="https://i.pravatar.cc/150?u=bryl"
-              className="w-11 h-11 rounded-full hover:scale-105 transition-transform"
-              alt="Maker"
+              name="Maker"
+              size={44}
+              className="hover:scale-105 transition-transform"
             />
           </Link>
           <div className="flex flex-col min-w-0 flex-1">
