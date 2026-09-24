@@ -10,5 +10,8 @@ tsconfig.tsbuildinfo
 public/
 html/
 db/migrations/meta/
+# Sans parser Prettier (feraient échouer --check) :
+.gitattributes
+.nvmrc
 *.min.js
 *.min.css
