@@ -3,10 +3,7 @@
 import * as React from "react";
 import { Select } from "@/components/ui/select";
 import { FieldBadge } from "@/components/ui/field-badge";
-import {
-  DEFAULT_OCCUPATION_ID,
-  OCCUPATIONS,
-} from "@/config/occupations";
+import { DEFAULT_OCCUPATION_ID, OCCUPATIONS } from "@/config/occupations";
 
 // Occupation partagée — vocabulaire fermé (users.occupation backend).
 // Pilotée par `defaultValue` + champ caché `occupation` (submit natif).

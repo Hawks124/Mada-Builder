@@ -52,9 +52,7 @@ export function AvatarImage({
           className,
         )}
       >
-        <span style={{ fontSize: Math.max(10, Math.round(size * 0.35)) }}>
-          {initials || "M"}
-        </span>
+        <span style={{ fontSize: Math.max(10, Math.round(size * 0.35)) }}>{initials || "M"}</span>
       </span>
     );
   }

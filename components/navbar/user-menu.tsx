@@ -52,10 +52,7 @@ export function UserMenu({
     if (!isOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -82,18 +79,12 @@ export function UserMenu({
         aria-label="Menu utilisateur"
         className={cn(
           "rounded-full bg-[#EA580C] flex items-center justify-center text-white font-bold shadow-md transform transition hover:scale-105 cursor-pointer overflow-hidden",
-          size === "lg"
-            ? "h-10 w-10 text-[14px]"
-            : "h-8.5 w-8.5 text-[12px] shadow-sm",
+          size === "lg" ? "h-10 w-10 text-[14px]" : "h-8.5 w-8.5 text-[12px] shadow-sm",
           isOpen && "ring-2 ring-foreground/30 ring-offset-2 ring-offset-background",
         )}
       >
         {user.avatarUrl ? (
-          <AvatarImage
-            src={user.avatarUrl}
-            name={user.name}
-            size={size === "lg" ? 40 : 34}
-          />
+          <AvatarImage src={user.avatarUrl} name={user.name} size={size === "lg" ? 40 : 34} />
         ) : (
           user.initials
         )}
@@ -209,15 +200,13 @@ export function UserMenu({
           </button>
         </div>
       )}
-      <SignOutConfirm
-        open={signoutOpen}
-        onCancel={() => setSignoutOpen(false)}
-      />
+      <SignOutConfirm open={signoutOpen} onCancel={() => setSignoutOpen(false)} />
     </div>
   );
 }
 
-function UserMenuItem({  href,
+function UserMenuItem({
+  href,
   title,
   icon,
   onNavigate,

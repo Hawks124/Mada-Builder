@@ -2,18 +2,9 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  CheckCircleIcon,
-  WarningCircleIcon,
-  InfoIcon,
-} from "@phosphor-icons/react";
+import { CheckCircleIcon, WarningCircleIcon, InfoIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import {
-  TOAST_PARAM,
-  isToastTone,
-  parseToastParam,
-  type ToastTone,
-} from "@/lib/toast";
+import { TOAST_PARAM, isToastTone, parseToastParam, type ToastTone } from "@/lib/toast";
 
 // Design repris tel quel de l'ancien AuthToast (pill flottante,
 // blur, montée/exit) — seule la source change (?toast= partagé).

@@ -8,10 +8,16 @@
  * même sans image, la marque reste lisible.
  */
 
-export const LOGO_DARK_URL =
-  "https://bpeiahrycdzfiwllysfd.supabase.co/storage/v1/object/public/logos/mada-made-dark.png";
-export const LOGO_LIGHT_URL =
+/**
+ * Convention (voir components/ui/logo.tsx) : "dark"/"light" = couleur de
+ * l'ARTWORK, pas le thème cible. Donc : marque NOIRE (`-light`) sur fond
+ * clair (défaut), marque BLANCHE (`-dark`) en dark-mode. Inverser =
+ * logo invisible (blanc sur blanc).
+ */
+export const LOGO_ON_LIGHT_URL =
   "https://bpeiahrycdzfiwllysfd.supabase.co/storage/v1/object/public/logos/mada-made-light.png";
+export const LOGO_ON_DARK_URL =
+  "https://bpeiahrycdzfiwllysfd.supabase.co/storage/v1/object/public/logos/mada-made-dark.png";
 
 /** À injecter dans le CSS de base de chaque template. */
 export const BRAND_CSS_BASE = `.logo-d{display:none !important;}`;
@@ -23,8 +29,8 @@ export const BRAND_CSS_DARK = `.logo-l{display:none !important;}
 export function emailBrandHtml(): string {
   return `<table border="0" cellspacing="0" cellpadding="0">
         <tr>
-          <td><img src="${LOGO_DARK_URL}" alt="BuilderPlatform" width="32" height="32" class="logo-l" style="border-radius:8px;display:block;"></td>
-          <td class="logo-d" style="display:none;mso-hide:all;"><img src="${LOGO_LIGHT_URL}" alt="" width="32" height="32" style="border-radius:8px;display:block;"></td>
+          <td><img src="${LOGO_ON_LIGHT_URL}" alt="BuilderPlatform" width="32" height="32" class="logo-l" style="border-radius:8px;display:block;"></td>
+          <td class="logo-d" style="display:none;mso-hide:all;"><img src="${LOGO_ON_DARK_URL}" alt="" width="32" height="32" style="border-radius:8px;display:block;"></td>
           <td style="padding-left:12px;" class="brand-text">BuilderPlatform</td>
         </tr>
       </table>`;

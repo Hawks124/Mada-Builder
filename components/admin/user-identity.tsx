@@ -3,12 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  GithubLogoIcon,
-  EnvelopeIcon,
-  CopyIcon,
-  CheckIcon,
-} from "@phosphor-icons/react";
+import { GithubLogoIcon, EnvelopeIcon, CopyIcon, CheckIcon } from "@phosphor-icons/react";
 
 /**
  * Identité user côté staff — UNE seule implémentation, utilisée par la
@@ -21,18 +16,13 @@ import {
  */
 export function ProviderMarks({ providers }: { providers: string[] }) {
   if (providers.length === 0) {
-    return (
-      <span className="text-muted-foreground/60">Aucun provider</span>
-    );
+    return <span className="text-muted-foreground/60">Aucun provider</span>;
   }
   return (
     <span className="flex items-center gap-2.5">
       {providers.map((p) =>
         p === "google" ? (
-          <span
-            key={p}
-            className="flex items-center gap-1.5 text-muted-foreground"
-          >
+          <span key={p} className="flex items-center gap-1.5 text-muted-foreground">
             <Image
               src="/logos/google.svg"
               alt="Google"
@@ -43,18 +33,12 @@ export function ProviderMarks({ providers }: { providers: string[] }) {
             Google
           </span>
         ) : p === "github" ? (
-          <span
-            key={p}
-            className="flex items-center gap-1.5 text-muted-foreground"
-          >
+          <span key={p} className="flex items-center gap-1.5 text-muted-foreground">
             <GithubLogoIcon weight="fill" className="w-3.5 h-3.5 shrink-0" />
             GitHub
           </span>
         ) : (
-          <span
-            key={p}
-            className="flex items-center gap-1.5 text-muted-foreground"
-          >
+          <span key={p} className="flex items-center gap-1.5 text-muted-foreground">
             <EnvelopeIcon weight="bold" className="w-3.5 h-3.5 shrink-0" />
             Email
           </span>
@@ -147,9 +131,7 @@ export function StaffIdentity({
       </div>
       <div className="flex items-center gap-2 min-w-0 mt-3">
         {email && (
-          <p className="text-[12px] font-medium text-muted-foreground/70 truncate">
-            {email}
-          </p>
+          <p className="text-[12px] font-medium text-muted-foreground/70 truncate">{email}</p>
         )}
         <UserIdCopy id={id} />
       </div>

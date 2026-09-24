@@ -45,12 +45,7 @@ function parseFrontmatter(raw: string): {
 /** Lis un doc légal versionné git. Server-only (fs). */
 export async function getLegalDoc(slug: string): Promise<LegalDoc | null> {
   try {
-    const filePath = path.join(
-      process.cwd(),
-      "content",
-      "legal",
-      `${slug}.md`,
-    );
+    const filePath = path.join(process.cwd(), "content", "legal", `${slug}.md`);
     const raw = await readFile(filePath, "utf-8");
     const { meta, body } = parseFrontmatter(raw);
     // Commentaires HTML du fichier (TODO juriste) hors rendu.

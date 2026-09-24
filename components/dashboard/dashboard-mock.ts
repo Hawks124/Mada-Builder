@@ -42,19 +42,14 @@ export type DashboardApp = {
   initials: string;
 };
 
-export const STATUS_META: Record<
-  AppStatus,
-  { label: string; pillClass: string }
-> = {
+export const STATUS_META: Record<AppStatus, { label: string; pillClass: string }> = {
   live: {
     label: "En ligne",
-    pillClass:
-      "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    pillClass: "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   },
   pending: {
     label: "En revue",
-    pillClass:
-      "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    pillClass: "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400",
   },
   rejected: {
     label: "Rejetée",
@@ -221,10 +216,7 @@ export type DashboardTotals = {
 
 export function getDashboardTotals(apps: DashboardApp[]): DashboardTotals {
   const totalRatings = apps.reduce((acc, a) => acc + a.ratingsCount, 0);
-  const weightedSum = apps.reduce(
-    (acc, a) => acc + a.rating * a.ratingsCount,
-    0,
-  );
+  const weightedSum = apps.reduce((acc, a) => acc + a.rating * a.ratingsCount, 0);
   return {
     totalUpvotes: apps.reduce((acc, a) => acc + a.votes, 0),
     liveCount: apps.filter((a) => a.status === "live").length,
@@ -233,10 +225,7 @@ export function getDashboardTotals(apps: DashboardApp[]): DashboardTotals {
     pendingCount: apps.filter((a) => a.status === "pending").length,
     totalMrrAr: apps.reduce((acc, a) => acc + (a.revenue?.mrrAr ?? 0), 0),
     totalComments: apps.reduce((acc, a) => acc + a.comments, 0),
-    globalRating:
-      totalRatings > 0
-        ? Math.round((weightedSum / totalRatings) * 10) / 10
-        : 0,
+    globalRating: totalRatings > 0 ? Math.round((weightedSum / totalRatings) * 10) / 10 : 0,
   };
 }
 

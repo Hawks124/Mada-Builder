@@ -44,8 +44,7 @@ export function Hero() {
 
           {/* Micro-label de réassurance — sous le CTA, pas dans le subtitle */}
           <p className="text-[12px] text-muted-foreground/70 pl-1">
-            Gratuit · Publié en moins de 24 h · Sans compte requis pour
-            parcourir
+            Gratuit · Publié en moins de 24 h · Sans compte requis pour parcourir
           </p>
         </div>
       </div>

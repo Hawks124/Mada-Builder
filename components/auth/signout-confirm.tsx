@@ -10,13 +10,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
  * passent par ici — copie unique, méthode unique, pending visible
  * (signOut navigue : sans état, le clic semblerait mort).
  */
-export function SignOutConfirm({
-  open,
-  onCancel,
-}: {
-  open: boolean;
-  onCancel: () => void;
-}) {
+export function SignOutConfirm({ open, onCancel }: { open: boolean; onCancel: () => void }) {
   const [isPending, setIsPending] = React.useState(false);
   return (
     <ConfirmDialog

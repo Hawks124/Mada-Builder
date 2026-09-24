@@ -142,7 +142,10 @@ export default async function AdminReviewDetailPage({
             <LifecyclePill lifecycleId={item.lifecycle} />
             <AgeBadge value={rating.badge} size="xs" />
             <span className="flex items-center gap-1.5 text-[12px] font-bold text-muted-foreground">
-              <HourglassIcon weight="fill" className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <HourglassIcon
+                weight="fill"
+                className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400"
+              />
               {item.waitingText}
             </span>
             {exceeded && (
@@ -194,9 +197,7 @@ export default async function AdminReviewDetailPage({
                       <Icon weight="fill" className="w-4 h-4" />
                     </span>
                     <span className="flex flex-col min-w-0 flex-1">
-                      <span className="text-[14px] font-bold text-foreground">
-                        {slot.label}
-                      </span>
+                      <span className="text-[14px] font-bold text-foreground">{slot.label}</span>
                       <span className="text-[12px] font-medium text-muted-foreground truncate">
                         {link.href}
                       </span>
@@ -219,10 +220,7 @@ export default async function AdminReviewDetailPage({
                       className="group flex items-center gap-3"
                     >
                       <span className="h-9 w-9 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center shrink-0 text-amber-600 dark:text-amber-400">
-                        <ShieldCheckIcon
-                          weight="fill"
-                          className="w-4 h-4"
-                        />
+                        <ShieldCheckIcon weight="fill" className="w-4 h-4" />
                       </span>
                       <span className="flex flex-col min-w-0 flex-1">
                         <span className="text-[14px] font-bold text-foreground">
@@ -243,10 +241,7 @@ export default async function AdminReviewDetailPage({
                   ) : (
                     <div className="flex items-center gap-3">
                       <span className="h-9 w-9 rounded-xl bg-red-500/10 border border-red-500/25 flex items-center justify-center shrink-0 text-red-500">
-                        <ShieldCheckIcon
-                          weight="fill"
-                          className="w-4 h-4"
-                        />
+                        <ShieldCheckIcon weight="fill" className="w-4 h-4" />
                       </span>
                       <span className="flex flex-col min-w-0 flex-1">
                         <span className="text-[14px] font-bold text-red-600 dark:text-red-400">
@@ -277,17 +272,11 @@ export default async function AdminReviewDetailPage({
             </div>
             <div className="flex items-center gap-x-5 gap-y-2 flex-wrap text-[13px] font-semibold text-muted-foreground">
               <span className="flex items-center gap-1.5">
-                <productType.icon
-                  weight="fill"
-                  className="w-4 h-4"
-                  aria-hidden="true"
-                />
+                <productType.icon weight="fill" className="w-4 h-4" aria-hidden="true" />
                 {productType.label}
               </span>
               <span>{item.pricing}</span>
-              {item.version && (
-                <span className="font-mono text-[12px]">{item.version}</span>
-              )}
+              {item.version && <span className="font-mono text-[12px]">{item.version}</span>}
               <span className="flex items-center gap-1.5">
                 {item.platforms.map((p) => (
                   <PlatformIcon key={p} id={p} />
@@ -330,14 +319,8 @@ export default async function AdminReviewDetailPage({
                     key={i}
                     className="aspect-video rounded-2xl bg-muted/40 border border-border/40 flex flex-col items-center justify-center gap-1.5 text-muted-foreground"
                   >
-                    <ImageSquareIcon
-                      weight="duotone"
-                      className="w-6 h-6"
-                      aria-hidden="true"
-                    />
-                    <span className="text-[11px] font-bold">
-                      Capture {i + 1}
-                    </span>
+                    <ImageSquareIcon weight="duotone" className="w-6 h-6" aria-hidden="true" />
+                    <span className="text-[11px] font-bold">Capture {i + 1}</span>
                   </div>
                 ))}
               </div>
@@ -398,10 +381,7 @@ export default async function AdminReviewDetailPage({
           {item.revenue && (
             <ProofSection title="Revenus">
               <div className="flex items-center gap-3">
-                <SealCheckIcon
-                  weight="fill"
-                  className="w-5 h-5 text-emerald-500 shrink-0"
-                />
+                <SealCheckIcon weight="fill" className="w-5 h-5 text-emerald-500 shrink-0" />
                 <p className="text-[14px] font-medium text-muted-foreground">
                   Clé connectée —{" "}
                   <span className="font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
@@ -417,11 +397,7 @@ export default async function AdminReviewDetailPage({
         {/* Rail sticky — mini maker + checklist + verdict */}
         <div className="lg:col-span-4 flex flex-col gap-6 lg:sticky lg:top-8">
           <div className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/20 px-4 py-3">
-            <AvatarImage
-              src={item.makerAvatar}
-              name={item.makerName}
-              size={40}
-            />
+            <AvatarImage src={item.makerAvatar} name={item.makerName} size={40} />
             <div className="flex flex-col min-w-0 flex-1">
               <Link
                 href={`/makers/${item.makerUsername}`}
@@ -481,8 +457,7 @@ const PLATFORM_ICONS = {
 } as const;
 
 function PlatformIcon({ id }: { id: string }) {
-  const Icon =
-    PLATFORM_ICONS[id as keyof typeof PLATFORM_ICONS] ?? GlobeIcon;
+  const Icon = PLATFORM_ICONS[id as keyof typeof PLATFORM_ICONS] ?? GlobeIcon;
   return (
     <span title={id}>
       <Icon weight="fill" className="w-3.5 h-3.5" aria-hidden="true" />
@@ -521,13 +496,7 @@ function TechRow({
   );
 }
 
-function ProofSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function ProofSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-4">
       <h2 className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">
@@ -542,19 +511,11 @@ function ChecklistRow({ ok, label }: { ok: boolean; label: string }) {
   return (
     <div className="flex items-center gap-2.5 text-[13px] font-semibold">
       {ok ? (
-        <CheckIcon
-          weight="fill"
-          className="w-4 h-4 text-emerald-500 shrink-0"
-        />
+        <CheckIcon weight="fill" className="w-4 h-4 text-emerald-500 shrink-0" />
       ) : (
-        <MinusIcon
-          weight="bold"
-          className="w-4 h-4 text-muted-foreground/50 shrink-0"
-        />
+        <MinusIcon weight="bold" className="w-4 h-4 text-muted-foreground/50 shrink-0" />
       )}
-      <span className={ok ? "text-foreground" : "text-muted-foreground"}>
-        {label}
-      </span>
+      <span className={ok ? "text-foreground" : "text-muted-foreground"}>{label}</span>
     </div>
   );
 }

@@ -43,7 +43,7 @@ export function FilterSummaryBar({
             className={cn(
               "flex items-center gap-1 pl-2.5 pr-1.5 h-6 rounded-full",
               "bg-muted/60 border border-border/40 text-muted-foreground",
-              "text-[11px] font-bold hover:border-border hover:text-foreground transition-colors group"
+              "text-[11px] font-bold hover:border-border hover:text-foreground transition-colors group",
             )}
           >
             {f.label}

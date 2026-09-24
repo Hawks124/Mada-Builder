@@ -7,9 +7,9 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const SORT_OPTIONS = [
-  { id: "votes",    label: "Les + Votés" },
-  { id: "comments",label: "Les + Commentés" },
-  { id: "newest",  label: "Les + Récents" },
+  { id: "votes", label: "Les + Votés" },
+  { id: "comments", label: "Les + Commentés" },
+  { id: "newest", label: "Les + Récents" },
   { id: "revenue", label: "Revenus MRR" },
 ];
 
@@ -36,7 +36,6 @@ export function DiscoverToolbar({ onSearchChange }: DiscoverToolbarProps) {
 
       {/* Sort + Filter — shrink, icon-only on mobile */}
       <div className="flex items-center gap-2 shrink-0">
-
         {/* Sort trigger */}
         <div className="relative">
           <button
@@ -46,15 +45,21 @@ export function DiscoverToolbar({ onSearchChange }: DiscoverToolbarProps) {
               "flex items-center justify-center gap-0 sm:gap-2.5",
               "h-10 w-10 sm:w-auto sm:px-4 rounded-full",
               "bg-background border border-border/60 shadow-sm",
-              "hover:bg-muted/40 transition-colors"
+              "hover:bg-muted/40 transition-colors",
             )}
             aria-label="Trier les produits"
           >
-            <SortAscendingIcon weight="bold" className="w-4.5 h-4.5 text-muted-foreground shrink-0" />
+            <SortAscendingIcon
+              weight="bold"
+              className="w-4.5 h-4.5 text-muted-foreground shrink-0"
+            />
             <span className="hidden sm:inline text-[13px] font-bold text-foreground whitespace-nowrap">
               {sortLabel}
             </span>
-            <CaretDownIcon weight="bold" className="hidden sm:block w-3.5 h-3.5 text-muted-foreground" />
+            <CaretDownIcon
+              weight="bold"
+              className="hidden sm:block w-3.5 h-3.5 text-muted-foreground"
+            />
           </button>
 
           {isSortOpen && (
@@ -66,12 +71,15 @@ export function DiscoverToolbar({ onSearchChange }: DiscoverToolbarProps) {
                 {SORT_OPTIONS.map((opt) => (
                   <button
                     key={opt.id}
-                    onClick={() => { setSortId(opt.id); setIsSortOpen(false); }}
+                    onClick={() => {
+                      setSortId(opt.id);
+                      setIsSortOpen(false);
+                    }}
                     className={cn(
                       "text-left px-3 py-2.5 rounded-xl text-[13px] font-bold transition-colors",
                       sortId === opt.id
                         ? "bg-muted text-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
                     {opt.label}

@@ -140,9 +140,7 @@ export const MOCK_ADMIN_USERS: AdminUser[] = [
     role: "user",
     status: "active",
     appeals: 0,
-    products: [
-      { id: "moranotes", initials: "MN", iconGradient: "from-violet-500 to-purple-600" },
-    ],
+    products: [{ id: "moranotes", initials: "MN", iconGradient: "from-violet-500 to-purple-600" }],
     joinedText: "mars 2026",
   },
   {

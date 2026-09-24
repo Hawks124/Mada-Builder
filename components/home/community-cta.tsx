@@ -30,17 +30,11 @@ export function CommunityCTA() {
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          WebkitMaskImage:
-            "radial-gradient(ellipse 80% 90% at 85% 50%, black 0%, transparent 72%)",
-          maskImage:
-            "radial-gradient(ellipse 80% 90% at 85% 50%, black 0%, transparent 72%)",
+          WebkitMaskImage: "radial-gradient(ellipse 80% 90% at 85% 50%, black 0%, transparent 72%)",
+          maskImage: "radial-gradient(ellipse 80% 90% at 85% 50%, black 0%, transparent 72%)",
         }}
       >
-        <GridBackground
-          variant="css"
-          showGlows={false}
-          showBottomFade={false}
-        />
+        <GridBackground variant="css" showGlows={false} showBottomFade={false} />
       </div>
 
       <div className="container px-4 md:px-8 max-w-7xl mx-auto relative z-10 min-h-105 flex items-center">
@@ -70,15 +64,13 @@ export function CommunityCTA() {
           {/* Title: 2 lines — long first + short "punch" second, bleeds across the grid */}
           <h2 className="text-5xl md:text-6xl lg:text-[5.5rem] xl:text-[6rem] font-black tracking-tighter text-foreground leading-[0.95] mt-1 w-full">
             <span className="block">Bâtissons la souveraineté</span>
-            <span className="block text-muted-foreground">
-              numérique locale.
-            </span>
+            <span className="block text-muted-foreground">numérique locale.</span>
           </h2>
 
           <p className="text-lg md:text-xl font-medium text-muted-foreground tracking-tight leading-relaxed max-w-2xl">
-            L'époque où l'on construisait dans l'ombre en dépendant de plateformes 
-            étrangères par défaut est révolue. Reprenons le contrôle de notre visibilité, 
-            rassemblons nos pairs, et prouvons la valeur réelle de l'ingénierie malgache.
+            L&apos;époque où l&apos;on construisait dans l&apos;ombre en dépendant de plateformes
+            étrangères par défaut est révolue. Reprenons le contrôle de notre visibilité,
+            rassemblons nos pairs, et prouvons la valeur réelle de l&apos;ingénierie malgache.
           </p>
 
           <Link
@@ -87,11 +79,7 @@ export function CommunityCTA() {
             rel="noopener noreferrer"
             className="mt-4 flex items-center gap-2 px-8 py-4 rounded-full bg-foreground text-background hover:scale-105 transition-all duration-300 font-bold text-sm md:text-base shadow-xl dark:shadow-[0_0_30px_rgba(255,255,255,0.08)]"
           >
-            <FacebookLogo
-              weight="fill"
-              className="w-5 h-5"
-              style={{ color: "#1877F2" }}
-            />
+            <FacebookLogo weight="fill" className="w-5 h-5" style={{ color: "#1877F2" }} />
             Ouvrir le groupe Facebook
           </Link>
         </div>

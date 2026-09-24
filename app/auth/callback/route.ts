@@ -27,15 +27,11 @@ export async function GET(request: Request) {
   const rawNext = searchParams.get("next") ?? "/dashboard";
 
   // Redirection sûre : chemin relatif interne uniquement.
-  const next =
-    rawNext.startsWith("/") && !rawNext.startsWith("//")
-      ? rawNext
-      : "/dashboard";
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/dashboard";
 
   // Succès : ?next= + toast de bienvenue (canal partagé, consommé une
   // fois puis nettoyé de l'URL par le viewport).
-  const successUrl = () =>
-    new URL(withToast(`${origin}${next}`, "ok", TOAST_WELCOME), origin);
+  const successUrl = () => new URL(withToast(`${origin}${next}`, "ok", TOAST_WELCOME), origin);
   const failUrl = (reason: string) => {
     const url = new URL("/signin", origin);
     url.searchParams.set("next", next);
@@ -69,13 +65,15 @@ export async function GET(request: Request) {
   const supabase = createServerClient(url, anon, {
     cookies: {
       getAll() {
-        return request.headers
-          .get("cookie")
-          ?.split("; ")
-          .map((c) => {
-            const i = c.indexOf("=");
-            return { name: c.slice(0, i), value: c.slice(i + 1) };
-          }) ?? [];
+        return (
+          request.headers
+            .get("cookie")
+            ?.split("; ")
+            .map((c) => {
+              const i = c.indexOf("=");
+              return { name: c.slice(0, i), value: c.slice(i + 1) };
+            }) ?? []
+        );
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) =>
@@ -106,17 +104,13 @@ export async function GET(request: Request) {
     }
     const meta = (data.user.user_metadata ?? {}) as Record<string, unknown>;
     const rawAvatar =
-      (meta.avatar_url as string | undefined) ??
-      (meta.picture as string | undefined) ??
-      null;
-    metadataAvatar =
-      typeof rawAvatar === "string" && rawAvatar !== "" ? rawAvatar : null;
+      (meta.avatar_url as string | undefined) ?? (meta.picture as string | undefined) ?? null;
+    metadataAvatar = typeof rawAvatar === "string" && rawAvatar !== "" ? rawAvatar : null;
   } catch (e) {
     // Nom/code d'erreur uniquement — jamais de PII, jamais le token (§16).
     const name = e instanceof Error ? e.name : "unknown";
     const message = e instanceof Error ? e.message : "";
-    const short =
-      message.length > 120 ? `${message.slice(0, 120)}…` : message;
+    const short = message.length > 120 ? `${message.slice(0, 120)}…` : message;
     captureMessage(`callback: exchange failed (${name}): ${short}`, "error");
     return NextResponse.redirect(failUrl("exchange_failed"));
   }

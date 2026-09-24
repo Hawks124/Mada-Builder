@@ -42,9 +42,10 @@ export function appealNotifyHtml(input: {
   explanation: string;
   evidenceLinks: string[];
 }): string {
-  const pieces = input.evidenceLinks.length > 0
-    ? `<ul style="padding-left:20px;margin:0 0 40px 0;">${input.evidenceLinks.map((l) => `<li style="margin-bottom:8px;"><a href="${escapeHtml(l)}" style="color:#2563eb;font-weight:600;text-decoration:none;">Pièce jointe (${escapeHtml(l.split("/").pop() ?? "Fichier")})</a></li>`).join("")}</ul>`
-    : `<p class="text" style="font-style:italic;">Aucune pièce jointe.</p>`;
+  const pieces =
+    input.evidenceLinks.length > 0
+      ? `<ul style="padding-left:20px;margin:0 0 40px 0;">${input.evidenceLinks.map((l) => `<li style="margin-bottom:8px;"><a href="${escapeHtml(l)}" style="color:#2563eb;font-weight:600;text-decoration:none;">Pièce jointe (${escapeHtml(l.split("/").pop() ?? "Fichier")})</a></li>`).join("")}</ul>`
+      : `<p class="text" style="font-style:italic;">Aucune pièce jointe.</p>`;
 
   return `<!doctype html>
 <html lang="fr" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">

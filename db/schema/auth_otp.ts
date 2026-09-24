@@ -1,12 +1,5 @@
 import { v7 as uuidv7 } from "uuid";
-import {
-  index,
-  integer,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Codes OTP email custom (Resend) — pont vers Supabase Auth.
@@ -46,9 +39,7 @@ export const authOtp = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     attempts: integer("attempts").notNull().default(0),
     usedAt: timestamp("used_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("auth_otp_email_created_idx").on(t.email, t.createdAt)],
 );

@@ -1,8 +1,4 @@
-import {
-  BRAND_CSS_BASE,
-  BRAND_CSS_DARK,
-  emailBrandHtml,
-} from "@/lib/email-templates/brand";
+import { BRAND_CSS_BASE, BRAND_CSS_DARK, emailBrandHtml } from "@/lib/email-templates/brand";
 import { emailLegalHtml, emailLegalText } from "@/lib/email-templates/footer";
 
 export function otpEmailSubject(): string {
@@ -102,9 +98,13 @@ export function otpEmailHtml(input: {
     <span class="code">${input.code}</span>
     
     <p class="text">Ce code est valable ${input.validityMinutes} minutes. Si vous n'êtes pas à l'origine de cette demande, vous pouvez l'ignorer en toute sécurité.</p>
-    ${input.actionLink ? `<div>
+    ${
+      input.actionLink
+        ? `<div>
       <a href="${input.actionLink}" class="cta">Se connecter rapidement</a>
-    </div>` : ""}
+    </div>`
+        : ""
+    }
     
     <div class="footer">
       BuilderPlatform &copy; ${new Date().getFullYear()}<br>

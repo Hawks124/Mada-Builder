@@ -7,12 +7,7 @@ import { createClient, getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import {
-  ProfileError,
-  deleteAccount,
-  updateAvatar,
-  updateProfile,
-} from "@/services/users.service";
+import { ProfileError, deleteAccount, updateAvatar, updateProfile } from "@/services/users.service";
 import { AVATAR_BUCKET } from "@/lib/supabase/storage";
 import { withToast } from "@/lib/toast";
 import { captureError } from "@/lib/monitoring";
@@ -80,6 +75,19 @@ export async function updateMyProfile(
   const user = await getSessionUser();
   if (!user) return LOGIN_REQUIRED;
   try {
+    // Fuseau IANA réel (champ caché TimeZoneField) — best-effort :
+    // invalide = ignoré (le save profil n'échoue jamais pour ça).
+    let timeZone: string | undefined;
+    const rawTimeZone = formData.get("timeZone");
+    if (typeof rawTimeZone === "string" && rawTimeZone.trim() !== "") {
+      try {
+        if (Intl.supportedValuesOf("timeZone").includes(rawTimeZone.trim())) {
+          timeZone = rawTimeZone.trim();
+        }
+      } catch {
+        // Intl indisponible : on omet, repli neutre.
+      }
+    }
     const { username } = await updateProfile(user.id, user.id, {
       displayName: String(formData.get("displayName") ?? ""),
       bio: String(formData.get("bio") ?? ""),
@@ -87,6 +95,7 @@ export async function updateMyProfile(
       websiteUrl: String(formData.get("websiteUrl") ?? ""),
       ...splitLocation(formData.get("location")),
       socialLinks: socialLinksFrom(formData),
+      ...(timeZone !== undefined ? { timeZone } : {}),
     });
     revalidateMaker(username);
     return { ok: true, message: "Profil enregistré." };
@@ -111,12 +120,7 @@ export async function uploadMyAvatar(
   }
   try {
     const supabase = await createClient();
-    const { avatarUrl, username } = await updateAvatar(
-      supabase,
-      user.id,
-      user.id,
-      file,
-    );
+    const { avatarUrl, username } = await updateAvatar(supabase, user.id, user.id, file);
     revalidateMaker(username);
     return { ok: true, message: "Avatar mis à jour.", avatarUrl };
   } catch (e) {

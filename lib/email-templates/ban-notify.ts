@@ -1,9 +1,6 @@
-import {
-  BRAND_CSS_BASE,
-  BRAND_CSS_DARK,
-  emailBrandHtml,
-} from "@/lib/email-templates/brand";
+import { BRAND_CSS_BASE, BRAND_CSS_DARK, emailBrandHtml } from "@/lib/email-templates/brand";
 import { emailModerationFooterHtml, emailModerationFooterText } from "@/lib/email-templates/footer";
+import { emailGreeting } from "@/lib/greeting";
 
 function escapeHtml(value: string): string {
   return value
@@ -21,13 +18,15 @@ export function banNotifyText(input: {
   displayName: string;
   banReason: string;
   dashboardUrl: string;
-  /** Origine absolue (footer juridique) — même pattern que dashboardUrl. */
+  /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
   return [
     "BuilderPlatform",
     "---",
-    `Bonjour ${input.displayName},`,
+    `${emailGreeting(input.timeZone)} ${input.displayName},`,
     "",
     "Votre compte est suspendu.",
     "",
@@ -50,6 +49,8 @@ export function banNotifyHtml(input: {
   dashboardUrl: string;
   /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
   const name = escapeHtml(input.displayName);
   const reason = escapeHtml(input.banReason);
@@ -102,7 +103,7 @@ export function banNotifyHtml(input: {
     </div>
 
     <h1 class="hero">Compte suspendu.</h1>
-    <p class="greeting">Bonjour ${name},</p>
+    <p class="greeting">${emailGreeting(input.timeZone)} ${name},</p>
     
     <div class="reason-block">
       <p class="label">Motif de la décision</p>

@@ -1,6 +1,4 @@
 "use client";
-import { useState } from "react";
-
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
@@ -8,7 +6,6 @@ import {
   SealCheckIcon,
   GlobeIcon,
   AppleLogoIcon,
-  GooglePlayLogo,
   CheckCircleIcon,
   XCircleIcon,
   ArrowSquareOutIcon,
@@ -69,8 +66,7 @@ export function ProductSidebar() {
           variant="primary"
           className="w-full justify-center h-12 text-[15px] font-bold hover:opacity-90 transition-all active:scale-95"
         >
-          Visiter le site{" "}
-          <ArrowSquareOutIcon weight="bold" className="w-4 h-4 ml-1 shrink-0" />
+          Visiter le site <ArrowSquareOutIcon weight="bold" className="w-4 h-4 ml-1 shrink-0" />
         </ActionButton>
 
         {/* Store links — App Store + Google Play */}
@@ -154,10 +150,7 @@ export function ProductSidebar() {
               className="font-bold text-foreground flex items-center gap-1 hover:text-primary transition-colors text-[15px]"
             >
               Bryl Lim
-              <SealCheckIcon
-                weight="fill"
-                className="text-blue-500 w-4 h-4 shrink-0"
-              />
+              <SealCheckIcon weight="fill" className="text-blue-500 w-4 h-4 shrink-0" />
             </Link>
           </div>
         </div>
@@ -185,7 +178,7 @@ export function ProductSidebar() {
                 className={cn(
                   "font-bold transition-colors",
                   getCategoryById("finance")!.chipClass,
-                  getCategoryById("finance")!.hoverClass
+                  getCategoryById("finance")!.hoverClass,
                 )}
               >
                 {getCategoryById("finance")!.name}
@@ -214,10 +207,7 @@ export function ProductSidebar() {
             label="Type"
             value={
               <span className="text-foreground flex items-center justify-end gap-1">
-                <DeviceMobileIcon
-                  weight="fill"
-                  className="w-3.5 h-3.5 text-muted-foreground"
-                />
+                <DeviceMobileIcon weight="fill" className="w-3.5 h-3.5 text-muted-foreground" />
                 App Mobile
               </span>
             }
@@ -235,16 +225,10 @@ export function ProductSidebar() {
             value={
               <div className="flex items-center gap-2 text-foreground">
                 <span title="iOS">
-                  <AppleLogoIcon
-                    weight="fill"
-                    className="w-4 h-4 cursor-help"
-                  />
+                  <AppleLogoIcon weight="fill" className="w-4 h-4 cursor-help" />
                 </span>
                 <span title="Google Play">
-                  <GooglePlayLogoIcon
-                    weight="fill"
-                    className="w-4 h-4 cursor-help"
-                  />
+                  <GooglePlayLogoIcon weight="fill" className="w-4 h-4 cursor-help" />
                 </span>
                 <span title="Web">
                   <GlobeIcon weight="bold" className="w-4 h-4 cursor-help" />
@@ -254,42 +238,26 @@ export function ProductSidebar() {
           />
           <MetaRow
             label="Lancement"
-            value={
-              <span className="text-foreground font-medium">17 Mars 2026</span>
-            }
+            value={<span className="text-foreground font-medium">17 Mars 2026</span>}
           />
           <MetaRow
             label="Version"
-            value={
-              <span className="text-foreground font-mono text-[11px] font-bold">
-                2.4.1
-              </span>
-            }
+            value={<span className="text-foreground font-mono text-[11px] font-bold">2.4.1</span>}
           />
           <MetaRow
             label="Licence"
             value={
               <span className="flex items-center justify-end gap-1 text-foreground">
-                <ShieldCheckIcon
-                  weight="fill"
-                  className="w-3.5 h-3.5 text-muted-foreground"
-                />
+                <ShieldCheckIcon weight="fill" className="w-3.5 h-3.5 text-muted-foreground" />
                 Propriétaire
               </span>
             }
           />
           <MetaRow
             label="Public"
-            value={
-              <span className="text-foreground font-medium">
-                Particuliers (B2C)
-              </span>
-            }
+            value={<span className="text-foreground font-medium">Particuliers (B2C)</span>}
           />
-          <MetaRow
-            label="Âge"
-            value={<AgeBadge value="4+" size="sm" />}
-          />
+          <MetaRow label="Âge" value={<AgeBadge value="4+" size="sm" />} />
         </div>
 
         {/* Indicators: Ads & IAP */}

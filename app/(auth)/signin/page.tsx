@@ -25,9 +25,7 @@ export default function SigninPage() {
         <div className="max-w-md w-full mx-auto">
           <Link href="/" className="flex items-center gap-3 w-fit mb-14 group">
             <LogoMark className="h-10 w-10 shadow-sm transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-3" />
-            <span className="font-bold text-lg tracking-tight text-foreground">
-              Mada-Made
-            </span>
+            <span className="font-bold text-lg tracking-tight text-foreground">Mada-Made</span>
           </Link>
 
           {/* Titres + formulaires rendus par SigninForm (accueil vs vérification). */}

@@ -2,10 +2,7 @@ import type { Metadata } from "next";
 import { OverviewHeader } from "@/components/dashboard/overview-header";
 import { OverviewStats } from "@/components/dashboard/overview-stats";
 import { OverviewApps } from "@/components/dashboard/overview-apps";
-import {
-  MOCK_APPS,
-  getDashboardTotals,
-} from "@/components/dashboard/dashboard-mock";
+import { MOCK_APPS, getDashboardTotals } from "@/components/dashboard/dashboard-mock";
 
 // Auth pages are noindex (§7)
 export const metadata: Metadata = {

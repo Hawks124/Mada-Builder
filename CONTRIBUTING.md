@@ -40,6 +40,7 @@ npm run dev
 - Notifications : `?toast=` après redirect, `toast()` sur place — 120 signes max, texte seul.
 - Erreurs métier : codes stables (`ProfileError`), jamais de détail technique exposé à l'utilisateur.
 - Migrations via `db:generate` (toujours relire le SQL) + `db:migrate:local`.
+- Dépendances : `npm install` complet pour toute modif (jamais `--package-lock-only` seul — lock structurellement cassé détectable uniquement par `npm ci`, cf. incident CI 2026-09). Lock généré sous npm 11 (pinné en CI) : valider par un vrai `npm ci` local, jamais `--dry-run` (saute la validation stricte). `.npmrc` (`legacy-peer-deps`) et `overrides` : ne toucher qu'en comprenant les peers Sentry (code mort, bundler jamais chargé) — re-valider CI verte après tout changement.
 - Emails : `lib/email-templates/`, previews locales via `npm run email:preview`.
 - API v1 : enveloppe `{ok, code}`, auth Bearer, couverte par `scripts/verify-api-v1.ts`.
 

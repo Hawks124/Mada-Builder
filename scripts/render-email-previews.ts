@@ -8,9 +8,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { banNotifyHtml } from "../lib/email-templates/ban-notify";
 import { unbanNotifyHtml } from "../lib/email-templates/unban-notify";
-import {
-  appealDecisionHtml,
-} from "../lib/email-templates/appeal-decision";
+import { appealDecisionHtml } from "../lib/email-templates/appeal-decision";
 import { roleNotifyHtml } from "../lib/email-templates/role-notify";
 import { otpEmailHtml } from "../lib/email-templates/otp-email";
 
@@ -24,27 +22,40 @@ const pages: Array<[string, string]> = [
       banReason: "Votes automatisés détectés sur trois produits.",
       dashboardUrl: `${ORIGIN}/dashboard`,
       origin: ORIGIN,
+      timeZone: null,
+    }),
+  ],
+  ["unban.html", unbanNotifyHtml({ displayName: "Aina Rakoto", origin: ORIGIN, timeZone: null })],
+  [
+    "appeal-upheld.html",
+    appealDecisionHtml({
+      displayName: "Aina Rakoto",
+      overturned: false,
+      origin: ORIGIN,
+      timeZone: null,
     }),
   ],
   [
-    "unban.html",
-    unbanNotifyHtml({ displayName: "Aina Rakoto", origin: ORIGIN }),
-  ],
-  [
-    "appeal-upheld.html",
-    appealDecisionHtml({ displayName: "Aina Rakoto", overturned: false, origin: ORIGIN }),
-  ],
-  [
     "appeal-overturned.html",
-    appealDecisionHtml({ displayName: "Aina Rakoto", overturned: true, origin: ORIGIN }),
+    appealDecisionHtml({
+      displayName: "Aina Rakoto",
+      overturned: true,
+      origin: ORIGIN,
+      timeZone: null,
+    }),
   ],
   [
     "role.html",
-    roleNotifyHtml({ displayName: "Aina Rakoto", promoted: true, origin: ORIGIN }),
+    roleNotifyHtml({ displayName: "Aina Rakoto", promoted: true, origin: ORIGIN, timeZone: null }),
   ],
   [
     "otp.html",
-    otpEmailHtml({ code: "482913", validityMinutes: 10, actionLink: `${ORIGIN}/auth/exchange?h=preview`, origin: ORIGIN }),
+    otpEmailHtml({
+      code: "482913",
+      validityMinutes: 10,
+      actionLink: `${ORIGIN}/auth/exchange?h=preview`,
+      origin: ORIGIN,
+    }),
   ],
 ];
 

@@ -26,4 +26,5 @@ labels: ["enhancement"]
 ## Périmètre
 
 <!-- Cette idée demande-t-elle sa propre masse critique (forum, réseau social, marketplace…) ? Si oui, elle attendra que la boucle V1 tourne (voir README/CHANGELOG). -->
+
 - [ ] C'est dans le périmètre V1 (ou justification ci-dessous)

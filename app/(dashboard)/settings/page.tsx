@@ -3,10 +3,7 @@ import { ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { InputField } from "@/components/ui/input-field";
 import { DangerZone } from "@/components/dashboard/danger-zone";
-import {
-  ProvidersCard,
-  type ProviderId,
-} from "@/components/dashboard/providers-card";
+import { ProvidersCard, type ProviderId } from "@/components/dashboard/providers-card";
 import { getSessionUser, createClient } from "@/lib/supabase/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -24,8 +21,8 @@ const SECURITY_TIPS = [
   "La suppression du compte est définitive et immédiate.",
 ];
 
-  // Compte uniquement — le profil public vit sur /dashboard/profile.
-  // Email read-only, fournisseurs d'auth, suppression réelle (§6F).
+// Compte uniquement — le profil public vit sur /dashboard/profile.
+// Email read-only, fournisseurs d'auth, suppression réelle (§6F).
 export default async function SettingsPage() {
   // Session réelle → identités liées ; sinon fallback mock documenté
   // (prototype sans login : l'UI reste démontrable, le câblage est réel).
@@ -41,10 +38,7 @@ export default async function SettingsPage() {
       const { data } = await supabase.auth.getUserIdentities();
       const linked = (data?.identities ?? [])
         .map((i) => i.provider)
-        .filter(
-          (p): p is ProviderId =>
-            p === "github" || p === "google" || p === "email",
-        );
+        .filter((p): p is ProviderId => p === "github" || p === "google" || p === "email");
       if (linked.length > 0) connected = [...new Set(linked)];
       email = user.email ?? null;
       try {
@@ -58,8 +52,7 @@ export default async function SettingsPage() {
         // Ligne absente : la confirmation retombera sur l'email.
       }
       const gh = (data?.identities ?? []).find((i) => i.provider === "github");
-      githubHandle =
-        (gh?.identity_data?.user_name as string | undefined) ?? null;
+      githubHandle = (gh?.identity_data?.user_name as string | undefined) ?? null;
     }
   } catch {
     // Supabase non configuré ou hors-ligne : fallback mock ci-dessus.
@@ -103,8 +96,8 @@ export default async function SettingsPage() {
             </h2>
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <p className="text-[14px] font-medium text-muted-foreground leading-relaxed flex-1">
-                Recevez une archive (profil, produits, votes) par email sous
-                24 h, au format JSON lisible.
+                Recevez une archive (profil, produits, votes) par email sous 24 h, au format JSON
+                lisible.
               </p>
               <button
                 type="button"
@@ -119,10 +112,7 @@ export default async function SettingsPage() {
 
           <div className="w-full h-px bg-border/40" />
 
-          <DangerZone
-            userEmail={email ?? "kaliana@mail.com"}
-            username={username}
-          />
+          <DangerZone userEmail={email ?? "kaliana@mail.com"} username={username} />
         </div>
 
         {/* Guidance aside */}
@@ -136,9 +126,7 @@ export default async function SettingsPage() {
                 weight="fill"
                 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5"
               />
-              <p className="text-[13px] font-medium text-muted-foreground leading-relaxed">
-                {tip}
-              </p>
+              <p className="text-[13px] font-medium text-muted-foreground leading-relaxed">{tip}</p>
             </div>
           ))}
         </aside>

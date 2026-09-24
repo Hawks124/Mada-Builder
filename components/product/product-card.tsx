@@ -152,13 +152,8 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
             size={20}
             className="grayscale group-hover:grayscale-0 transition-opacity"
           />
-          <span className="text-[11px] font-bold text-foreground">
-            {product.maker}
-          </span>
-          <SealCheckIcon
-            weight="fill"
-            className="w-3.5 h-3.5 text-blue-500 -ml-0.5"
-          />
+          <span className="text-[11px] font-bold text-foreground">{product.maker}</span>
+          <SealCheckIcon weight="fill" className="w-3.5 h-3.5 text-blue-500 -ml-0.5" />
         </Link>
       </div>
 

@@ -111,9 +111,7 @@ export function AppealDialog({
 
     const invalidSize = incoming.find((f) => f.size > MAX_FILE_SIZE);
     if (invalidSize) {
-      setFileError(
-        `Le fichier "${invalidSize.name}" dépasse la limite de 10 Mo.`,
-      );
+      setFileError(`Le fichier "${invalidSize.name}" dépasse la limite de 10 Mo.`);
       return;
     }
 
@@ -183,8 +181,7 @@ export function AppealDialog({
               Contester la suspension
             </h3>
             <p className="text-xs font-medium text-muted-foreground leading-relaxed">
-              Expliquez la situation. L&apos;équipe examinera votre dossier sous
-              quelques jours.
+              Expliquez la situation. L&apos;équipe examinera votre dossier sous quelques jours.
             </p>
           </div>
           <button
@@ -199,11 +196,7 @@ export function AppealDialog({
         </div>
 
         {/* 2. Corps de la modale (Scrollable uniquement si nécessaire) */}
-        <form
-          id="appeal-form"
-          action={action}
-          className="flex flex-col flex-1 overflow-y-auto"
-        >
+        <form id="appeal-form" action={action} className="flex flex-col flex-1 overflow-y-auto">
           <div className="p-6 flex flex-col gap-6">
             {/* Banner motif du ban */}
             <div className=" p-4 flex items-start gap-3.5">
@@ -273,9 +266,7 @@ export function AppealDialog({
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-foreground uppercase tracking-wider">
                   Pièces jointes{" "}
-                  <span className="font-normal text-muted-foreground">
-                    (optionnel)
-                  </span>
+                  <span className="font-normal text-muted-foreground">(optionnel)</span>
                 </label>
                 <span className="text-xs font-semibold text-muted-foreground">
                   {selectedFiles.length} / {MAX_FILES} max
@@ -328,15 +319,9 @@ export function AppealDialog({
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           {isPdf ? (
-                            <FilePdfIcon
-                              weight="fill"
-                              className="w-5 h-5 text-red-500 shrink-0"
-                            />
+                            <FilePdfIcon weight="fill" className="w-5 h-5 text-red-500 shrink-0" />
                           ) : (
-                            <ImageIcon
-                              weight="fill"
-                              className="w-5 h-5 text-blue-500 shrink-0"
-                            />
+                            <ImageIcon weight="fill" className="w-5 h-5 text-blue-500 shrink-0" />
                           )}
                           <span className="truncate text-foreground font-semibold">
                             {file.name}
@@ -391,10 +376,10 @@ export function AppealDialog({
           >
             Annuler
           </button>
-            <button
-              form="appeal-form"
-              type="submit"
-              disabled={pending || !isValid || (eligibility !== null && !eligibility.ok)}
+          <button
+            form="appeal-form"
+            type="submit"
+            disabled={pending || !isValid || (eligibility !== null && !eligibility.ok)}
             className="rounded-full bg-foreground text-background px-6 py-2.5 text-xs font-bold hover:opacity-90 active:scale-[0.98] transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {pending && <Spinner size="sm" />}

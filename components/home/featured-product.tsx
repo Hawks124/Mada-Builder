@@ -65,8 +65,7 @@ export function FeaturedProduct() {
               </div>
 
               <p className="text-lg md:text-xl font-medium tracking-tight text-muted-foreground leading-snug max-w-xl mt-1">
-                Le SIRH et système de paie automatisé certifié 100% droit du
-                travail malgache.
+                Le SIRH et système de paie automatisé certifié 100% droit du travail malgache.
               </p>
             </div>
           </div>
@@ -77,12 +76,7 @@ export function FeaturedProduct() {
           {/* Vote + Comment — Zero UI (no borders, no bg) */}
           <div className="flex items-start justify-center gap-6 w-full md:w-auto">
             {/* Upvote */}
-            <VoteButton
-              productId="avotra-hr"
-              productName="Avotra HR"
-              votes={342}
-              variant="hero"
-            />
+            <VoteButton productId="avotra-hr" productName="Avotra HR" votes={342} variant="hero" />
 
             {/* Divider */}
             <div className="w-px bg-border/60 self-stretch" />
@@ -143,11 +137,7 @@ export function FeaturedProduct() {
               className="group-hover:scale-105 transition-transform"
             />
             <span className="text-[14px] font-semibold flex items-center gap-1 group-hover:text-primary transition-colors">
-              Kaliana R.{" "}
-              <SealCheckIcon
-                weight="fill"
-                className="text-blue-500 w-3.5 h-3.5"
-              />
+              Kaliana R. <SealCheckIcon weight="fill" className="text-blue-500 w-3.5 h-3.5" />
             </span>
           </Link>
         </div>
@@ -198,12 +188,8 @@ export function FeaturedProduct() {
             Tarification
           </span>
           <div className="flex flex-col gap-0.5 pl-1">
-            <span className="text-[13px] font-semibold text-foreground">
-              Freemium
-            </span>
-            <span className="text-[11px] text-muted-foreground font-medium">
-              Dès 15.000Ar/mois
-            </span>
+            <span className="text-[13px] font-semibold text-foreground">Freemium</span>
+            <span className="text-[11px] text-muted-foreground font-medium">Dès 15.000Ar/mois</span>
           </div>
         </div>
 
@@ -226,9 +212,7 @@ export function FeaturedProduct() {
             Modèle
           </span>
           <div className="flex items-center gap-2 pl-1 h-full">
-            <span className="text-[12px] font-semibold text-foreground">
-              Logiciel SaaS B2B
-            </span>
+            <span className="text-[12px] font-semibold text-foreground">Logiciel SaaS B2B</span>
           </div>
         </div>
 
@@ -249,10 +233,7 @@ export function FeaturedProduct() {
           <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">
             Avis (120)
           </span>
-          <Link
-            href="#reviews"
-            className="flex flex-col gap-1 pl-1 group cursor-pointer"
-          >
+          <Link href="#reviews" className="flex flex-col gap-1 pl-1 group cursor-pointer">
             <div className="flex items-center gap-0.5">
               {[0, 1, 2, 3, 4].map((i) => (
                 <StarIcon

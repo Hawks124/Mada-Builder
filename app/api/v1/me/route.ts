@@ -1,11 +1,15 @@
-import { ApiError, apiCatch, apiOk, corsPreflight, iso, methodNotAllowed, readJson } from "@/lib/api/response";
+import {
+  ApiError,
+  apiCatch,
+  apiOk,
+  corsPreflight,
+  iso,
+  methodNotAllowed,
+  readJson,
+} from "@/lib/api/response";
 import { requireApiUser } from "@/lib/api/auth";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
-import {
-  deleteAccount,
-  fetchOwnProfile,
-  updateProfile,
-} from "@/services/users.service";
+import { deleteAccount, fetchOwnProfile, updateProfile } from "@/services/users.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AVATAR_BUCKET } from "@/lib/supabase/storage";
 import { captureError } from "@/lib/monitoring";
@@ -32,6 +36,7 @@ function serialize(row: OwnRow) {
     socialLinks: row.socialLinks,
     country: row.country,
     city: row.city,
+    timeZone: row.timeZone,
     providers: row.providers,
     role: row.role,
     bannedAt: iso(row.bannedAt),

@@ -42,10 +42,7 @@ export function ProductHeader() {
             Your Personal Finance Companion
           </p>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <Link
-              href="/makers/bryl"
-              className="flex items-center gap-2 group/maker"
-            >
+            <Link href="/makers/bryl" className="flex items-center gap-2 group/maker">
               <AvatarImage
                 src="https://i.pravatar.cc/150?u=bryl"
                 name="Bryl Lim"
@@ -60,10 +57,7 @@ export function ProductHeader() {
             <div className="flex items-center gap-1">
               <StarIcon weight="fill" className="w-4 h-4 text-amber-500" />
               <span className="text-sm font-bold text-foreground">
-                5.0{" "}
-                <span className="text-muted-foreground font-medium text-[13px]">
-                  (1)
-                </span>
+                5.0 <span className="text-muted-foreground font-medium text-[13px]">(1)</span>
               </span>
             </div>
             <div className="w-1 h-1 rounded-full bg-border" />
@@ -130,9 +124,7 @@ function AnimatedVoteButton() {
         <span
           className={cn(
             "text-[20px] md:text-[24px] font-black tracking-tighter leading-none tabular-nums transition-colors mt-0.5",
-            voted
-              ? "text-emerald-600 dark:text-emerald-400"
-              : "text-foreground",
+            voted ? "text-emerald-600 dark:text-emerald-400" : "text-foreground",
           )}
         >
           {voted ? 312 : 311}

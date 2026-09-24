@@ -51,11 +51,7 @@ const STORAGE_KEY = "admin-sidebar-collapsed";
 // Shell présentationnel (client). Garde session+rôle dans
 // app/(admin)/layout.tsx (server) — défense en profondeur avec le middleware.
 // + table admin_actions (audit trail) à la migration.
-export default function AdminShell({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -104,11 +100,7 @@ export default function AdminShell({
           collapsed ? "w-[76px] px-3" : "w-64 px-4",
         )}
       >
-        <AdminSidebarBody
-          pathname={pathname}
-          collapsed={collapsed}
-          onToggle={toggle}
-        />
+        <AdminSidebarBody pathname={pathname} collapsed={collapsed} onToggle={toggle} />
       </aside>
 
       {/* Mobile drawer */}
@@ -184,9 +176,7 @@ function AdminSidebarBody({
           <LogoMark className="h-8 w-8 shrink-0 shadow-sm transform transition-all duration-300 group-hover:scale-110 group-hover:-rotate-6" />
           {!collapsed && (
             <span className="flex items-center gap-2 whitespace-nowrap">
-              <span className="font-bold text-lg tracking-tight">
-                Mada-Made
-              </span>
+              <span className="font-bold text-lg tracking-tight">Mada-Made</span>
               <span className="rounded-md border border-red-500/25 bg-red-500/10 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.14em] text-red-600 dark:text-red-400">
                 Admin
               </span>
@@ -197,9 +187,7 @@ function AdminSidebarBody({
           <button
             type="button"
             onClick={onToggle}
-            aria-label={
-              collapsed ? "Agrandir la sidebar" : "Réduire la sidebar"
-            }
+            aria-label={collapsed ? "Agrandir la sidebar" : "Réduire la sidebar"}
             aria-pressed={collapsed}
             className="flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors cursor-pointer shrink-0"
           >
@@ -244,21 +232,14 @@ function AdminSidebarBody({
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "relative flex items-center rounded-xl transition-colors",
-                collapsed
-                  ? "justify-center px-0 py-3"
-                  : "gap-3 px-4 py-3 text-[15px]",
+                collapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3 text-[15px]",
                 isActive
                   ? "bg-muted/70 text-foreground font-bold"
                   : "text-muted-foreground font-medium hover:bg-muted/50 hover:text-foreground",
               )}
             >
-              <Icon
-                weight={isActive ? "fill" : "bold"}
-                className="h-5 w-5 shrink-0"
-              />
-              {!collapsed && (
-                <span className="whitespace-nowrap">{item.label}</span>
-              )}
+              <Icon weight={isActive ? "fill" : "bold"} className="h-5 w-5 shrink-0" />
+              {!collapsed && <span className="whitespace-nowrap">{item.label}</span>}
               {badge > 0 && (
                 <span
                   aria-label={`${badge} en attente`}
@@ -288,9 +269,7 @@ function AdminSidebarBody({
         <ThemeToggle />
         {!collapsed && (
           <div className="flex flex-col min-w-0">
-            <span className="text-[14px] font-bold text-foreground leading-tight">
-              Apparence
-            </span>
+            <span className="text-[14px] font-bold text-foreground leading-tight">Apparence</span>
             <span className="text-[12px] font-medium text-muted-foreground leading-tight">
               Thème clair / sombre
             </span>

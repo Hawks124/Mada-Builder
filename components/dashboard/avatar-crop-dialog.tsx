@@ -56,9 +56,7 @@ export function AvatarCropDialog({
       >
         {/* Header minimaliste */}
         <div className="px-6 py-4 border-b border-border/40 flex items-center justify-center">
-          <h2 className="text-sm font-bold text-foreground tracking-wide">
-            Ajuster l&apos;avatar
-          </h2>
+          <h2 className="text-sm font-bold text-foreground tracking-wide">Ajuster l&apos;avatar</h2>
         </div>
 
         {/* Zone crop — ratio 1:1, largeur totale, fond immersif très sombre */}

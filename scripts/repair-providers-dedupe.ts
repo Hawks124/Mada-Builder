@@ -7,16 +7,12 @@ import { db } from "../db";
 import { users } from "../db/schema";
 
 async function main() {
-  const before = await db
-    .select({ id: users.id, providers: users.providers })
-    .from(users);
+  const before = await db.select({ id: users.id, providers: users.providers }).from(users);
   let repaired = 0;
   for (const row of before) {
     const clean = [...new Set(row.providers)];
     if (clean.length !== row.providers.length) {
-      console.log(
-        `REPAIR ${row.id}: [${row.providers.join(",")}] → [${clean.join(",")}]`,
-      );
+      console.log(`REPAIR ${row.id}: [${row.providers.join(",")}] → [${clean.join(",")}]`);
       await db
         .update(users)
         .set({ providers: clean, updatedAt: new Date() })
@@ -24,9 +20,7 @@ async function main() {
       repaired++;
     }
   }
-  console.log(
-    `OK: ${before.length} ligne(s) inspectée(s), ${repaired} réparée(s).`,
-  );
+  console.log(`OK: ${before.length} ligne(s) inspectée(s), ${repaired} réparée(s).`);
 }
 
 main().catch((e) => {

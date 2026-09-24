@@ -4,11 +4,7 @@ import NextError from "next/error";
 import { useEffect } from "react";
 import { captureError } from "@/lib/monitoring";
 
-export default function GlobalError({
-  error,
-}: {
-  error: Error & { digest?: string };
-}) {
+export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
     captureError(error);
   }, [error]);

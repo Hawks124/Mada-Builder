@@ -44,8 +44,5 @@ export const PRODUCT_TYPES: ProductType[] = [
 ];
 
 export function getProductTypeById(id: string): ProductType {
-  return (
-    PRODUCT_TYPES.find((t) => t.id === id) ??
-    PRODUCT_TYPES.find((t) => t.id === "other")!
-  );
+  return PRODUCT_TYPES.find((t) => t.id === id) ?? PRODUCT_TYPES.find((t) => t.id === "other")!;
 }

@@ -20,9 +20,7 @@ export function LegalLayout({
             {doc.title}
           </h1>
           {doc.description && (
-            <p className="text-lg font-medium text-muted-foreground">
-              {doc.description}
-            </p>
+            <p className="text-lg font-medium text-muted-foreground">{doc.description}</p>
           )}
           {doc.updated && (
             <p className="text-[12px] font-bold uppercase tracking-widest text-muted-foreground/70">

@@ -66,25 +66,17 @@ const publicMessages = new Set(
 );
 ok(
   "5 reasons → 1 seul message public",
-  publicMessages.size === 1 &&
-    publicMessages.has("Code incorrect ou expiré."),
+  publicMessages.size === 1 && publicMessages.has("Code incorrect ou expiré."),
 );
 
 // 8. Rate-limit partagé : clé stable + fenêtre OTP en un seul endroit.
 // (Le comportement Redis se QA en manuel : double demande < 60 s → OK
 // silencieux sans 2e email. Ici : purs.)
-ok(
-  "fenêtre OTP 60 s / 1",
-  OTP_REQUEST_WINDOW.window === "60 s" && OTP_REQUEST_WINDOW.max === 1,
-);
+ok("fenêtre OTP 60 s / 1", OTP_REQUEST_WINDOW.window === "60 s" && OTP_REQUEST_WINDOW.max === 1);
 ok(
   "clé stable (case/whitespace)",
-  buildLimitKey("otp:request", "  Test@Exemple.COM ") ===
-    "otp:request:test@exemple.com",
+  buildLimitKey("otp:request", "  Test@Exemple.COM ") === "otp:request:test@exemple.com",
 );
-ok(
-  "namespaces isolés",
-  buildLimitKey("otp:request", "a@b.c") !== buildLimitKey("votes", "a@b.c"),
-);
+ok("namespaces isolés", buildLimitKey("otp:request", "a@b.c") !== buildLimitKey("votes", "a@b.c"));
 
 console.log(`\n${pass} checks OK`);

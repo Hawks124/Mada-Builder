@@ -103,10 +103,11 @@ const MOCK_PRODUCTS = [
 
 export function DiscoverGrid({ searchQuery }: { searchQuery: string }) {
   // En situation réelle, searchQuery serait utilisé pour filtrer ou appel API
-  const filteredProducts = MOCK_PRODUCTS.filter((p) => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.maker.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    p.tagline.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredProducts = MOCK_PRODUCTS.filter(
+    (p) =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.maker.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.tagline.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
@@ -119,7 +120,10 @@ export function DiscoverGrid({ searchQuery }: { searchQuery: string }) {
           ))}
           {/* Duplicating for mockup fullness of a Directory Page */}
           {filteredProducts.map((product) => (
-            <ProductCard key={`${product.id}-copy`} product={{...product, id: `${product.id}-copy`}} />
+            <ProductCard
+              key={`${product.id}-copy`}
+              product={{ ...product, id: `${product.id}-copy` }}
+            />
           ))}
         </div>
       ) : (
@@ -140,15 +144,17 @@ export function DiscoverGrid({ searchQuery }: { searchQuery: string }) {
           <PaginationLink href="?page=1" disabled>
             <CaretLeftIcon weight="bold" />
           </PaginationLink>
-          
-          <PaginationLink href="?page=1" isActive>1</PaginationLink>
+
+          <PaginationLink href="?page=1" isActive>
+            1
+          </PaginationLink>
           <PaginationLink href="?page=2">2</PaginationLink>
           <PaginationLink href="?page=3">3</PaginationLink>
-          
+
           <span className="px-3 py-2 text-muted-foreground/50 select-none">...</span>
-          
+
           <PaginationLink href="?page=83">83</PaginationLink>
-          
+
           <PaginationLink href="?page=2">
             <CaretRightIcon weight="bold" />
           </PaginationLink>
@@ -158,16 +164,16 @@ export function DiscoverGrid({ searchQuery }: { searchQuery: string }) {
   );
 }
 
-function PaginationLink({ 
-  href, 
-  isActive, 
-  disabled, 
-  children 
-}: { 
-  href: string; 
-  isActive?: boolean; 
-  disabled?: boolean; 
-  children: React.ReactNode; 
+function PaginationLink({
+  href,
+  isActive,
+  disabled,
+  children,
+}: {
+  href: string;
+  isActive?: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
 }) {
   if (disabled) {
     return (
@@ -182,9 +188,9 @@ function PaginationLink({
       href={href}
       className={cn(
         "w-10 h-10 flex items-center justify-center rounded-full font-bold text-sm transition-all",
-        isActive 
-          ? "bg-foreground text-background shadow-md border border-transparent scale-105" 
-          : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95"
+        isActive
+          ? "bg-foreground text-background shadow-md border border-transparent scale-105"
+          : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95",
       )}
     >
       {children}

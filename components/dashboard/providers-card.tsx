@@ -2,11 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import {
-  GithubLogoIcon,
-  CheckCircleIcon,
-  EnvelopeIcon,
-} from "@phosphor-icons/react";
+import { GithubLogoIcon, CheckCircleIcon, EnvelopeIcon } from "@phosphor-icons/react";
 import { linkProvider, unlinkProvider } from "@/app/actions/auth";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -45,12 +41,7 @@ export function ProvidersCard({
       </h2>
 
       <ProviderRow
-        icon={
-          <GithubLogoIcon
-            weight="fill"
-            className="h-6 w-6 text-foreground shrink-0"
-          />
-        }
+        icon={<GithubLogoIcon weight="fill" className="h-6 w-6 text-foreground shrink-0" />}
         name="GitHub"
         sub={githubHandle ? `@${githubHandle}` : "Compte GitHub lié"}
         connected={connected.includes("github")}
@@ -84,12 +75,7 @@ export function ProvidersCard({
       />
 
       <ProviderRow
-        icon={
-          <EnvelopeIcon
-            weight="bold"
-            className="h-6 w-6 text-foreground shrink-0"
-          />
-        }
+        icon={<EnvelopeIcon weight="bold" className="h-6 w-6 text-foreground shrink-0" />}
         name="Email"
         sub="Connexion par code à 6 chiffres, sans mot de passe."
         connected={connected.includes("email")}
@@ -127,9 +113,7 @@ function ProviderRow({
       {icon}
       <div className="flex flex-col min-w-0 flex-1">
         <span className="text-[15px] font-bold text-foreground">{name}</span>
-        <span className="text-[13px] font-medium text-muted-foreground">
-          {sub}
-        </span>
+        <span className="text-[13px] font-medium text-muted-foreground">{sub}</span>
       </div>
       {connected ? (
         isLast ? (
@@ -163,9 +147,7 @@ function ProviderRow({
           </span>
         )
       ) : readonly ? (
-        <span className="text-[12px] font-bold text-muted-foreground shrink-0">
-          Non connecté
-        </span>
+        <span className="text-[12px] font-bold text-muted-foreground shrink-0">Non connecté</span>
       ) : (
         <button
           type="button"

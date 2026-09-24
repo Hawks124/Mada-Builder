@@ -56,10 +56,7 @@ export function HeroSubmitCta() {
         variant="outline"
         className="relative w-full border-0! shadow-none! rounded-full bg-background hover:bg-background"
       >
-        <PlusIcon
-          weight="bold"
-          className="h-4 w-4 text-muted-foreground"
-        />
+        <PlusIcon weight="bold" className="h-4 w-4 text-muted-foreground" />
         Soumettre un produit
       </ActionButton>
     </div>

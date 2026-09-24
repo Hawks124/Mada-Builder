@@ -30,7 +30,7 @@ const FILTERS: { id: ListFilter; label: string; withCount?: boolean }[] = [
   { id: "appeals", label: "Appels", withCount: true },
 ];
 
- // Modération users — BAN UNIQUEMENT (réversible, appels illimités).
+// Modération users — BAN UNIQUEMENT (réversible, appels illimités).
 // Pas de suppression user côté admin : l'arme lourde vit au niveau
 // produit (delete manuel) + auto-suppression RGPD côté user.
 // Page initiale serveur (?q= ?status= ?cursor=) + "Charger plus" (keyset,
@@ -67,12 +67,8 @@ export function UsersTable({
   const [banningId, setBanningId] = React.useState<string | null>(null);
   const [banReason, setBanReason] = React.useState("");
   const [pendingId, setPendingId] = React.useState<string | null>(null);
-  const [rolePendingId, setRolePendingId] = React.useState<string | null>(
-    null,
-  );
-  const [roleConfirm, setRoleConfirm] = React.useState<AdminUserRow | null>(
-    null,
-  );
+  const [rolePendingId, setRolePendingId] = React.useState<string | null>(null);
+  const [roleConfirm, setRoleConfirm] = React.useState<AdminUserRow | null>(null);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [histories, setHistories] = React.useState<Record<string, UserHistory>>({});
   const [historyLoadingId, setHistoryLoadingId] = React.useState<string | null>(null);
@@ -163,9 +159,7 @@ export function UsersTable({
       toast("ok", result.message ?? "Utilisateur banni.");
       setRows((prev) =>
         prev.map((u) =>
-          u.id === user.id
-            ? { ...u, status: "banned" as const, banReason: banReason.trim() }
-            : u,
+          u.id === user.id ? { ...u, status: "banned" as const, banReason: banReason.trim() } : u,
         ),
       );
     });
@@ -193,7 +187,8 @@ export function UsersTable({
     });
   };
 
-  const unban = (user: AdminUserRow) => {    setError(null);
+  const unban = (user: AdminUserRow) => {
+    setError(null);
     setPendingId(user.id);
     React.startTransition(async () => {
       const result = await unbanUserAction({ userId: user.id });
@@ -207,9 +202,7 @@ export function UsersTable({
       toast("ok", result.message ?? "Utilisateur débanni.");
       setRows((prev) =>
         prev.map((u) =>
-          u.id === user.id
-            ? { ...u, status: "active" as const, banReason: null }
-            : u,
+          u.id === user.id ? { ...u, status: "active" as const, banReason: null } : u,
         ),
       );
     });
@@ -235,11 +228,7 @@ export function UsersTable({
         return;
       }
       toast("ok", result.message ?? "Rôle mis à jour.");
-      setRows((prev) =>
-        prev.map((u) =>
-          u.id === user.id ? { ...u, role: targetRole } : u,
-        ),
-      );
+      setRows((prev) => prev.map((u) => (u.id === user.id ? { ...u, role: targetRole } : u)));
     });
   };
 
@@ -265,9 +254,7 @@ export function UsersTable({
             ? `${roleConfirm?.displayName} perdra l'accès au panel admin. Son compte maker reste inchangé.`
             : `${roleConfirm?.displayName} accédera au panel admin (modération, appels — sans gestion des grades). Effectif à sa prochaine connexion.`
         }
-        confirmLabel={
-          roleConfirm?.role === "moderateur" ? "Rétrograder" : "Nommer modo"
-        }
+        confirmLabel={roleConfirm?.role === "moderateur" ? "Rétrograder" : "Nommer modo"}
         confirmPending={rolePendingId !== null}
         onConfirm={confirmRole}
         onCancel={() => setRoleConfirm(null)}
@@ -275,9 +262,7 @@ export function UsersTable({
       {/* Recherche serveur (?q=) + pré-filtre local — onglets users seuls */}
       {status !== "appeals" && (
         <form method="get" action="/admin/users" className="w-full">
-          {status !== "all" && (
-            <input type="hidden" name="status" value={status} />
-          )}
+          {status !== "all" && <input type="hidden" name="status" value={status} />}
           <SearchInput
             variant="page"
             placeholder="Rechercher un utilisateur…"
@@ -294,8 +279,7 @@ export function UsersTable({
           {FILTERS.map((f) => {
             const isActive = status === f.id;
             // Badge affiché seulement si non-zéro (pas de bruit à 0).
-            const count =
-              f.id === "appeals" ? appealsCount : f.id === "banned" ? bannedTotal : 0;
+            const count = f.id === "appeals" ? appealsCount : f.id === "banned" ? bannedTotal : 0;
             return (
               <Link
                 key={f.id}
@@ -360,9 +344,7 @@ export function UsersTable({
               expanded={expandedId === user.id}
               history={histories[user.id] ?? null}
               historyLoading={historyLoadingId === user.id}
-              onToggleBan={() =>
-                setBanningId(banningId === user.id ? null : user.id)
-              }
+              onToggleBan={() => setBanningId(banningId === user.id ? null : user.id)}
               onBanReasonChange={setBanReason}
               onCancelBan={() => {
                 setBanningId(null);

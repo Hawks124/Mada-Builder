@@ -3,8 +3,7 @@ import { cn } from "@/lib/utils";
 type FieldBadgeVariant = "required" | "optional";
 
 const VARIANT_CLASSES: Record<FieldBadgeVariant, string> = {
-  required:
-    "border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-400",
+  required: "border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-400",
   optional: "border-border/60 bg-muted/40 text-muted-foreground",
 };
 

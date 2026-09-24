@@ -8,12 +8,24 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "fix": "prettier --write . && eslint . --fix",
+    "format:check": "prettier --check .",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:local": "tsx scripts/db-migrate-local.ts",
     "db:setup": "tsx scripts/db-setup.ts",
     "db:ping": "tsx scripts/db-ping.ts",
-    "email:preview": "tsx scripts/render-email-previews.ts"
+    "email:preview": "tsx scripts/render-email-previews.ts",
+    "prepare": "husky"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,mjs,js,json,css,md}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -46,6 +58,9 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.9.9",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"

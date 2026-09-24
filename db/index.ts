@@ -37,5 +37,28 @@ const globalForDb = globalThis as unknown as {
   __builderDb?: PostgresJsDatabase<typeof schema>;
 };
 
-export const db: PostgresJsDatabase<typeof schema> =
-  globalForDb.__builderDb ?? (globalForDb.__builderDb = createClient());
+function getDb(): PostgresJsDatabase<typeof schema> {
+  return (globalForDb.__builderDb ??= createClient());
+}
+
+/**
+ * Client partagé PARESSEUX : `createClient()` ne tourne qu'au premier
+ * usage réel, jamais à l'import. Sans ça, le moindre `import { db }`
+ * (route API, page statique) jette au build/prerender dès que
+ * DATABASE_URL manque — alors que le mode mock sans clés est un
+ * comportement documenté (contributeur sans backend, CI sans secrets).
+ * Le message d'erreur reste identique (STACK.md), il survient juste au
+ * moment de la requête, pas au chargement du module.
+ * Garde `then` : un `await db` accidentel ne doit pas pendre le Proxy.
+ */
+export const db: PostgresJsDatabase<typeof schema> = new Proxy(
+  {},
+  {
+    get(_target, prop, receiver) {
+      if (prop === "then") return undefined;
+      const client = getDb();
+      const value = Reflect.get(client, prop, receiver);
+      return typeof value === "function" ? value.bind(client) : value;
+    },
+  },
+) as PostgresJsDatabase<typeof schema>;

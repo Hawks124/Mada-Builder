@@ -1,20 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { AvatarImage } from "@/components/ui/avatar-image";
-import {
-  ArrowRightIcon,
-  SealCheckIcon,
-  StarIcon,
-  GlobeIcon,
-  AppleLogoIcon,
-  AndroidLogoIcon,
-} from "@phosphor-icons/react";
-import { cn, slugifyName } from "@/lib/utils";
+import { ArrowRightIcon } from "@phosphor-icons/react";
 import { ProductCard } from "@/components/product/product-card";
 
 // MOCK_NEWEST array remains here... (in a real app, fetched from DB)
-
 
 type MockNewest = {
   id: string;
@@ -37,8 +27,7 @@ const MOCK_NEWEST: MockNewest[] = [
   {
     id: "6",
     name: "Fragments Vlog",
-    tagline:
-      "Record clips all day. Tap once at night for a finished mini-vlog.",
+    tagline: "Record clips all day. Tap once at night for a finished mini-vlog.",
     categoryId: "video",
     maker: "Edison Modesto",
     makerAvatar: "https://i.pravatar.cc/150?u=m6",

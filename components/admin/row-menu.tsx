@@ -65,7 +65,7 @@ export function RowMenu({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open ]);
+  }, [open]);
 
   const fire = (fn: () => void) => {
     setOpen(false);
@@ -131,10 +131,7 @@ export function RowMenu({
               ) : banTone === "danger" ? (
                 <GavelIcon weight="bold" className="h-4 w-4 shrink-0" />
               ) : (
-                <ArrowCounterClockwiseIcon
-                  weight="bold"
-                  className="h-4 w-4 shrink-0"
-                />
+                <ArrowCounterClockwiseIcon weight="bold" className="h-4 w-4 shrink-0" />
               )}
               {banLabel}
             </button>

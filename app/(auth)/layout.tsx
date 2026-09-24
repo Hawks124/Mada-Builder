@@ -3,11 +3,7 @@
 import { redirect } from "next/navigation";
 import { getOnboardingRedirect } from "@/app/actions/onboarding";
 
-export default async function AuthLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     const dest = await getOnboardingRedirect().catch(() => null);
     if (dest) redirect(dest);

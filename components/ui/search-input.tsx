@@ -6,10 +6,7 @@ import { cn } from "@/lib/utils";
 
 type SearchInputVariant = "nav" | "page";
 
-interface SearchInputProps extends Omit<
-  InputHTMLAttributes<HTMLInputElement>,
-  "size"
-> {
+interface SearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
   variant?: SearchInputVariant;
   showKbd?: boolean;
 }
@@ -27,13 +24,7 @@ export function SearchInput({
   const kbd = showKbd ?? isNav;
 
   return (
-    <div
-      className={cn(
-        "relative",
-        isNav ? "hidden lg:block" : "w-full",
-        className,
-      )}
-    >
+    <div className={cn("relative", isNav ? "hidden lg:block" : "w-full", className)}>
       <MagnifyingGlassIcon
         weight="bold"
         className={cn(

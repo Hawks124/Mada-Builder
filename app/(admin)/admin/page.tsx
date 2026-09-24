@@ -6,18 +6,10 @@ import { HourglassIcon } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ActionButton } from "@/components/ui/action-button";
-import {
-  MOCK_ACTIVITY,
-  MOCK_REVIEW_QUEUE,
-  type ActivityItem,
-} from "@/components/admin/admin-mock";
+import { MOCK_ACTIVITY, MOCK_REVIEW_QUEUE, type ActivityItem } from "@/components/admin/admin-mock";
 import { MOCK_APPS } from "@/components/dashboard/dashboard-mock";
 import { getMakersCount } from "@/services/users.service";
-import {
-  getBannedCount,
-  getHomepageViews,
-  getVisitsTotal,
-} from "@/services/stats.service";
+import { getBannedCount, getHomepageViews, getVisitsTotal } from "@/services/stats.service";
 
 // noindex strict — jamais indexé, même au backend (robots + middleware).
 export const metadata: Metadata = {
@@ -33,7 +25,12 @@ type AdminStat = {
 };
 
 const STATS_FALLBACK: AdminStat[] = [
-  { label: "Visites (7 j)", value: "—", delta: "hits bruts, invités inclus", tone: "neutral" as const },
+  {
+    label: "Visites (7 j)",
+    value: "—",
+    delta: "hits bruts, invités inclus",
+    tone: "neutral" as const,
+  },
   { label: "Makers inscrits", value: "—", delta: "comptes actifs", tone: "neutral" as const },
   { label: "Bannis", value: "—", delta: "suspendus", tone: "neutral" as const },
   { label: "Listings publiés", value: "—", delta: "milestone listings", tone: "neutral" as const },
@@ -111,13 +108,7 @@ function ActivityVisual({ item }: { item: ActivityItem }) {
     return (
       <span className="flex -space-x-2 shrink-0">
         {subject.avatars.map((url) => (
-          <AvatarImage
-            key={url}
-            src={url}
-            name=""
-            size={28}
-            className="ring-2 ring-background"
-          />
+          <AvatarImage key={url} src={url} name="" size={28} className="ring-2 ring-background" />
         ))}
         <span className="w-7 h-7 rounded-full ring-2 ring-background bg-muted border border-border/40 flex items-center justify-center text-[9px] font-black text-muted-foreground tabular-nums">
           +{subject.extra}
@@ -192,9 +183,7 @@ export default async function AdminOverviewPage() {
 
       {/* Recent activity */}
       <div className="flex flex-col gap-6">
-        <h2 className="text-2xl font-black tracking-tight text-foreground">
-          Activité récente
-        </h2>
+        <h2 className="text-2xl font-black tracking-tight text-foreground">Activité récente</h2>
         <div className="flex flex-col">
           {MOCK_ACTIVITY.map((item) => (
             <Link
@@ -204,10 +193,7 @@ export default async function AdminOverviewPage() {
             >
               <ActivityVisual item={item} />
               {item.tone === "danger" && (
-                <span
-                  className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0"
-                  aria-hidden="true"
-                />
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" aria-hidden="true" />
               )}
               <p className="text-[14px] font-medium text-foreground group-hover:text-primary transition-colors flex-1 min-w-0 truncate">
                 {item.text}
@@ -221,8 +207,8 @@ export default async function AdminOverviewPage() {
       </div>
 
       <p className="text-[12px] font-medium text-muted-foreground/70">
-        Visites = hits bruts 7 j (invités inclus, pas des uniques).
-        Activité mock — branchée sur l&apos;audit admin (V1.5).
+        Visites = hits bruts 7 j (invités inclus, pas des uniques). Activité mock — branchée sur
+        l&apos;audit admin (V1.5).
       </p>
     </div>
   );

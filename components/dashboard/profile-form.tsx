@@ -21,11 +21,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
 import { registerUnsavedChecker } from "@/lib/unsaved-guard";
 import { AvatarCropDialog } from "@/components/dashboard/avatar-crop-dialog";
-import {
-  updateMyProfile,
-  uploadMyAvatar,
-  type ProfileActionState,
-} from "@/app/actions/profile";
+import { TimeZoneField } from "@/components/ui/timezone-field";
+import { updateMyProfile, uploadMyAvatar, type ProfileActionState } from "@/app/actions/profile";
 
 const SOCIALS = [
   { id: "github", label: "GitHub", icon: GithubLogoIcon },
@@ -80,16 +77,16 @@ function FormMessage({ state }: { state: ProfileActionState }) {
 // avatar, identité, réseaux. Valeurs initiales serveur (mock si pas de
 // backend : la sauvegarde répond "Connectez-vous", jamais de crash).
 export function ProfileForm({ initial }: { initial: ProfileInitial }) {
-  const [saveState, saveAction, savePending] = React.useActionState(
-    updateMyProfile,
-    { ok: false, message: null },
-  );
-  const [avatarState, avatarAction, avatarPending] = React.useActionState(
-    uploadMyAvatar,
-    { ok: false, message: null } as ProfileActionState & {
-      avatarUrl?: string;
-    },
-  );
+  const [saveState, saveAction, savePending] = React.useActionState(updateMyProfile, {
+    ok: false,
+    message: null,
+  });
+  const [avatarState, avatarAction, avatarPending] = React.useActionState(uploadMyAvatar, {
+    ok: false,
+    message: null,
+  } as ProfileActionState & {
+    avatarUrl?: string;
+  });
   const [preview, setPreview] = React.useState<string | null>(null);
   const [clientError, setClientError] = React.useState<string | null>(null);
   // Fichier brut en cours de cadrage (dialog) — jamais envoyé tel quel.
@@ -102,11 +99,7 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
 
   // Succès avatar → toast partagé (l'erreur reste inline : contexte retry).
   React.useEffect(() => {
-    if (
-      avatarState.ok &&
-      avatarState.message &&
-      lastAvatarToast.current !== avatarState.message
-    ) {
+    if (avatarState.ok && avatarState.message && lastAvatarToast.current !== avatarState.message) {
       lastAvatarToast.current = avatarState.message;
       toast("ok", avatarState.message);
     }
@@ -165,17 +158,9 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-12 items-start">
         <div className="flex flex-col gap-10 min-w-0">
           {/* Avatar — choix du fichier = envoi immédiat (un seul geste). */}
-          <form
-            ref={avatarFormRef}
-            action={avatarAction}
-            className="flex items-center gap-6"
-          >
+          <form ref={avatarFormRef} action={avatarAction} className="flex items-center gap-6">
             {currentAvatar ? (
-              <AvatarImage
-                src={currentAvatar}
-                name={initial.displayName}
-                size={80}
-              />
+              <AvatarImage src={currentAvatar} name={initial.displayName} size={80} />
             ) : (
               <span
                 aria-hidden="true"
@@ -209,9 +194,7 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
                   // jamais être atteint pour un fichier trop lourd.
                   if (file.size > AVATAR_MAX_INPUT_BYTES) {
                     e.target.value = "";
-                    setClientError(
-                      "Fichier trop lourd — 10 Mo maximum.",
-                    );
+                    setClientError("Fichier trop lourd — 10 Mo maximum.");
                     return;
                   }
                   setClientError(null);
@@ -231,10 +214,7 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
                 PNG, JPG ou WebP — carré, max 10 Mo (compressée à l&apos;envoi).
               </p>
               {clientError && (
-                <p
-                  role="alert"
-                  className="text-[13px] font-bold text-red-600 dark:text-red-400"
-                >
+                <p role="alert" className="text-[13px] font-bold text-red-600 dark:text-red-400">
                   {clientError}
                 </p>
               )}
@@ -274,11 +254,8 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
           <div className="w-full h-px bg-border/40" />
 
           {/* Identity */}
-          <form
-            action={saveAction}
-            onChange={() => setDirty(true)}
-            className="flex flex-col gap-6"
-          >
+          <form action={saveAction} onChange={() => setDirty(true)} className="flex flex-col gap-6">
+            <TimeZoneField />
             <InputField
               label="Nom d'affichage"
               subtitle="Visible sur votre page maker et vos fiches."
@@ -291,10 +268,7 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
             />
             <ProfileOccupation defaultValue={initial.occupation} />
             <div className="flex flex-col gap-2">
-              <label
-                htmlFor="profile-bio"
-                className="text-[14px] font-bold text-foreground"
-              >
+              <label htmlFor="profile-bio" className="text-[14px] font-bold text-foreground">
                 Bio
               </label>
               <textarea
@@ -335,10 +309,7 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
               {SOCIALS.map((social) => (
                 <div key={social.id} className="flex items-center gap-3">
                   <div className="h-11 w-11 rounded-xl bg-muted/40 border border-border/40 flex items-center justify-center shrink-0">
-                    <social.icon
-                      weight="fill"
-                      className="w-5 h-5 text-muted-foreground"
-                    />
+                    <social.icon weight="fill" className="w-5 h-5 text-muted-foreground" />
                   </div>
                   <div className="flex flex-col min-w-0 w-28 sm:w-32 shrink-0">
                     <span className="text-[14px] font-bold text-foreground leading-tight">
@@ -386,9 +357,7 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
                 weight="fill"
                 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5"
               />
-              <p className="text-[13px] font-medium text-muted-foreground leading-relaxed">
-                {tip}
-              </p>
+              <p className="text-[13px] font-medium text-muted-foreground leading-relaxed">{tip}</p>
             </div>
           ))}
         </aside>

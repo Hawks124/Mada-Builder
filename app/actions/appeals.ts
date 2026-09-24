@@ -160,7 +160,7 @@ export async function reviewAppealAction(input: {
 }): Promise<{ ok: boolean; message: string | null }> {
   try {
     const { id } = await requireStaffId();
-    const { email, displayName, userId, overturned } = await reviewAppeal({
+    const { email, displayName, userId, overturned, timeZone } = await reviewAppeal({
       isStaff: true,
       appealId: input.appealId,
       decision: input.decision,
@@ -175,8 +175,8 @@ export async function reviewAppealAction(input: {
       await sendEmail({
         to: email,
         subject: appealDecisionSubject(overturned),
-        html: appealDecisionHtml({ displayName, overturned, origin }),
-        text: appealDecisionText({ displayName, overturned, origin }),
+        html: appealDecisionHtml({ displayName, overturned, origin, timeZone }),
+        text: appealDecisionText({ displayName, overturned, origin, timeZone }),
       });
     } catch (e) {
       captureError(e, { op: "appeal.decisionEmail" });

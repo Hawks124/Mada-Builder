@@ -3,10 +3,6 @@
  * standalone qui possède tout son viewport (logo, identité, titre,
  * formulaire). Aucun chrome ici : un second centrage casserait le layout.
  */
-export default function OnboardingLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }

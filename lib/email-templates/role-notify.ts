@@ -1,9 +1,6 @@
-import {
-  BRAND_CSS_BASE,
-  BRAND_CSS_DARK,
-  emailBrandHtml,
-} from "@/lib/email-templates/brand";
+import { BRAND_CSS_BASE, BRAND_CSS_DARK, emailBrandHtml } from "@/lib/email-templates/brand";
 import { emailLegalHtml, emailLegalText } from "@/lib/email-templates/footer";
+import { emailGreeting } from "@/lib/greeting";
 
 function escapeHtml(value: string): string {
   return value
@@ -14,9 +11,7 @@ function escapeHtml(value: string): string {
 }
 
 export function roleNotifySubject(promoted: boolean): string {
-  return promoted
-    ? "Mise à jour : Rôle Modérateur"
-    : "Mise à jour : Rôle Maker";
+  return promoted ? "Mise à jour : Rôle Modérateur" : "Mise à jour : Rôle Maker";
 }
 
 export function roleNotifyText(input: {
@@ -24,12 +19,16 @@ export function roleNotifyText(input: {
   promoted: boolean;
   /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
-  const base = `Bonjour ${input.displayName},`;
+  const base = `${emailGreeting(input.timeZone)} ${input.displayName},`;
   const body = input.promoted
     ? "Vous êtes désormais modérateur de la plateforme. Reconnectez-vous pour activer vos accès."
     : "Votre rôle modérateur a pris fin. Votre compte maker reste inchangé : profil, produits et votes sont conservés.";
-  return ["BuilderPlatform", "---", base, "", body, "", "---", emailLegalText(input.origin)].join("\n");
+  return ["BuilderPlatform", "---", base, "", body, "", "---", emailLegalText(input.origin)].join(
+    "\n",
+  );
 }
 
 export function roleNotifyHtml(input: {
@@ -37,10 +36,12 @@ export function roleNotifyHtml(input: {
   promoted: boolean;
   /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
   const name = escapeHtml(input.displayName);
   const title = input.promoted ? "Accès Modérateur." : "Mise à jour du rôle.";
-  
+
   const body = input.promoted
     ? "Vous disposez désormais des accès de modération sur la plateforme. Vous pouvez gérer les utilisateurs et traiter les appels en attente.<br><br>Veuillez vous déconnecter puis vous reconnecter pour activer ces nouveaux droits."
     : "Votre mandat de modérateur a pris fin. Votre compte bascule sur l'expérience classique : votre profil, vos produits et vos votes restent intégralement conservés.";
@@ -96,7 +97,7 @@ export function roleNotifyHtml(input: {
 
     <h1 class="hero">${title}</h1>
     
-    <p class="greeting">Bonjour ${name},</p>
+    <p class="greeting">${emailGreeting(input.timeZone)} ${name},</p>
     
     <p class="text">
       ${body}

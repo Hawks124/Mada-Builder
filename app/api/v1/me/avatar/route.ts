@@ -1,4 +1,11 @@
-import { ApiError, apiCatch, apiOk, corsPreflight, methodNotAllowed, requireFile } from "@/lib/api/response";
+import {
+  ApiError,
+  apiCatch,
+  apiOk,
+  corsPreflight,
+  methodNotAllowed,
+  requireFile,
+} from "@/lib/api/response";
 import { requireApiUser } from "@/lib/api/auth";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
 import { updateAvatar } from "@/services/users.service";

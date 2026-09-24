@@ -44,10 +44,7 @@ export async function HeroMakers() {
 
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     try {
-      const [recent, count] = await Promise.all([
-        getRecentMakers(5),
-        getMakersCount(),
-      ]);
+      const [recent, count] = await Promise.all([getRecentMakers(5), getMakersCount()]);
       if (recent.length > 0) {
         avatars = recent.map((m) => ({
           username: m.username,
@@ -85,10 +82,7 @@ export async function HeroMakers() {
       </div>
       <p className="text-[13px] font-bold text-muted-foreground whitespace-pre">
         Rejoignez{"   "}
-        <span className="text-foreground">
-          +{total.toLocaleString("fr-FR")}
-        </span>{" "}
-        makers
+        <span className="text-foreground">+{total.toLocaleString("fr-FR")}</span> makers
       </p>
     </div>
   );

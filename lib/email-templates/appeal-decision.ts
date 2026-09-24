@@ -1,9 +1,6 @@
-import {
-  BRAND_CSS_BASE,
-  BRAND_CSS_DARK,
-  emailBrandHtml,
-} from "@/lib/email-templates/brand";
+import { BRAND_CSS_BASE, BRAND_CSS_DARK, emailBrandHtml } from "@/lib/email-templates/brand";
 import { emailModerationFooterHtml, emailModerationFooterText } from "@/lib/email-templates/footer";
+import { emailGreeting } from "@/lib/greeting";
 
 function escapeHtml(value: string): string {
   return value
@@ -14,7 +11,9 @@ function escapeHtml(value: string): string {
 }
 
 export function appealDecisionSubject(overturned: boolean): string {
-  return overturned ? "Mise à jour : Votre compte est rétabli" : "Mise à jour : on maintient la suspension";
+  return overturned
+    ? "Mise à jour : Votre compte est rétabli"
+    : "Mise à jour : on maintient la suspension";
 }
 
 export function appealDecisionText(input: {
@@ -22,11 +21,13 @@ export function appealDecisionText(input: {
   overturned: boolean;
   /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
   return [
     "BuilderPlatform",
     "---",
-    `Bonjour ${input.displayName},`,
+    `${emailGreeting(input.timeZone)} ${input.displayName},`,
     "",
     input.overturned
       ? "Bonne nouvelle : Votre appel a été accepté. Votre compte est rétabli, avec toutes vos données intactes."
@@ -48,13 +49,15 @@ export function appealDecisionHtml(input: {
   overturned: boolean;
   /** Origine absolue (footer juridique). */
   origin: string;
+  /** Fuseau IANA réel du destinataire (null = repli neutre). */
+  timeZone: string | null;
 }): string {
   const name = escapeHtml(input.displayName);
-  
+
   // Couleurs et Titres dynamiques selon la décision
   const heroColor = input.overturned ? "#10b981" : "#f59e0b"; // Émeraude (Succès) / Ambre (pause, pas sanction)
   const title = input.overturned ? "Compte rétabli." : "On maintient, pour l'instant.";
-  
+
   const body = input.overturned
     ? "Après examen de votre appel, nous avons le plaisir de vous informer que votre compte a été rétabli. Vous retrouvez immédiatement l'accès à toutes vos données, vos produits et vos votes."
     : "Nous avons relu votre appel avec attention, et pour l'instant nous maintenons la suspension.<br><br>Ce n'est pas un point final : les appels sont illimités. Si des éléments nouveaux éclairent la situation, écrivez-nous à nouveau — un humain relira, promis.<br><br>Votre droit à l'oubli reste entier : vous pouvez supprimer vos données depuis votre tableau de bord, à tout moment.";
@@ -100,7 +103,7 @@ export function appealDecisionHtml(input: {
     <!-- La couleur du titre (Rouge ou Vert) est injectée dynamiquement via le paramètre heroColor -->
     <h1 class="hero" style="color: ${heroColor};">${title}</h1>
     
-    <p class="greeting">Bonjour ${name},</p>
+    <p class="greeting">${emailGreeting(input.timeZone)} ${name},</p>
     <p class="text">${body}</p>
 
     <hr class="divider" />

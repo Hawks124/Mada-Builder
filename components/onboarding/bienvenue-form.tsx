@@ -3,21 +3,15 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  GithubLogoIcon,
-  Check,
-  EnvelopeSimpleIcon,
-} from "@phosphor-icons/react";
+import { GithubLogoIcon, Check, EnvelopeSimpleIcon } from "@phosphor-icons/react";
 import { GridBackground } from "@/components/ui/grid-background";
 import { InputField } from "@/components/ui/input-field";
 import { ActionButton } from "@/components/ui/action-button";
 import { ProfileOccupation } from "@/components/dashboard/profile-occupation";
+import { TimeZoneField } from "@/components/ui/timezone-field";
 import { Spinner } from "@/components/ui/spinner";
 import { LogoMark } from "@/components/ui/logo";
-import {
-  completeMyProfile,
-  type OnboardingState,
-} from "@/app/actions/onboarding";
+import { completeMyProfile, type OnboardingState } from "@/app/actions/onboarding";
 
 /**
  * Page /bienvenue STANDALONE
@@ -50,19 +44,12 @@ export function BienvenueForm({
   } as OnboardingState);
   const needsEmail = missing.includes("email");
   const providerLabel =
-    provider === "github"
-      ? "GitHub"
-      : provider === "google"
-        ? "Google"
-        : "Email";
+    provider === "github" ? "GitHub" : provider === "google" ? "Google" : "Email";
 
   return (
     <div className="relative min-h-screen bg-background flex flex-col justify-between p-6 sm:p-10 lg:p-12 max-w-7xl mx-auto overflow-hidden">
       {/* Texture de fond (décoratif seul — même variante que /signin). */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 pointer-events-none opacity-80"
-      >
+      <div aria-hidden="true" className="absolute inset-0 pointer-events-none opacity-80">
         <GridBackground variant="css" showBottomFade={false} />
       </div>
       {/* Topbar : Logo + Badge Utilisateur */}
@@ -86,9 +73,7 @@ export function BienvenueForm({
                 {identity.name.slice(0, 1).toUpperCase()}
               </span>
             )}
-            <span className="text-xs font-normal text-muted-foreground">
-              @{identity.shortId}
-            </span>
+            <span className="text-xs font-normal text-muted-foreground">@{identity.shortId}</span>
           </div>
         )}
       </header>
@@ -99,10 +84,7 @@ export function BienvenueForm({
         <div className="lg:col-span-5 flex flex-col gap-4">
           <div className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground bg-muted/40 px-3 py-1 rounded-full w-fit border border-border/40">
             {provider === "github" ? (
-              <GithubLogoIcon
-                weight="fill"
-                className="w-4 h-4 text-foreground"
-              />
+              <GithubLogoIcon weight="fill" className="w-4 h-4 text-foreground" />
             ) : provider === "google" ? (
               <Image
                 src="/logos/google.svg"
@@ -112,22 +94,18 @@ export function BienvenueForm({
                 className="w-4 h-4 shrink-0"
               />
             ) : (
-              <EnvelopeSimpleIcon
-                weight="fill"
-                className="w-4 h-4 text-foreground"
-              />
+              <EnvelopeSimpleIcon weight="fill" className="w-4 h-4 text-foreground" />
             )}
             <span>Connecté via {providerLabel}</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-foreground leading-[1.15]">
-            On vérifie et{" "}
-            <span className="text-muted-foreground">c&apos;est parti. </span>
+            On vérifie et <span className="text-muted-foreground">c&apos;est parti. </span>
           </h1>
 
           <p className="text-base text-muted-foreground leading-relaxed">
-            Vos informations ont été importées depuis {providerLabel}.
-            Confirmez votre nom public pour entrer dans la communauté.
+            Vos informations ont été importées depuis {providerLabel}. Confirmez votre nom public
+            pour entrer dans la communauté.
           </p>
         </div>
 
@@ -135,6 +113,7 @@ export function BienvenueForm({
         <div className="lg:col-span-7 border rounded-[8.5px] bg-background border-border/60 p-6 sm:p-8 shadow-sm">
           <form action={action} className="flex flex-col gap-5">
             <input type="hidden" name="next" value={next} />
+            <TimeZoneField />
 
             <InputField
               label="Votre nom public"
@@ -193,11 +172,7 @@ export function BienvenueForm({
                 disabled={pending}
                 className="shrink-0"
               >
-                {pending ? (
-                  <Spinner size="sm" />
-                ) : (
-                  <Check weight="bold" className="w-4 h-4" />
-                )}
+                {pending ? <Spinner size="sm" /> : <Check weight="bold" className="w-4 h-4" />}
                 {pending ? "Enregistrement…" : "Valider et entrer"}
               </ActionButton>
             </div>

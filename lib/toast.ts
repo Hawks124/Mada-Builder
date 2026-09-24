@@ -14,10 +14,7 @@ export const TOAST_PARAM = "toast";
 const MAX_MESSAGE_LENGTH = 120;
 
 export function isToastTone(value: unknown): value is ToastTone {
-  return (
-    typeof value === "string" &&
-    (TOAST_TONES as readonly string[]).includes(value)
-  );
+  return typeof value === "string" && (TOAST_TONES as readonly string[]).includes(value);
 }
 
 /** Parse `ok:Message` (+ fallback info si tone inconnu). */
@@ -37,11 +34,7 @@ export function parseToastParam(raw: string | null): {
 }
 
 /** Construit une URL (relative ou absolue) avec ?toast=tone:message. */
-export function withToast(
-  href: string,
-  tone: ToastTone,
-  message: string,
-): string {
+export function withToast(href: string, tone: ToastTone, message: string): string {
   const clean = message.trim().slice(0, MAX_MESSAGE_LENGTH);
   const sep = href.includes("?") ? "&" : "?";
   return `${href}${sep}${TOAST_PARAM}=${encodeURIComponent(`${tone}:${clean}`)}`;

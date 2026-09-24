@@ -40,7 +40,10 @@ async function main(): Promise<void> {
     const b = await body(res);
     check("ok: statut 200", res.status === 200);
     check("ok: enveloppe", b.ok === true && (b.data as { a: number }).a === 1);
-    check("ok: content-type JSON", (res.headers.get("content-type") ?? "").includes("application/json"));
+    check(
+      "ok: content-type JSON",
+      (res.headers.get("content-type") ?? "").includes("application/json"),
+    );
     check("ok: CORS", res.headers.get("access-control-allow-origin") === "*");
 
     const err = apiError("NOT_FOUND", "X", 404);
@@ -64,15 +67,26 @@ async function main(): Promise<void> {
     for (const [code, status] of cases) {
       const res = apiCatch(new ProfileError(code, "Msg"), "test");
       const b = await body(res);
-      check(`map ${code} → ${status}`, res.status === status && b.code === code && b.message === "Msg");
+      check(
+        `map ${code} → ${status}`,
+        res.status === status && b.code === code && b.message === "Msg",
+      );
     }
     const api = apiCatch(new ApiError("BANNED", 403, "Susp.", { banReason: "R" }), "test");
     const ab = await body(api);
-    check("map ApiError tel quel", api.status === 403 && ab.code === "BANNED" && (ab.data as { banReason: string }).banReason === "R");
+    check(
+      "map ApiError tel quel",
+      api.status === 403 &&
+        ab.code === "BANNED" &&
+        (ab.data as { banReason: string }).banReason === "R",
+    );
 
     const unk = apiCatch(new Error("détail secret"), "test");
     const ub = await body(unk);
-    check("map inconnu → 500 générique", unk.status === 500 && ub.code === "INTERNAL" && ub.message !== "détail secret");
+    check(
+      "map inconnu → 500 générique",
+      unk.status === 500 && ub.code === "INTERNAL" && ub.message !== "détail secret",
+    );
   }
 
   // ── Corps stricts ───────────────────────────────────────────────────
@@ -82,16 +96,27 @@ async function main(): Promise<void> {
       await readJson(bad);
       check("readJson invalide → throw", false);
     } catch (e) {
-      check("readJson invalide → INVALID_BODY", e instanceof ApiError && e.code === "INVALID_BODY" && e.status === 400);
+      check(
+        "readJson invalide → INVALID_BODY",
+        e instanceof ApiError && e.code === "INVALID_BODY" && e.status === 400,
+      );
     }
-    const arr = new Request("http://x/", { method: "POST", body: "[1]", headers: { "content-type": "application/json" } });
+    const arr = new Request("http://x/", {
+      method: "POST",
+      body: "[1]",
+      headers: { "content-type": "application/json" },
+    });
     try {
       await readJson(arr);
       check("readJson tableau → throw", false);
     } catch (e) {
       check("readJson tableau → INVALID_BODY", e instanceof ApiError && e.code === "INVALID_BODY");
     }
-    const good = new Request("http://x/", { method: "POST", body: '{"a":1}', headers: { "content-type": "application/json" } });
+    const good = new Request("http://x/", {
+      method: "POST",
+      body: '{"a":1}',
+      headers: { "content-type": "application/json" },
+    });
     const g = await readJson(good);
     check("readJson valide", g.a === 1);
 
@@ -100,7 +125,10 @@ async function main(): Promise<void> {
       requireFile(empty, "avatar");
       check("requireFile absent → throw", false);
     } catch (e) {
-      check("requireFile absent → 422", e instanceof ApiError && e.code === "VALIDATION" && e.status === 422);
+      check(
+        "requireFile absent → 422",
+        e instanceof ApiError && e.code === "VALIDATION" && e.status === 422,
+      );
     }
     check("iso(null)", iso(null) === null);
     check("iso(date)", iso(new Date("2026-01-01T00:00:00.000Z")) === "2026-01-01T00:00:00.000Z");
@@ -131,21 +159,29 @@ async function main(): Promise<void> {
     const res = await unknownGet(new Request("http://x/api/v1/nope"));
     const b = await body(res);
     check("catch-all: 404 JSON", res.status === 404 && b.ok === false && b.code === "NOT_FOUND");
-    check("catch-all: content-type JSON", (res.headers.get("content-type") ?? "").includes("application/json"));
+    check(
+      "catch-all: content-type JSON",
+      (res.headers.get("content-type") ?? "").includes("application/json"),
+    );
   }
 
   // ── 405 JSON + Allow ────────────────────────────────────────────────
   {
     const res = methodNotAllowed(["GET", "POST"]);
     const b = await body(res);
-    check("405: statut + code", res.status === 405 && b.ok === false && b.code === "METHOD_NOT_ALLOWED");
+    check(
+      "405: statut + code",
+      res.status === 405 && b.ok === false && b.code === "METHOD_NOT_ALLOWED",
+    );
     check("405: header Allow", (res.headers.get("allow") ?? "").includes("GET"));
   }
 
   // ── Token poubelle → 401 réel (appel Supabase véritable) ─────────────
   {
     try {
-      await requireApiUser(new Request("http://x/", { headers: { authorization: "Bearer __invalid__" } }));
+      await requireApiUser(
+        new Request("http://x/", { headers: { authorization: "Bearer __invalid__" } }),
+      );
       check("auth token poubelle → throw", false);
     } catch (e) {
       check(
@@ -166,10 +202,19 @@ async function main(): Promise<void> {
       limits: Record<string, number>;
     };
     check("meta: 200", res.status === 200 && b.ok === true);
-    check("meta: occupations non vides", Array.isArray(data.occupations) && data.occupations.length > 0);
-    check("meta: maker présent", data.occupations.some((o) => o.id === "maker" && o.label === "Maker"));
+    check(
+      "meta: occupations non vides",
+      Array.isArray(data.occupations) && data.occupations.length > 0,
+    );
+    check(
+      "meta: maker présent",
+      data.occupations.some((o) => o.id === "maker" && o.label === "Maker"),
+    );
     check("meta: defaultOccupation", data.defaultOccupation === "maker");
-    check("meta: limits", data.limits.appealMaxFiles === 3 && data.limits.appealCooldownHours === 24);
+    check(
+      "meta: limits",
+      data.limits.appealMaxFiles === 3 && data.limits.appealCooldownHours === 24,
+    );
   }
 
   console.log(`api-v1: ${pass} OK, ${fail} KO`);

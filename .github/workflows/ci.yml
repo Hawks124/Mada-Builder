@@ -1,0 +1,46 @@
+# CI — vérifie, ne réécrit jamais.
+#
+# Check-only par principe : aucun job ne committe ni ne push (ça se
+# battrait avec le ruleset `main-protection` et produirait des commits
+# fantômes). Le formatage et les fixes safe vivent en local :
+# `npm run fix` (humain) + pre-commit husky/lint-staged (stagé seul).
+# Les scripts `verify-*` (DB/Upstash/Resend) restent locaux (secrets) —
+# à brancher via GitHub Secrets quand le besoin viendra.
+name: ci
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Pinné sur le npm local (11.4.2) : npm 10 exige dans le lock le
+      # peer `webpack` de Sentry (jamais installé, Turbopack oblige) et
+      # fait échouer `npm ci` ; npm 11 l'ignore sainement. Ne pas retirer
+      # sans régénérer le lock sous la même version des deux côtés.
+      - run: npm install -g npm@11.4.2
+
+      - run: npm ci
+
+      - name: Types
+        run: npx tsc --noEmit
+
+      - name: Lint (zéro warning toléré)
+        run: npx eslint . --max-warnings=0
+
+      - name: Format
+        run: npx prettier --check .
+
+      - name: Build (mock sans clés — le fail-open couvre)
+        run: npm run build

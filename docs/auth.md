@@ -23,12 +23,12 @@
 
 ## 2. Rôles — matrice (user | moderateur | admin)
 
-| Action | admin | moderateur | user |
-|---|---|---|---|
-| Panel, ban/déban, appels | ✅ | ✅ | ❌ |
-| Nommer/rétrograder user ↔ moderateur | ✅ | ❌ | ❌ |
-| Toucher au grade admin (les deux sens) | ❌ UI (SQL founder only) | ❌ | ❌ |
-| Se toucher soi-même (grade/ban) | ❌ (garde) | ❌ (garde) | — |
+| Action                                 | admin                    | moderateur | user |
+| -------------------------------------- | ------------------------ | ---------- | ---- |
+| Panel, ban/déban, appels               | ✅                       | ✅         | ❌   |
+| Nommer/rétrograder user ↔ moderateur   | ✅                       | ❌         | ❌   |
+| Toucher au grade admin (les deux sens) | ❌ UI (SQL founder only) | ❌         | ❌   |
+| Se toucher soi-même (grade/ban)        | ❌ (garde)               | ❌ (garde) | —    |
 
 Le modérateur fait tout l'opérationnel, zéro gestion de grades
 (séparation des devoirs : qui nomme s'entoure). Voie UI : page
@@ -81,8 +81,8 @@ WHERE email = 'toi@mail.com';
 - Généré au signup (trigger `handle_new_user`) : slug + suffixe si
   collision. **Immuable ensuite** (SEO) — correction : SQL admin only.
 - Réservés : `admin api settings dashboard signin signup makers products
-  categories revenue search donate regles confidentialite conditions root
-  support help about` (miroir TS dans `users.service.ts` + trigger — les
+categories revenue search donate regles confidentialite conditions root
+support help about` (miroir TS dans `users.service.ts` + trigger — les
   tenir synchronisés).
 - Validation : `usernameSchema` (Zod, 3-20, `[a-z0-9-]`).
 
@@ -109,7 +109,7 @@ autorité de session** — aucun fork d'auth.
    actif), code `crypto.randomInt` 6 chiffres, `generateLink(magiclink)`
    avec double repli (compte inexistant → `createUser({ email_confirm: true })`
    **sans mot de passe**, puis retry). Insert `{ code_hash SHA-256,
-   action_link, token_hash, expires 10 min }`. Envoi Resend (code + lien
+action_link, token_hash, expires 10 min }`. Envoi Resend (code + lien
    de secours). Échec transport → ligne supprimée (retry immédiat propre).
 2. Throttle ou email malformé : réponse OK silencieuse / erreur générique
    (anti-énumération — le code précédent reste valide dans la boîte).
@@ -178,7 +178,7 @@ Email = contact/modo, jamais l'auth Supabase. Mobile : mêmes règles via
   formulaire. Badge "Suspendu" page maker (transparence, pas d'effacement).
 - **Enforcement** : `assertNotBanned` en tête des mutations (profil, avatar,
   link/unlink — submit/votes au milestone listings) + RLS `banned_at IS
-  NULL` sur les writes users/storage (`setup.sql`). Seules écritures
+NULL` sur les writes users/storage (`setup.sql`). Seules écritures
   bannies : suppression de compte + dépôt d'appel (service_role).
 - **Appels** : table `appeals` + bucket privé `appeals` (insert own-path
   bannis inclus, lecture service seule, liens signés 72 h à la volée) ;
@@ -198,9 +198,9 @@ Email = contact/modo, jamais l'auth Supabase. Mobile : mêmes règles via
   Confidentialité) + footer modération incitatif sur les 3 emails victimes.
 - **Admin** : filtre "Appels (N)" + carte par appel (identité partagée
   `StaffIdentity` : avatar, providers à logos, email, ID-copie, `Appel nºX`)
-  + "Débannir" (`unban` + `overturned`) / "Maintenir" (`upheld`). Ligne
-  mobile : menu `⋯` (desktop inline inchangé). Temps réel par event
-  Realtime (`appeals:inserts`, RLS `appeals_select_staff`) — zéro polling.
+  - "Débannir" (`unban` + `overturned`) / "Maintenir" (`upheld`). Ligne
+    mobile : menu `⋯` (desktop inline inchangé). Temps réel par event
+    Realtime (`appeals:inserts`, RLS `appeals_select_staff`) — zéro polling.
 - **Audit trail** (`admin_actions`, RLS deny-all) : chaque ban/déban/
   grade/décision loggé fail-soft (jamais bloquant). Compteurs = COUNT
   **non-nuls uniquement** (jamais de "0×" : l'audit post-suivi ne connaît
@@ -226,14 +226,14 @@ provider d'origine (vu en QA : `["google"]` vs GitHub+Google réels).
 1. **Confusion invité/incident** : `getSessionUser()` avalait les incidents
    réseau (`.catch(() => null)`). Règle : **jamais de redirect sur du
    non-vérifié** (`getViewer()` : 401/403/404 = invité, reste = incident
-   + retry unique, fail-open/fail-closed explicites par porte).
+   - retry unique, fail-open/fail-closed explicites par porte).
 2. **Deux prédicats divergents** (pire) : la gate lisait le FLAG pendant
    que la page lisait les CHAMPS (ping-pong /dashboard ↔ /bienvenue
    déterministe). Règle : **une gate, un prédicat partagé**
    (`getOnboardingStatus` : `done = flag && !dirty`). Ancienne fonction
    double supprimée, pas dépréciée.
-SIMULATE_AUTH_OUTAGE=1 (dev) force le chemin incident. Exceptions
-assumées : layout admin fail-closed (/), pas de disjoncteur (V1.5).
+   SIMULATE_AUTH_OUTAGE=1 (dev) force le chemin incident. Exceptions
+   assumées : layout admin fail-closed (/), pas de disjoncteur (V1.5).
 
 ## 13. Feedback — canal toast vs inline (règle)
 

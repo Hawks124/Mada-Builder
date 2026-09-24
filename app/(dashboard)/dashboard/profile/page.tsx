@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import {
-  ProfileForm,
-  type ProfileInitial,
-} from "@/components/dashboard/profile-form";
+import { ProfileForm, type ProfileInitial } from "@/components/dashboard/profile-form";
 import { fetchMyProfile } from "@/app/actions/profile";
 
 // Auth pages are noindex (§7)

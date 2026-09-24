@@ -51,8 +51,7 @@ async function toNavbarUser(
     (meta.avatar_url as string | undefined) ??
     (meta.picture as string | undefined) ??
     null;
-  const provider =
-    (user.app_metadata?.provider as string | undefined) ?? null;
+  const provider = (user.app_metadata?.provider as string | undefined) ?? null;
   return {
     id: user.id,
     username,
@@ -61,11 +60,7 @@ async function toNavbarUser(
     avatarUrl,
     banned,
     provider:
-      provider === "github"
-        ? "GitHub"
-        : provider === "google"
-          ? "Google"
-          : (provider ?? "Email"),
+      provider === "github" ? "GitHub" : provider === "google" ? "Google" : (provider ?? "Email"),
   };
 }
 

@@ -12,16 +12,19 @@ export function ProductReviews({ id }: { id?: string }) {
 
       {/* ── ZERO-UI STATS HEADER ──────────────────────────────── */}
       <div className="flex flex-col md:flex-row gap-10 md:gap-20 items-end mb-16 w-full">
-
         {/* Giant floating number — no card, no box */}
         <div className="flex flex-col gap-0 shrink-0">
-          <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground mb-2">Excellence globale</span>
+          <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground mb-2">
+            Excellence globale
+          </span>
           <div className="flex items-baseline gap-3">
-            <span className="text-[7rem] md:text-[9rem] font-black tracking-tighter leading-none text-foreground -ml-1">5.0</span>
+            <span className="text-[7rem] md:text-[9rem] font-black tracking-tighter leading-none text-foreground -ml-1">
+              5.0
+            </span>
             <span className="text-2xl font-bold text-muted-foreground/25 mb-2">/&nbsp;5</span>
           </div>
           <div className="flex items-center gap-1.5 mt-3">
-            {[1, 2, 3, 4, 5].map(i => (
+            {[1, 2, 3, 4, 5].map((i) => (
               <StarIcon key={i} weight="fill" className="w-5 h-5 text-amber-500" />
             ))}
           </div>
@@ -29,7 +32,7 @@ export function ProductReviews({ id }: { id?: string }) {
 
         {/* Ultra-minimalist 2px distribution bars */}
         <div className="flex flex-col gap-4 w-full flex-1 pb-3">
-          {[5, 4, 3, 2, 1].map(stars => (
+          {[5, 4, 3, 2, 1].map((stars) => (
             <div key={stars} className="flex items-center gap-5 w-full group">
               <div className="flex items-center gap-1.5 shrink-0 w-7 opacity-35 group-hover:opacity-100 transition-opacity duration-200">
                 <span className="text-[13px] font-bold text-foreground tabular-nums">{stars}</span>
@@ -51,8 +54,8 @@ export function ProductReviews({ id }: { id?: string }) {
       </div>
 
       <p className="text-[13px] font-medium text-muted-foreground mb-10">
-        Sur la base de <strong className="text-foreground">1 avis</strong> certifié.
-        Seuls les utilisateurs enregistrés peuvent noter ce produit.
+        Sur la base de <strong className="text-foreground">1 avis</strong> certifié. Seuls les
+        utilisateurs enregistrés peuvent noter ce produit.
       </p>
 
       {/* ── Leave a Review form (toujours en haut pour la conversion) ── */}
@@ -60,10 +63,8 @@ export function ProductReviews({ id }: { id?: string }) {
 
       {/* ── Review list ────────────────────────────────────────── */}
       <div className="flex flex-col gap-10 mt-14">
-
         {/* ── Single Review item ─────────────────────────────── */}
         <div className="flex flex-col gap-0 group/review">
-
           {/* Reviewer header + body */}
           <div className="flex items-start gap-4">
             <Link href="/makers/jas" className="shrink-0 hover:opacity-75 transition-opacity">
@@ -72,19 +73,25 @@ export function ProductReviews({ id }: { id?: string }) {
             <div className="flex flex-col flex-1">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex flex-col gap-0.5">
-                  <Link href="/makers/jas" className="text-[14px] font-bold text-foreground hover:underline leading-tight">
+                  <Link
+                    href="/makers/jas"
+                    className="text-[14px] font-bold text-foreground hover:underline leading-tight"
+                  >
                     Jas Apusaga
                   </Link>
                   <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map(i => (
+                    {[1, 2, 3, 4, 5].map((i) => (
                       <StarIcon key={i} weight="fill" className="w-3.5 h-3.5 text-amber-500" />
                     ))}
                   </div>
                 </div>
-                <span className="text-[12px] font-medium text-muted-foreground shrink-0">Jul 10</span>
+                <span className="text-[12px] font-medium text-muted-foreground shrink-0">
+                  Jul 10
+                </span>
               </div>
               <p className="text-[15px] text-foreground font-medium mt-3 leading-relaxed">
-                idolllllllll! This app completely changed the way I track my expenses. Offline capability is unmatched in this space.
+                idolllllllll! This app completely changed the way I track my expenses. Offline
+                capability is unmatched in this space.
               </p>
 
               {/* Répondre — visible au hover uniquement (maker only) */}
@@ -102,7 +109,7 @@ export function ProductReviews({ id }: { id?: string }) {
             {/* Label "Developer Response" */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-600 dark:text-amber-400">
-                Réponse de l'auteur
+                Réponse de l&apos;auteur
               </span>
               <div className="h-px flex-1 bg-amber-500/15" />
             </div>
@@ -114,19 +121,22 @@ export function ProductReviews({ id }: { id?: string }) {
               </Link>
               <div className="flex flex-col flex-1">
                 <div className="flex items-center justify-between">
-                  <Link href="/makers/bryl" className="text-[13px] font-bold text-foreground hover:underline">
+                  <Link
+                    href="/makers/bryl"
+                    className="text-[13px] font-bold text-foreground hover:underline"
+                  >
                     Bryl Lim
                   </Link>
                   <span className="text-[11px] font-medium text-muted-foreground">Jul 11</span>
                 </div>
                 <p className="text-[14px] text-muted-foreground font-medium leading-relaxed mt-2">
-                  Thanks for the review Jas! Really appreciate the ongoing support. We're working on cloud sync v2 next month!
-                  Let me know if there's any specific feature you want.
+                  Thanks for the review Jas! Really appreciate the ongoing support. We&apos;re
+                  working on cloud sync v2 next month! Let me know if there&apos;s any specific
+                  feature you want.
                 </p>
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>

@@ -2,11 +2,7 @@
 
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import {
-  ChatCircleTextIcon,
-  SealCheckIcon,
-  StarIcon,
-} from "@phosphor-icons/react";
+import { ChatCircleTextIcon, SealCheckIcon, StarIcon } from "@phosphor-icons/react";
 import { cn, slugifyName } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { VoteButton } from "@/components/votes/vote-button";
@@ -110,36 +106,29 @@ export function Leaderboard() {
 
         {/* TIME FILTERS (iOS segmented control style) */}
         <div className="inline-flex items-center p-1 bg-muted/50 rounded-full border border-border/40">
-          {["Aujourd'hui", "Cette semaine", "Ce mois", "Toujours"].map(
-            (label, i) => (
-              <button
-                key={label}
-                className={cn(
-                  "px-4 py-1.5 rounded-full text-[13px] font-bold transition-all",
-                  i === 0
-                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {label}
-              </button>
-            ),
-          )}
+          {["Aujourd'hui", "Cette semaine", "Ce mois", "Toujours"].map((label, i) => (
+            <button
+              key={label}
+              className={cn(
+                "px-4 py-1.5 rounded-full text-[13px] font-bold transition-all",
+                i === 0
+                  ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* LISTING */}
       <div className="flex flex-col gap-2">
         {MOCK_LEADERBOARD.map((product) => {
-          // Top 3 specific styling
-          const isTop3 = product.rank <= 3;
           let rankColor = "text-muted-foreground/30";
-          if (product.rank === 1)
-            rankColor = "text-amber-500 dark:text-amber-400 drop-shadow-sm";
-          if (product.rank === 2)
-            rankColor = "text-zinc-400 dark:text-zinc-300 drop-shadow-sm";
-          if (product.rank === 3)
-            rankColor = "text-orange-700 dark:text-orange-600 drop-shadow-sm";
+          if (product.rank === 1) rankColor = "text-amber-500 dark:text-amber-400 drop-shadow-sm";
+          if (product.rank === 2) rankColor = "text-zinc-400 dark:text-zinc-300 drop-shadow-sm";
+          if (product.rank === 3) rankColor = "text-orange-700 dark:text-orange-600 drop-shadow-sm";
 
           return (
             <div
@@ -207,10 +196,7 @@ export function Leaderboard() {
                     />
                   </Link>
                 </div>
-                <Link
-                  href={`/products/${product.id}`}
-                  className="group/title w-fit"
-                >
+                <Link href={`/products/${product.id}`} className="group/title w-fit">
                   <h4 className="text-lg md:text-xl font-extrabold tracking-tight text-foreground group-hover/title:text-primary transition-colors truncate">
                     {product.name}
                   </h4>
@@ -220,10 +206,7 @@ export function Leaderboard() {
                     {product.tagline}
                   </p>
                   <div className="hidden md:flex items-center gap-1 text-[11px] font-bold text-foreground">
-                    <StarIcon
-                      weight="fill"
-                      className="w-3.5 h-3.5 text-yellow-500"
-                    />
+                    <StarIcon weight="fill" className="w-3.5 h-3.5 text-yellow-500" />
                     {product.rating}
                   </div>
                 </div>
@@ -237,9 +220,7 @@ export function Leaderboard() {
                   className="hidden md:flex flex-col items-center gap-0.5 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ChatCircleTextIcon weight="fill" className="w-5 h-5" />
-                  <span className="text-[11px] font-bold leading-none">
-                    {product.comments}
-                  </span>
+                  <span className="text-[11px] font-bold leading-none">{product.comments}</span>
                 </Link>
 
                 {/* Upvote Button (Zero UI - Text + Arrow + Daily metric) */}

@@ -13,11 +13,7 @@ import { getOnboardingRedirect, isViewerDegraded } from "@/app/actions/onboardin
  * session exigée, sinon retour /signin. Le shell client ne voit
  * que des sessions vérifiées. Banni → SuspendedScreen (verrou total).
  */
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // Double-check server : session exigée dès que le backend est configuré
   // (env absente = contributeur sans compte → laisse passer, cf. middleware).
   let sidebarUser: {
@@ -100,9 +96,7 @@ export default async function DashboardLayout({
     // n'atterrit jamais à /bienvenue, un incomplet jamais au dashboard.
     const dest = await getOnboardingRedirect().catch(() => null);
     if (dest) redirect(dest);
-    degraded =
-      viewer.status === "error" ||
-      (await isViewerDegraded().catch(() => false));
+    degraded = viewer.status === "error" || (await isViewerDegraded().catch(() => false));
   }
   return (
     <>

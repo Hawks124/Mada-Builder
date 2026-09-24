@@ -17,11 +17,7 @@ import { users } from "./users";
  * users reste le compteur d'affichage (incrémenté au dépôt).
  * RLS deny-all (setup.sql) : tout passe par le service (service_role).
  */
-export const appealStatusEnum = pgEnum("appeal_status", [
-  "pending",
-  "upheld",
-  "overturned",
-]);
+export const appealStatusEnum = pgEnum("appeal_status", ["pending", "upheld", "overturned"]);
 
 export const appeals = pgTable(
   "appeals",
@@ -45,9 +41,7 @@ export const appeals = pgTable(
     // contrainte la rend impossible).
     seq: integer("seq").notNull(),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     index("appeals_user_created_idx").on(t.userId, t.createdAt),

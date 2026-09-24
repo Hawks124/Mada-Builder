@@ -3,23 +3,13 @@
 // présents sur les 5 templates user-facing.
 // Usage: npx tsx scripts/verify-email-templates.ts
 import { banNotifyHtml, banNotifyText } from "../lib/email-templates/ban-notify";
-import {
-  unbanNotifyHtml,
-  unbanNotifyText,
-} from "../lib/email-templates/unban-notify";
-import {
-  appealDecisionHtml,
-  appealDecisionText,
-} from "../lib/email-templates/appeal-decision";
-import {
-  roleNotifyHtml,
-  roleNotifyText,
-} from "../lib/email-templates/role-notify";
+import { unbanNotifyHtml, unbanNotifyText } from "../lib/email-templates/unban-notify";
+import { appealDecisionHtml, appealDecisionText } from "../lib/email-templates/appeal-decision";
+import { roleNotifyHtml, roleNotifyText } from "../lib/email-templates/role-notify";
 import { otpEmailHtml, otpEmailText } from "../lib/email-templates/otp-email";
-import {
-  LOGO_DARK_URL,
-  LOGO_LIGHT_URL,
-} from "../lib/email-templates/brand";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { LOGO_ON_DARK_URL, LOGO_ON_LIGHT_URL } from "../lib/email-templates/brand";
 
 const ORIGIN = "https://exemple.mg";
 
@@ -31,27 +21,51 @@ const rendered: Array<[string, string]> = [
       banReason: "Motif",
       dashboardUrl: `${ORIGIN}/dashboard`,
       origin: ORIGIN,
+      timeZone: null,
     }),
   ],
-  ["ban-text", banNotifyText({ displayName: "Test", banReason: "Motif", dashboardUrl: `${ORIGIN}/dashboard`, origin: ORIGIN })],
-  ["unban", unbanNotifyHtml({ displayName: "Test", origin: ORIGIN })],
-  ["unban-text", unbanNotifyText({ displayName: "Test", origin: ORIGIN })],
+  [
+    "ban-text",
+    banNotifyText({
+      displayName: "Test",
+      banReason: "Motif",
+      dashboardUrl: `${ORIGIN}/dashboard`,
+      origin: ORIGIN,
+      timeZone: null,
+    }),
+  ],
+  ["unban", unbanNotifyHtml({ displayName: "Test", origin: ORIGIN, timeZone: null })],
+  ["unban-text", unbanNotifyText({ displayName: "Test", origin: ORIGIN, timeZone: null })],
   [
     "decision-upheld",
-    appealDecisionHtml({ displayName: "Test", overturned: false, origin: ORIGIN }),
+    appealDecisionHtml({ displayName: "Test", overturned: false, origin: ORIGIN, timeZone: null }),
   ],
   [
     "decision-overturned",
-    appealDecisionHtml({ displayName: "Test", overturned: true, origin: ORIGIN }),
+    appealDecisionHtml({ displayName: "Test", overturned: true, origin: ORIGIN, timeZone: null }),
   ],
-  ["decision-text", appealDecisionText({ displayName: "Test", overturned: false, origin: ORIGIN })],
-  ["role", roleNotifyHtml({ displayName: "Test", promoted: true, origin: ORIGIN })],
-  ["role-text", roleNotifyText({ displayName: "Test", promoted: false, origin: ORIGIN })],
+  [
+    "decision-text",
+    appealDecisionText({ displayName: "Test", overturned: false, origin: ORIGIN, timeZone: null }),
+  ],
+  ["role", roleNotifyHtml({ displayName: "Test", promoted: true, origin: ORIGIN, timeZone: null })],
+  [
+    "role-text",
+    roleNotifyText({ displayName: "Test", promoted: false, origin: ORIGIN, timeZone: null }),
+  ],
   [
     "otp",
-    otpEmailHtml({ code: "123456", validityMinutes: 10, actionLink: `${ORIGIN}/auth/exchange?h=x`, origin: ORIGIN }),
+    otpEmailHtml({
+      code: "123456",
+      validityMinutes: 10,
+      actionLink: `${ORIGIN}/auth/exchange?h=x`,
+      origin: ORIGIN,
+    }),
   ],
-  ["otp-text", otpEmailText({ code: "123456", validityMinutes: 10, actionLink: null, origin: ORIGIN })],
+  [
+    "otp-text",
+    otpEmailText({ code: "123456", validityMinutes: 10, actionLink: null, origin: ORIGIN }),
+  ],
 ];
 
 let pass = 0;
@@ -74,8 +88,8 @@ for (const [name, body] of rendered) {
 const branded = ["ban", "unban", "decision-upheld", "decision-overturned", "role", "otp"];
 for (const [name, body] of rendered) {
   if (!branded.includes(name)) continue;
-  check(`${name}: logo dark`, body.includes(LOGO_DARK_URL));
-  check(`${name}: logo light`, body.includes(LOGO_LIGHT_URL));
+  check(`${name}: logo fond clair`, body.includes(LOGO_ON_LIGHT_URL));
+  check(`${name}: logo fond sombre`, body.includes(LOGO_ON_DARK_URL));
   check(`${name}: /regles`, body.includes(`${ORIGIN}/regles`));
   check(`${name}: /conditions`, body.includes(`${ORIGIN}/conditions`));
   check(`${name}: /confidentialite`, body.includes(`${ORIGIN}/confidentialite`));
@@ -85,8 +99,41 @@ for (const [name, body] of rendered) {
 const banHtml = rendered[0][1];
 check("ban: displayName échappé", banHtml.includes("Test &lt;User&gt;"));
 
+// Salutation dynamique : Bonjour ou Bonsoir selon l'heure réelle du run.
+// Le rendu seul ne distingue pas calculé vs codé en dur selon l'heure —
+// d'où le contrôle source ci-dessous, déterministe.
+for (const name of [
+  "ban",
+  "ban-text",
+  "unban",
+  "unban-text",
+  "decision-upheld",
+  "decision-overturned",
+  "decision-text",
+  "role",
+  "role-text",
+]) {
+  const body = rendered.find(([n]) => n === name)?.[1] ?? "";
+  check(`${name}: salutation dynamique`, body.includes("Bonjour ") || body.includes("Bonsoir "));
+}
+{
+  const dir = join(process.cwd(), "lib", "email-templates");
+  for (const file of ["ban-notify.ts", "unban-notify.ts", "appeal-decision.ts", "role-notify.ts"]) {
+    const src = readFileSync(join(dir, file), "utf-8");
+    check(`${file}: aucun Bonjour codé en dur`, !src.includes("Bonjour ${"));
+  }
+}
+
 // Footer modération : la Charte est décrite + incitative, pas muette.
-for (const name of ["ban", "ban-text", "unban", "unban-text", "decision-upheld", "decision-overturned", "decision-text"]) {
+for (const name of [
+  "ban",
+  "ban-text",
+  "unban",
+  "unban-text",
+  "decision-upheld",
+  "decision-overturned",
+  "decision-text",
+]) {
   const body = rendered.find(([n]) => n === name)?.[1] ?? "";
   check(`${name}: phrase charte`, body.includes("4 règles"));
 }

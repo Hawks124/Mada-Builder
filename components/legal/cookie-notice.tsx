@@ -46,11 +46,9 @@ export function CookieNotice() {
 
         {/* Texte explicatif */}
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-bold text-foreground leading-none">
-            Aucun tracker ici
-          </p>
+          <p className="text-xs font-bold text-foreground leading-none">Aucun tracker ici</p>
           <p className="text-[11px] font-medium text-muted-foreground leading-tight mt-1">
-            Que des cookies essentiels et mesure d'audience anonyme.{" "}
+            Que des cookies essentiels et mesure d&apos;audience anonyme.{" "}
             <Link
               href="/confidentialite"
               className="text-foreground underline underline-offset-2 decoration-border hover:decoration-foreground transition-colors font-semibold"
@@ -66,7 +64,7 @@ export function CookieNotice() {
           onClick={dismiss}
           className="shrink-0 rounded-full bg-foreground/90 hover:bg-foreground text-background px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
         >
-          D'accord
+          D&apos;accord
         </button>
       </div>
     </aside>

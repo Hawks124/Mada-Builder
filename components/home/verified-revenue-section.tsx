@@ -77,8 +77,8 @@ export function VerifiedRevenueSection() {
             Ils buildent. Ils prouvent.
           </h2>
           <p className="text-muted-foreground font-medium md:text-lg tracking-tight mt-1">
-            Des makers malgaches qui génèrent de vrais revenus — vérifiés,
-            transparents, impossibles à truquer.
+            Des makers malgaches qui génèrent de vrais revenus — vérifiés, transparents, impossibles
+            à truquer.
           </p>
         </div>
 
@@ -103,10 +103,7 @@ export function VerifiedRevenueSection() {
         </div>
       </div>
 
-      <CommentCaMarcheModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
+      <CommentCaMarcheModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
       {/* ── CARDS GRID — 3 colonnes égales, gap cohérent avec Newest ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -122,8 +119,7 @@ export function VerifiedRevenueSection() {
           href="/revenue"
           className="text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
         >
-          Voir tous les{" "}
-          <span className="text-foreground">produits vérifiés</span> →
+          Voir tous les <span className="text-foreground">produits vérifiés</span> →
         </Link>
         <div className="h-px flex-1 bg-border/40" />
       </div>

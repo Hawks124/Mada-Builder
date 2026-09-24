@@ -57,9 +57,7 @@ export function OverviewApps({ apps: initialApps }: { apps: DashboardApp[] }) {
   const [filter, setFilter] = React.useState<Filter>("all");
   const [query, setQuery] = React.useState("");
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
-  const [deleteTarget, setDeleteTarget] = React.useState<DashboardApp | null>(
-    null,
-  );
+  const [deleteTarget, setDeleteTarget] = React.useState<DashboardApp | null>(null);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = apps.filter((a) => {
@@ -97,9 +95,7 @@ export function OverviewApps({ apps: initialApps }: { apps: DashboardApp[] }) {
       {/* Title + counter + filters */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex items-baseline gap-3">
-          <h2 className="text-2xl font-black tracking-tight text-foreground">
-            Mes applications
-          </h2>
+          <h2 className="text-2xl font-black tracking-tight text-foreground">Mes produits</h2>
           <span className="text-[13px] font-medium text-muted-foreground">
             {filtered.length} sur {apps.length}
           </span>
@@ -155,18 +151,12 @@ export function OverviewApps({ apps: initialApps }: { apps: DashboardApp[] }) {
       {/* Rows */}
       {visible.length === 0 ? (
         <p className="text-[14px] font-medium text-muted-foreground py-8 text-center">
-          {normalizedQuery !== ""
-            ? `Aucun résultat pour « ${query.trim()} ».`
-            : EMPTY_COPY[filter]}
+          {normalizedQuery !== "" ? `Aucun résultat pour « ${query.trim()} ».` : EMPTY_COPY[filter]}
         </p>
       ) : (
         <div className="flex flex-col">
           {visible.map((app) => (
-            <AppRow
-              key={app.id}
-              app={app}
-              onDelete={() => setDeleteTarget(app)}
-            />
+            <AppRow key={app.id} app={app} onDelete={() => setDeleteTarget(app)} />
           ))}
         </div>
       )}
@@ -215,9 +205,7 @@ function AppPlatforms({ app }: { app: DashboardApp }) {
       <span aria-hidden="true">·</span>
       <span className="text-[11px] font-semibold">{app.productType}</span>
       <span aria-hidden="true">·</span>
-      <span className={cn("text-[11px] font-bold", lifecycle.textClass)}>
-        {lifecycle.label}
-      </span>
+      <span className={cn("text-[11px] font-bold", lifecycle.textClass)}>{lifecycle.label}</span>
     </span>
   );
 }
@@ -235,13 +223,7 @@ function EditButton({ appId, appName }: { appId: string; appName: string }) {
   );
 }
 
-function DeleteButton({
-  appName,
-  onDelete,
-}: {
-  appName: string;
-  onDelete: () => void;
-}) {
+function DeleteButton({ appName, onDelete }: { appName: string; onDelete: () => void }) {
   return (
     <button
       type="button"
@@ -255,13 +237,7 @@ function DeleteButton({
   );
 }
 
-function AppRow({
-  app,
-  onDelete,
-}: {
-  app: DashboardApp;
-  onDelete: () => void;
-}) {
+function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) {
   const status = STATUS_META[app.status];
 
   return (
@@ -295,9 +271,7 @@ function AppRow({
             {status.label}
           </span>
         </div>
-        <p className="text-[13px] font-medium text-muted-foreground truncate">
-          {app.tagline}
-        </p>
+        <p className="text-[13px] font-medium text-muted-foreground truncate">{app.tagline}</p>
         <AppPlatforms app={app} />
         {app.status === "rejected" && app.rejectionReason && (
           <p className="text-[12px] font-medium text-red-600 dark:text-red-400 leading-snug">
@@ -313,10 +287,7 @@ function AppRow({
             className="flex items-center gap-1 text-[13px] font-bold text-foreground tabular-nums"
             title="Upvotes"
           >
-            <CaretUpIcon
-              weight="fill"
-              className="w-4 h-4 text-muted-foreground"
-            />
+            <CaretUpIcon weight="fill" className="w-4 h-4 text-muted-foreground" />
             {formatCompactCount(app.votes)}
           </span>
           <span
@@ -354,9 +325,7 @@ function AppRow({
 
       {/* Actions */}
       <div className="flex items-center gap-1 shrink-0">
-        {app.status !== "pending" && (
-          <EditButton appId={app.id} appName={app.name} />
-        )}
+        {app.status !== "pending" && <EditButton appId={app.id} appName={app.name} />}
         <DeleteButton appName={app.name} onDelete={onDelete} />
       </div>
     </div>

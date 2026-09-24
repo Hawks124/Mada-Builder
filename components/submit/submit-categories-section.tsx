@@ -11,9 +11,7 @@ const MAX_TAGS = 5;
 
 export function SubmitCategoriesSection() {
   const { editApp } = useSubmitForm();
-  const [selectedIds, setSelectedIds] = useState<string[]>(
-    editApp ? [editApp.categoryId] : [],
-  );
+  const [selectedIds, setSelectedIds] = useState<string[]>(editApp ? [editApp.categoryId] : []);
   // Tags libres — état string[] prêt pour la table product_tags (backend)
   const [tags, setTags] = useState<string[]>(editApp?.tags ?? []);
   const [tagInput, setTagInput] = useState("");
@@ -43,8 +41,8 @@ export function SubmitCategoriesSection() {
           </span>
         </div>
         <p className="text-[14px] font-medium text-muted-foreground">
-          Sélectionnez au moins 1 catégorie pertinente, jusqu&apos;à 3. La
-          première sélectionnée devient la catégorie principale.
+          Sélectionnez au moins 1 catégorie pertinente, jusqu&apos;à 3. La première sélectionnée
+          devient la catégorie principale.
         </p>
       </div>
 
@@ -61,26 +59,33 @@ export function SubmitCategoriesSection() {
                 "group relative border text-left px-4 py-2.5 rounded-full flex items-center gap-2.5 transition-all duration-200 cursor-pointer",
                 isSelected
                   ? cn("shadow-md", cat.selectedClass)
-                  : cn("border-border/40 bg-muted/20 hover:border-border/80 hover:bg-muted/50", cat.hoverClass)
+                  : cn(
+                      "border-border/40 bg-muted/20 hover:border-border/80 hover:bg-muted/50",
+                      cat.hoverClass,
+                    ),
               )}
             >
               <cat.icon
                 weight={isSelected ? "fill" : "duotone"}
                 className={cn(
                   "w-4 h-4 transition-colors",
-                  isSelected ? "text-background" : cn("text-muted-foreground", cat.hoverColor)
+                  isSelected ? "text-background" : cn("text-muted-foreground", cat.hoverColor),
                 )}
               />
-              <span className={cn(
-                "text-[13px] font-bold transition-colors whitespace-nowrap",
-                isSelected ? "text-background" : cn("text-foreground group-hover:text-foreground", cat.hoverColor)
-              )}>
+              <span
+                className={cn(
+                  "text-[13px] font-bold transition-colors whitespace-nowrap",
+                  isSelected
+                    ? "text-background"
+                    : cn("text-foreground group-hover:text-foreground", cat.hoverColor),
+                )}
+              >
                 {cat.name}
               </span>
-              
+
               {isMain && (
                 <div className="ml-1 flex items-center justify-center w-4 h-4 rounded-full bg-background">
-                   <span className="text-[9px] font-black text-foreground">1</span>
+                  <span className="text-[9px] font-black text-foreground">1</span>
                 </div>
               )}
             </button>
@@ -98,8 +103,8 @@ export function SubmitCategoriesSection() {
           </span>
         </label>
         <p className="text-[12px] font-medium text-muted-foreground leading-relaxed">
-          Mots-clés libres pour affiner la découverte (ex : mobile-money,
-          offline-first). Entrée ou virgule pour ajouter.
+          Mots-clés libres pour affiner la découverte (ex : mobile-money, offline-first). Entrée ou
+          virgule pour ajouter.
         </p>
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-background border border-border/60 px-4 py-3 focus-within:border-foreground/40 hover:border-foreground/20 transition-colors">
           {tags.map((tag) => (
@@ -110,9 +115,7 @@ export function SubmitCategoriesSection() {
               #{tag}
               <button
                 type="button"
-                onClick={() =>
-                  setTags((prev) => prev.filter((t) => t !== tag))
-                }
+                onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
                 aria-label={`Retirer le tag ${tag}`}
                 className="flex items-center justify-center w-5 h-5 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
               >
@@ -137,11 +140,7 @@ export function SubmitCategoriesSection() {
                   e.preventDefault();
                   commitTag(tagInput);
                   setTagInput("");
-                } else if (
-                  e.key === "Backspace" &&
-                  tagInput === "" &&
-                  tags.length > 0
-                ) {
+                } else if (e.key === "Backspace" && tagInput === "" && tags.length > 0) {
                   setTags((prev) => prev.slice(0, -1));
                 }
               }}

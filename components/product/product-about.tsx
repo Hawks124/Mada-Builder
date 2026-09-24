@@ -44,9 +44,7 @@ export function ProductAbout() {
     <div className="flex flex-col gap-5 pt-6 border-t border-border/40">
       <h2 className="text-2xl font-extrabold tracking-tight text-foreground">À propos de Tarsi</h2>
 
-      <div
-        className="prose prose-zinc dark:prose-invert prose-p:text-muted-foreground prose-p:font-medium prose-p:leading-relaxed prose-headings:font-extrabold prose-headings:tracking-tight prose-li:font-medium prose-li:text-muted-foreground prose-blockquote:border-l-border prose-blockquote:text-muted-foreground prose-strong:text-foreground max-w-none text-[15px] md:text-[16px] transition-all"
-      >
+      <div className="prose prose-zinc dark:prose-invert prose-p:text-muted-foreground prose-p:font-medium prose-p:leading-relaxed prose-headings:font-extrabold prose-headings:tracking-tight prose-li:font-medium prose-li:text-muted-foreground prose-blockquote:border-l-border prose-blockquote:text-muted-foreground prose-strong:text-foreground max-w-none text-[15px] md:text-[16px] transition-all">
         <ReactMarkdown>{shown}</ReactMarkdown>
       </div>
 
@@ -55,9 +53,13 @@ export function ProductAbout() {
         className="self-start flex items-center gap-1.5 text-[12px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors mt-1"
       >
         {expanded ? (
-          <><CaretUpIcon weight="bold" className="w-3.5 h-3.5" /> Voir moins</>
+          <>
+            <CaretUpIcon weight="bold" className="w-3.5 h-3.5" /> Voir moins
+          </>
         ) : (
-          <><CaretDownIcon weight="bold" className="w-3.5 h-3.5" /> Voir plus</>
+          <>
+            <CaretDownIcon weight="bold" className="w-3.5 h-3.5" /> Voir plus
+          </>
         )}
       </button>
     </div>

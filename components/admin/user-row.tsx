@@ -43,8 +43,7 @@ function HistoryDot({ action }: { action: string }) {
         action === "ban" && "bg-red-500",
         action === "unban" && "bg-emerald-500",
         (action === "promote" || action === "demote") && "bg-amber-500",
-        (action === "appeal_upheld" || action === "appeal_overturned") &&
-          "bg-muted-foreground/50",
+        (action === "appeal_upheld" || action === "appeal_overturned") && "bg-muted-foreground/50",
       )}
     />
   );
@@ -106,11 +105,7 @@ export function UserRow({
           aria-label={`Voir le profil de ${user.displayName}`}
         >
           {user.avatarUrl ? (
-            <AvatarImage
-              src={user.avatarUrl}
-              name={user.displayName}
-              size={56}
-            />
+            <AvatarImage src={user.avatarUrl} name={user.displayName} size={56} />
           ) : (
             <span
               aria-hidden="true"
@@ -174,82 +169,75 @@ export function UserRow({
           >
             <CaretDownIcon
               weight="bold"
-              className={cn(
-                "h-4 w-4 transition-transform",
-                expanded && "rotate-180",
-              )}
+              className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")}
             />
           </button>
           <span className="hidden md:flex items-center gap-1">
-          {!isSelf && showRoleActions && user.role === "user" && (
-            <button
-              type="button"
-              onClick={onToggleRole}
-              disabled={rolePending}
-              title="Nommer modérateur"
-              className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-4 py-2 text-[13px] font-bold text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              {rolePending && <Spinner size="xs" />}
-              Rendre modo
-            </button>
-          )}
-          {!isSelf && showRoleActions && user.role === "moderateur" && (
-            <button
-              type="button"
-              onClick={onToggleRole}
-              disabled={rolePending}
-              title="Retirer le rôle modérateur"
-              className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-4 py-2 text-[13px] font-bold text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              {rolePending && <Spinner size="xs" />}
-              Rétrograder
-            </button>
-          )}
-          {user.role === "user" &&
-            (user.status === "banned" ? (
+            {!isSelf && showRoleActions && user.role === "user" && (
               <button
                 type="button"
-                onClick={onUnban}
-                disabled={pending}
-                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 px-4 py-2 text-[13px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+                onClick={onToggleRole}
+                disabled={rolePending}
+                title="Nommer modérateur"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-4 py-2 text-[13px] font-bold text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
               >
-                {pending && <Spinner size="xs" />}
-                Débannir
+                {rolePending && <Spinner size="xs" />}
+                Rendre modo
               </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onToggleBan}
-                aria-expanded={banning}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-bold transition-colors cursor-pointer whitespace-nowrap",
-                  banning
-                    ? "border-foreground/30 bg-muted/60 text-foreground"
-                    : "border-border/40 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10",
-                )}
-              >
-                <GavelIcon weight="bold" className="w-4 h-4" />
-                Bannir
-              </button>
-            ))}
-          </span>
-          {!isSelf &&
-            (user.role === "user" ||
-              (showRoleActions && user.role === "moderateur")) && (
-              <RowMenu
-                canManageRole={showRoleActions}
-                roleLabel={
-                  user.role === "moderateur" ? "Rétrograder" : "Rendre modo"
-                }
-                rolePending={rolePending}
-                onToggleRole={onToggleRole}
-                canBan={user.role === "user"}
-                banLabel={user.status === "banned" ? "Débannir" : "Bannir"}
-                banTone={user.status === "banned" ? "success" : "danger"}
-                actionPending={pending}
-                onAction={user.status === "banned" ? onUnban : onToggleBan}
-              />
             )}
+            {!isSelf && showRoleActions && user.role === "moderateur" && (
+              <button
+                type="button"
+                onClick={onToggleRole}
+                disabled={rolePending}
+                title="Retirer le rôle modérateur"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-4 py-2 text-[13px] font-bold text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/10 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+              >
+                {rolePending && <Spinner size="xs" />}
+                Rétrograder
+              </button>
+            )}
+            {user.role === "user" &&
+              (user.status === "banned" ? (
+                <button
+                  type="button"
+                  onClick={onUnban}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 px-4 py-2 text-[13px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+                >
+                  {pending && <Spinner size="xs" />}
+                  Débannir
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onToggleBan}
+                  aria-expanded={banning}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-4 py-2 text-[13px] font-bold transition-colors cursor-pointer whitespace-nowrap",
+                    banning
+                      ? "border-foreground/30 bg-muted/60 text-foreground"
+                      : "border-border/40 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10",
+                  )}
+                >
+                  <GavelIcon weight="bold" className="w-4 h-4" />
+                  Bannir
+                </button>
+              ))}
+          </span>
+          {!isSelf && (user.role === "user" || (showRoleActions && user.role === "moderateur")) && (
+            <RowMenu
+              canManageRole={showRoleActions}
+              roleLabel={user.role === "moderateur" ? "Rétrograder" : "Rendre modo"}
+              rolePending={rolePending}
+              onToggleRole={onToggleRole}
+              canBan={user.role === "user"}
+              banLabel={user.status === "banned" ? "Débannir" : "Bannir"}
+              banTone={user.status === "banned" ? "success" : "danger"}
+              actionPending={pending}
+              onAction={user.status === "banned" ? onUnban : onToggleBan}
+            />
+          )}
         </div>
       </div>
 
@@ -315,13 +303,7 @@ export function UserRow({
  * - actif avec events : "Banni 1× · appels 2" (seuls les > 0) + timeline ;
  * - actif sans trace : "Aucune sanction — bon travail."
  */
-function HistoryBody({
-  user,
-  history,
-}: {
-  user: AdminUserRow;
-  history: UserHistory;
-}) {
+function HistoryBody({ user, history }: { user: AdminUserRow; history: UserHistory }) {
   const parts: string[] = [];
   if (history.bans > 0) parts.push(`Banni ${history.bans}×`);
   if (history.unbans > 0) parts.push(`Débanni ${history.unbans}×`);
@@ -333,9 +315,7 @@ function HistoryBody({
   // labellisée "avant le suivi" — ni acteur ni date inventés. Pas pour
   // un banni en cours : la ligne live "Actuellement banni" le couvre.
   const ghostBan =
-    user.status !== "banned" &&
-    history.bans === 0 &&
-    (history.unbans > 0 || history.appeals > 0);
+    user.status !== "banned" && history.bans === 0 && (history.unbans > 0 || history.appeals > 0);
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -343,10 +323,7 @@ function HistoryBody({
         <p className="text-[13px] font-bold text-foreground tabular-nums">
           Actuellement banni
           {user.banReason && (
-            <span className="font-medium text-red-600 dark:text-red-400">
-              {" "}
-              — {user.banReason}
-            </span>
+            <span className="font-medium text-red-600 dark:text-red-400"> — {user.banReason}</span>
           )}
           {user.bannedAt && (
             <span className="font-medium text-muted-foreground">
@@ -362,9 +339,7 @@ function HistoryBody({
         </p>
       )}
       {parts.length > 0 && (
-        <p className="text-[13px] font-bold text-foreground tabular-nums">
-          {parts.join(" · ")}
-        </p>
+        <p className="text-[13px] font-bold text-foreground tabular-nums">{parts.join(" · ")}</p>
       )}
       {history.events.length === 0 ? (
         user.status === "banned" || history.appeals > 0 ? (
@@ -387,28 +362,18 @@ function HistoryBody({
               <span
                 className={cn(
                   "font-bold shrink-0",
-                  event.action === "ban" &&
-                    "text-red-600 dark:text-red-400",
-                  event.action === "unban" &&
-                    "text-emerald-600 dark:text-emerald-400",
-                  (event.action === "promote" ||
-                    event.action === "demote") &&
+                  event.action === "ban" && "text-red-600 dark:text-red-400",
+                  event.action === "unban" && "text-emerald-600 dark:text-emerald-400",
+                  (event.action === "promote" || event.action === "demote") &&
                     "text-amber-600 dark:text-amber-400",
-                  (event.action === "appeal_upheld" ||
-                    event.action === "appeal_overturned") &&
+                  (event.action === "appeal_upheld" || event.action === "appeal_overturned") &&
                     "text-foreground",
                 )}
               >
                 {event.label}
               </span>
-              <span className="text-muted-foreground">
-                par {event.actor}
-              </span>
-              {event.note && (
-                <span className="text-muted-foreground truncate">
-                  — {event.note}
-                </span>
-              )}
+              <span className="text-muted-foreground">par {event.actor}</span>
+              {event.note && <span className="text-muted-foreground truncate">— {event.note}</span>}
               <span className="ml-auto text-[12px] font-medium text-muted-foreground/70 tabular-nums shrink-0">
                 {new Intl.DateTimeFormat("fr-FR", {
                   day: "numeric",
@@ -421,9 +386,7 @@ function HistoryBody({
           {ghostBan && (
             <li className="flex items-baseline gap-2 py-2 text-[13px] leading-relaxed">
               <HistoryDot action="ban" />
-              <span className="font-bold shrink-0 text-red-600 dark:text-red-400">
-                Banni
-              </span>
+              <span className="font-bold shrink-0 text-red-600 dark:text-red-400">Banni</span>
               <span className="text-muted-foreground">avant le suivi</span>
             </li>
           )}

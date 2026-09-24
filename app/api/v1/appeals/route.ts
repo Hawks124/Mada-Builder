@@ -36,17 +36,10 @@ export async function POST(req: Request): Promise<Response> {
       throw new ApiError("INVALID_BODY", 400, "Corps multipart invalide.");
     }
     const rawExplanation = form.get("explanation");
-    const explanation =
-      typeof rawExplanation === "string" ? rawExplanation : "";
-    const raws = form
-      .getAll("evidence")
-      .filter((v): v is File => v instanceof File && v.size > 0);
+    const explanation = typeof rawExplanation === "string" ? rawExplanation : "";
+    const raws = form.getAll("evidence").filter((v): v is File => v instanceof File && v.size > 0);
     if (raws.length > APPEAL_MAX_FILES) {
-      throw new ApiError(
-        "VALIDATION",
-        422,
-        `${APPEAL_MAX_FILES} pièces maximum.`,
-      );
+      throw new ApiError("VALIDATION", 422, `${APPEAL_MAX_FILES} pièces maximum.`);
     }
     const files: AppealFile[] = [];
     for (const f of raws) {

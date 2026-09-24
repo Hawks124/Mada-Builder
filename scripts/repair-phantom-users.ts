@@ -28,10 +28,7 @@ async function main() {
     scanned += data.users.length;
     for (const u of data.users) {
       // Jamais de session + assez vieux (grâce aux retardataires du lien).
-      if (
-        !u.last_sign_in_at &&
-        new Date(u.created_at) < cutoff
-      ) {
+      if (!u.last_sign_in_at && new Date(u.created_at) < cutoff) {
         phantoms.push({
           id: u.id,
           email: u.email ?? null,
@@ -43,7 +40,9 @@ async function main() {
   }
   console.log(`Scannés : ${scanned} auth users, fantômes : ${phantoms.length}.`);
   for (const p of phantoms) {
-    console.log(`${APPLY ? "DELETE" : "DRY-RUN"} ${p.id} ${p.email ?? "(sans email)"} créé ${p.created}`);
+    console.log(
+      `${APPLY ? "DELETE" : "DRY-RUN"} ${p.id} ${p.email ?? "(sans email)"} créé ${p.created}`,
+    );
     if (!APPLY) continue;
     const { error } = await admin.auth.admin.deleteUser(p.id);
     if (error) {

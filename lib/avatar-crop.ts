@@ -26,10 +26,7 @@ export function cropOutputSize(crop: CropPixels): {
  * double compression assumée et mesurée acceptable à cette taille).
  * Rejette si le canvas est vide (image corrompue).
  */
-export async function cropImageToFile(
-  imageSrc: string,
-  crop: CropPixels,
-): Promise<File> {
+export async function cropImageToFile(imageSrc: string, crop: CropPixels): Promise<File> {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
@@ -42,17 +39,7 @@ export async function cropImageToFile(
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas indisponible.");
-  ctx.drawImage(
-    image,
-    crop.x,
-    crop.y,
-    crop.width,
-    crop.height,
-    0,
-    0,
-    width,
-    height,
-  );
+  ctx.drawImage(image, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob(resolve, "image/webp", 0.92),
   );
