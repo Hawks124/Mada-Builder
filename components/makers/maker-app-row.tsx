@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  CaretUpIcon,
   StarIcon,
   SealCheckIcon,
   ArrowSquareOutIcon,
@@ -17,9 +16,9 @@ import { getRatingById } from "@/config/ratings";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { TagPill } from "@/components/ui/tag-pill";
 import { LifecyclePill } from "@/components/ui/lifecycle-pill";
+import { VoteButton } from "@/components/votes/vote-button";
 import {
   formatCompactAr,
-  formatCompactCount,
   type DashboardApp,
 } from "@/components/dashboard/dashboard-mock";
 
@@ -39,9 +38,8 @@ function Dot() {
 }
 
 // Row publique maker — asymétrique aérée, info de découverte complète.
-// Vote mock interactif (optimiste), MRR figure/badge selon display_mode.
+// Vote via le composant partagé (mur auth intégré), MRR figure/badge.
 export function MakerAppRow({ app }: { app: DashboardApp }) {
-  const [voted, setVoted] = React.useState(false);
   const category = getCategoryById(app.categoryId);
   const rating = getRatingById(app.audienceId);
 
@@ -124,27 +122,12 @@ export function MakerAppRow({ app }: { app: DashboardApp }) {
 
       {/* Rail */}
       <div className="flex flex-col items-end justify-center gap-2.5 shrink-0">
-        <button
-          type="button"
-          onClick={() => setVoted((v) => !v)}
-          aria-pressed={voted}
-          aria-label={`Voter pour ${app.name}`}
-          className={cn(
-            "flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] font-bold tabular-nums transition-colors cursor-pointer",
-            voted
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-              : "border-border/40 text-foreground hover:border-foreground/30 hover:bg-muted/50",
-          )}
-        >
-          <CaretUpIcon
-            weight="fill"
-            className={cn(
-              "w-4 h-4",
-              voted ? "text-emerald-500" : "text-muted-foreground",
-            )}
-          />
-          {formatCompactCount(app.votes + (voted ? 1 : 0))}
-        </button>
+        <VoteButton
+          productId={app.id}
+          productName={app.name}
+          votes={app.votes}
+          variant="pill"
+        />
 
         {app.revenue &&
           (app.revenue.displayMode === "badge_only" ? (

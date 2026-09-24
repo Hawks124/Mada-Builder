@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { HourglassIcon } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -11,6 +12,12 @@ import {
   type ActivityItem,
 } from "@/components/admin/admin-mock";
 import { MOCK_APPS } from "@/components/dashboard/dashboard-mock";
+import { getMakersCount } from "@/services/users.service";
+import {
+  getBannedCount,
+  getHomepageViews,
+  getVisitsTotal,
+} from "@/services/stats.service";
 
 // noindex strict — jamais indexé, même au backend (robots + middleware).
 export const metadata: Metadata = {
@@ -18,18 +25,68 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const STATS = [
-  { label: "Visites plateforme", value: "12,4 k", delta: "+8 %", tone: "up" as const },
-  { label: "Makers inscrits", value: "1 240", delta: "+48 cette semaine", tone: "up" as const },
-  { label: "Listings publiés", value: "312", delta: "+9 cette semaine", tone: "up" as const },
-  {
-    label: "En attente",
-    value: `${MOCK_REVIEW_QUEUE.length}`,
-    delta: "file de revue",
-    tone: "neutral" as const,
-  },
-  { label: "MRR vérifié", value: "1,5 M Ar", delta: "4 produits", tone: "neutral" as const },
+type AdminStat = {
+  label: string;
+  value: string;
+  delta: string;
+  tone: "up" | "neutral";
+};
+
+const STATS_FALLBACK: AdminStat[] = [
+  { label: "Visites (7 j)", value: "—", delta: "hits bruts, invités inclus", tone: "neutral" as const },
+  { label: "Makers inscrits", value: "—", delta: "comptes actifs", tone: "neutral" as const },
+  { label: "Bannis", value: "—", delta: "suspendus", tone: "neutral" as const },
+  { label: "Listings publiés", value: "—", delta: "milestone listings", tone: "neutral" as const },
+  { label: "MRR vérifié", value: "—", delta: "milestone revenue", tone: "neutral" as const },
 ];
+
+/** Stats réelles quand le backend répond (makers/visites/bannis) —
+ * listings + MRR restent "—" jusqu'à leurs milestones. Zéro faux chiffre. */
+async function getStats(): Promise<AdminStat[]> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return STATS_FALLBACK;
+  try {
+    const [visits, homeViews, makers, banned] = await Promise.all([
+      getVisitsTotal(7),
+      getHomepageViews(7),
+      getMakersCount(),
+      getBannedCount(),
+    ]);
+    return [
+      {
+        label: "Visites (7 j)",
+        value: visits.toLocaleString("fr-FR"),
+        delta: `dont ${homeViews.toLocaleString("fr-FR")} accueil`,
+        tone: "neutral" as const,
+      },
+      {
+        label: "Makers inscrits",
+        value: makers.toLocaleString("fr-FR"),
+        delta: "comptes actifs",
+        tone: "neutral" as const,
+      },
+      {
+        label: "Bannis",
+        value: banned.toLocaleString("fr-FR"),
+        delta: "suspendus",
+        tone: "neutral" as const,
+      },
+      {
+        label: "Listings publiés",
+        value: "—",
+        delta: "milestone listings",
+        tone: "neutral" as const,
+      },
+      {
+        label: "MRR vérifié",
+        value: "—",
+        delta: "milestone revenue",
+        tone: "neutral" as const,
+      },
+    ];
+  } catch {
+    return STATS_FALLBACK;
+  }
+}
 
 /** Visuel d'entité — logos/avatars en couleurs naturelles, zéro arc-en-ciel.
  *  Seul le danger garde un point rouge. */
@@ -54,11 +111,12 @@ function ActivityVisual({ item }: { item: ActivityItem }) {
     return (
       <span className="flex -space-x-2 shrink-0">
         {subject.avatars.map((url) => (
-          <img
+          <AvatarImage
             key={url}
             src={url}
-            alt=""
-            className="w-7 h-7 rounded-full object-cover ring-2 ring-background"
+            name=""
+            size={28}
+            className="ring-2 ring-background"
           />
         ))}
         <span className="w-7 h-7 rounded-full ring-2 ring-background bg-muted border border-border/40 flex items-center justify-center text-[9px] font-black text-muted-foreground tabular-nums">
@@ -83,8 +141,11 @@ function ActivityVisual({ item }: { item: ActivityItem }) {
   );
 }
 
-// TODO(auth): role-gate server (session + role=admin). Mock chiffré ici.
-export default function AdminOverviewPage() {
+// Gate staff au layout (admin). Stats mixtes : réelles quand le backend
+// répond (visites, makers, bannis), "—" pour listings/MRR jusqu'à leurs
+// milestones.
+export default async function AdminOverviewPage() {
+  const stats = await getStats();
   return (
     <div className="w-full px-6 lg:px-12 pt-10 lg:pt-14 pb-24 flex flex-col gap-14">
       <PageHeader
@@ -103,9 +164,9 @@ export default function AdminOverviewPage() {
         }
       />
 
-      {/* Stats strip — même pattern type-only que l'overview maker */}
+      {/* Stats strip — réel (makers/visites/bannis), "—" en attente */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-x-6 gap-y-10">
-        {STATS.map((stat) => (
+        {stats.map((stat) => (
           <div key={stat.label} className="flex flex-col gap-1.5">
             <span className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">
               {stat.label}
@@ -160,7 +221,8 @@ export default function AdminOverviewPage() {
       </div>
 
       <p className="text-[12px] font-medium text-muted-foreground/70">
-        Chiffres mock — branchés sur Drizzle + jobs (score, sync) au backend.
+        Visites = hits bruts 7 j (invités inclus, pas des uniques).
+        Activité mock — branchée sur l&apos;audit admin (V1.5).
       </p>
     </div>
   );

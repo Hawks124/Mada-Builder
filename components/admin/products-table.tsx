@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import {
   CaretUpIcon,
   EyeIcon,
@@ -268,10 +269,10 @@ function AdminProductRow({
             href={`/makers/${app.maker.username}`}
             className="flex items-center gap-1.5 shrink-0 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
           >
-            <img
+            <AvatarImage
               src={app.maker.avatarUrl}
-              alt={app.maker.name}
-              className="w-4 h-4 rounded-full object-cover"
+              name={app.maker.name}
+              size={16}
             />
             <span className="hidden sm:inline">{app.maker.name}</span>
             <span aria-hidden="true">·</span>

@@ -1,5 +1,6 @@
-"use client";
-
+// Server-rendered (SEO §1) — les îlots clients (vote, menu, selects)
+// vivent dans les composants enfants. Le hero lit les makers réels.
+import { after } from "next/server";
 import { GridBackground } from "@/components/ui/grid-background";
 import { Hero } from "@/components/home/hero";
 import { FeaturedProduct } from "@/components/home/featured-product";
@@ -7,8 +8,13 @@ import { Leaderboard } from "@/components/home/leaderboard";
 import { NewestProducts } from "@/components/home/newest-products";
 import { VerifiedRevenueSection } from "@/components/home/verified-revenue-section";
 import { CommunityCTA } from "@/components/home/community-cta";
+import { logPageView } from "@/services/stats.service";
 
-export default function Home() {
+export default async function Home() {
+  // Compteur vitrine anonyme — after() : zéro impact TTFB, jamais
+  // d'échec de rendu pour une stat (best-effort interne). Plus de
+  // session à résoudre (colonne user_id supprimée — vie-privée §16).
+  after(() => logPageView("/"));
   return (
     <div className="flex flex-col w-full min-h-[calc(100vh-72px)]">
       {/* ─── DISCOVERY ZONE (Grid continues: Hero → Featured → Leaderboard) ─── */}

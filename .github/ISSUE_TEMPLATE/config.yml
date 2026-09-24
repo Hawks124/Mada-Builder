@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Faille de sécurité
+    url: https://github.com/Hawks124/Mada-Builder/blob/main/SECURITY.md
+    about: Jamais en issue publique — procédure dans SECURITY.md
+  - name: Question / discussion
+    url: https://github.com/Hawks124/Mada-Builder/discussions
+    about: Usage, aide au setup, idées non cadrées

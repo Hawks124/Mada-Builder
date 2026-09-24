@@ -1,18 +1,31 @@
 import Link from "next/link";
-import { ArrowRightIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
 import {
   HERO_CATEGORIES,
   PRODUCT_CATEGORIES,
   TOTAL_PRODUCT_COUNT,
 } from "@/config/categories";
+import { getMakersCount } from "@/services/users.service";
 
 /**
  * Hero right column — continuous Vercel-style spinning border animation.
  * Features: floating stats bar globally aligned, flowing card list underneath.
  */
-export function HeroCategories() {
+export async function HeroCategories() {
   const visible = HERO_CATEGORIES.slice(0, 7);
+
+  // Vrai total makers quand le backend répond ; fallback démo sinon
+  // (même pattern que hero-makers — pas de faux "400+" avec backend).
+  let makersValue = "400+";
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    try {
+      const count = await getMakersCount();
+      if (count > 0) makersValue = count.toLocaleString("fr-FR");
+    } catch {
+      // Backend indisponible : fallback ci-dessus.
+    }
+  }
 
   return (
     <div className="relative w-full flex flex-col gap-6">
@@ -23,7 +36,7 @@ export function HeroCategories() {
           label="produits"
         />
         <div className="h-3.5 w-px bg-border/60 mx-1.5" />
-        <StatPill value="400+" label="makers" />
+        <StatPill value={makersValue} label="makers" />
         <div className="h-3.5 w-px bg-border/60 mx-1.5" />
         <StatPill
           value={String(PRODUCT_CATEGORIES.length)}

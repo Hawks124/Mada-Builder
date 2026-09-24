@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import {
-  CaretUpIcon,
-  ChatCircleIcon,
+  ChatCircleTextIcon,
   SealCheckIcon,
   StarIcon,
 } from "@phosphor-icons/react";
 import { cn, slugifyName } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
+import { VoteButton } from "@/components/votes/vote-button";
 
 const MOCK_LEADERBOARD = [
   {
@@ -193,10 +194,11 @@ export function Leaderboard() {
                     href={`/makers/${slugifyName(product.maker)}`}
                     className="text-[10px] font-bold text-muted-foreground hidden md:flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
                   >
-                    <img
+                    <AvatarImage
                       src={product.makerAvatar}
-                      className="w-4 h-4 rounded-full grayscale group-hover:grayscale-0 transition-all"
-                      alt={product.maker}
+                      name={product.maker}
+                      size={16}
+                      className="grayscale group-hover:grayscale-0 transition-all"
                     />
                     {product.maker}
                     <SealCheckIcon
@@ -234,7 +236,7 @@ export function Leaderboard() {
                   href={`/products/${product.id}#comments`}
                   className="hidden md:flex flex-col items-center gap-0.5 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <ChatCircleIcon weight="fill" className="w-5 h-5" />
+                  <ChatCircleTextIcon weight="fill" className="w-5 h-5" />
                   <span className="text-[11px] font-bold leading-none">
                     {product.comments}
                   </span>
@@ -249,15 +251,12 @@ export function Leaderboard() {
                     +{product.dailyVotes}
                   </div>
 
-                  <button className="flex items-center gap-2 px-3 py-2 -mr-3 rounded-full hover:bg-muted transition-colors group/btn cursor-pointer">
-                    <CaretUpIcon
-                      weight="fill"
-                      className="w-6 h-6 text-green-500 group-hover/btn:-translate-y-0.5 transition-transform"
-                    />
-                    <span className="text-xl font-black tracking-tighter text-foreground">
-                      {product.votes}
-                    </span>
-                  </button>
+                  <VoteButton
+                    productId={product.id}
+                    productName={product.name}
+                    votes={product.votes}
+                    variant="row"
+                  />
                 </div>
               </div>
             </div>

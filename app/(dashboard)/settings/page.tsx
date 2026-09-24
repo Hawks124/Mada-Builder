@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
-import Image from "next/image";
-import {
-  GithubLogoIcon,
-  CheckCircleIcon,
-  ShieldCheckIcon,
-} from "@phosphor-icons/react/dist/ssr";
+import { ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { InputField } from "@/components/ui/input-field";
 import { DangerZone } from "@/components/dashboard/danger-zone";
-import { cn } from "@/lib/utils";
+import {
+  ProvidersCard,
+  type ProviderId,
+} from "@/components/dashboard/providers-card";
+import { getSessionUser, createClient } from "@/lib/supabase/server";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 // Auth pages are noindex (§7)
 export const metadata: Metadata = {
@@ -22,9 +24,46 @@ const SECURITY_TIPS = [
   "La suppression du compte est définitive et immédiate.",
 ];
 
-// Compte uniquement — le profil public vit sur /dashboard/profile.
-// Email read-only, fournisseurs d'auth, suppression réelle (§6F).
-export default function SettingsPage() {
+  // Compte uniquement — le profil public vit sur /dashboard/profile.
+  // Email read-only, fournisseurs d'auth, suppression réelle (§6F).
+export default async function SettingsPage() {
+  // Session réelle → identités liées ; sinon fallback mock documenté
+  // (prototype sans login : l'UI reste démontrable, le câblage est réel).
+  let connected: ProviderId[] = ["github"];
+  let email: string | null = "kaliana@mail.com";
+  let githubHandle: string | null = "kaliana";
+  // Username DB pour la confirmation de suppression (slug court > email).
+  let username: string | null = null;
+  try {
+    const user = await getSessionUser();
+    if (user) {
+      const supabase = await createClient();
+      const { data } = await supabase.auth.getUserIdentities();
+      const linked = (data?.identities ?? [])
+        .map((i) => i.provider)
+        .filter(
+          (p): p is ProviderId =>
+            p === "github" || p === "google" || p === "email",
+        );
+      if (linked.length > 0) connected = [...new Set(linked)];
+      email = user.email ?? null;
+      try {
+        const [row] = await db
+          .select({ username: users.username })
+          .from(users)
+          .where(eq(users.id, user.id))
+          .limit(1);
+        if (row) username = row.username;
+      } catch {
+        // Ligne absente : la confirmation retombera sur l'email.
+      }
+      const gh = (data?.identities ?? []).find((i) => i.provider === "github");
+      githubHandle =
+        (gh?.identity_data?.user_name as string | undefined) ?? null;
+    }
+  } catch {
+    // Supabase non configuré ou hors-ligne : fallback mock ci-dessus.
+  }
   return (
     <div className="w-full px-6 lg:px-12 pt-10 lg:pt-14 pb-24 flex flex-col gap-10">
       <PageHeader
@@ -42,7 +81,7 @@ export default function SettingsPage() {
             </h2>
             <InputField
               label="Email"
-              defaultValue="kaliana@mail.com"
+              defaultValue={email ?? ""}
               disabled
               subtitle="L'email de connexion ne peut pas être modifié pour le moment."
             />
@@ -50,65 +89,40 @@ export default function SettingsPage() {
 
           <div className="w-full h-px bg-border/40" />
 
-          {/* Providers */}
+          <ProvidersCard connected={connected} githubHandle={githubHandle} />
+
+          <div className="w-full h-px bg-border/40" />
+
+          {/* Export — V1.5 : badge Bientôt, pas de handler mort */}
           <div className="flex flex-col gap-4">
-            <h2 className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">
-              Fournisseurs connectés
-            </h2>
-
-            {/* GitHub — connecté */}
-            <div className="flex items-center gap-4 rounded-2xl border border-border/40 px-5 py-4">
-              <GithubLogoIcon
-                weight="fill"
-                className="h-6 w-6 text-foreground shrink-0"
-              />
-              <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-[15px] font-bold text-foreground">
-                  GitHub
-                </span>
-                <span className="text-[13px] font-medium text-muted-foreground">
-                  @kaliana
-                </span>
-              </div>
-              <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400 shrink-0">
-                <CheckCircleIcon weight="fill" className="w-3.5 h-3.5" />
-                Connecté
+            <h2 className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground flex items-center gap-2">
+              Export de mes données
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                Bientôt
               </span>
-            </div>
-
-            {/* Google — à connecter (mock) */}
-            <div
-              className={cn(
-                "flex items-center gap-4 rounded-2xl border border-border/40 px-5 py-4",
-              )}
-            >
-              <Image
-                src="/logos/google.svg"
-                alt="Google"
-                width={24}
-                height={24}
-                className="h-6 w-6 shrink-0"
-              />
-              <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-[15px] font-bold text-foreground">
-                  Google
-                </span>
-                <span className="text-[13px] font-medium text-muted-foreground">
-                  Liez un second fournisseur pour sécuriser l&apos;accès.
-                </span>
-              </div>
+            </h2>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <p className="text-[14px] font-medium text-muted-foreground leading-relaxed flex-1">
+                Recevez une archive (profil, produits, votes) par email sous
+                24 h, au format JSON lisible.
+              </p>
               <button
                 type="button"
-                className="shrink-0 rounded-full border border-border/60 px-5 py-2 text-[13px] font-bold text-foreground hover:border-foreground/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                disabled
+                title="Disponible prochainement"
+                className="shrink-0 rounded-full border border-border/60 px-5 py-2.5 text-[13px] font-bold text-muted-foreground opacity-50 cursor-not-allowed"
               >
-                Connecter
+                Demander l&apos;export
               </button>
             </div>
           </div>
 
           <div className="w-full h-px bg-border/40" />
 
-          <DangerZone userEmail="kaliana@mail.com" />
+          <DangerZone
+            userEmail={email ?? "kaliana@mail.com"}
+            username={username}
+          />
         </div>
 
         {/* Guidance aside */}

@@ -1,0 +1,1 @@
+ALTER TABLE "auth_otp" ALTER COLUMN "action_link" DROP NOT NULL;

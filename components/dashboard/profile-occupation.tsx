@@ -9,8 +9,13 @@ import {
 } from "@/config/occupations";
 
 // Occupation partagée — vocabulaire fermé (users.occupation backend).
-export function ProfileOccupation() {
-  const [value, setValue] = React.useState(DEFAULT_OCCUPATION_ID);
+// Pilotée par `defaultValue` + champ caché `occupation` (submit natif).
+export function ProfileOccupation({
+  defaultValue = DEFAULT_OCCUPATION_ID,
+}: {
+  defaultValue?: string;
+}) {
+  const [value, setValue] = React.useState(defaultValue);
 
   return (
     <div className="flex flex-col gap-2">
@@ -28,6 +33,7 @@ export function ProfileOccupation() {
           icon: <o.icon weight="fill" className="w-4 h-4 shrink-0" />,
         }))}
       />
+      <input type="hidden" name="occupation" value={value} />
       <span className="text-[12px] font-medium text-muted-foreground leading-relaxed">
         Visible sur votre profil public et dans les résultats de recherche.
       </span>

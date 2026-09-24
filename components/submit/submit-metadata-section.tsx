@@ -18,57 +18,14 @@ import {
   ShieldCheck,
   ToggleRight,
   ToggleLeft,
-  Gift,
-  Sparkle,
-  Tag,
-  ArrowsClockwise,
-  ShoppingCart,
-  Heart,
 } from "@phosphor-icons/react";
-
-const PLATFORMS = [
-  {
-    id: "ios",
-    label: "iOS",
-    icon: <AppleLogo weight="fill" className="w-4 h-4" />,
-  },
-  {
-    id: "macos",
-    label: "macOS",
-    icon: <AppleLogo weight="fill" className="w-4 h-4" />,
-  },
-  {
-    id: "android",
-    label: "Android",
-    icon: <AndroidLogo weight="fill" className="w-4 h-4" />,
-  },
-  {
-    id: "web",
-    label: "Web",
-    icon: <Globe weight="fill" className="w-4 h-4" />,
-  },
-  {
-    id: "desktop",
-    label: "Desktop",
-    icon: <Monitor weight="fill" className="w-4 h-4" />,
-  },
-  {
-    id: "cli",
-    label: "CLI / API",
-    icon: <Terminal weight="fill" className="w-4 h-4" />,
-  },
-];
+import { PLATFORMS } from "@/config/platforms";
+import { PRICING_MODELS } from "@/config/pricing";
 
 const OPTION_ICON_CLASS = "w-4 h-4 shrink-0";
 
-const PRICING_MODELS = [
-  { id: "free", label: "Gratuit", icon: <Gift weight="fill" className={OPTION_ICON_CLASS} /> },
-  { id: "freemium", label: "Freemium", icon: <Sparkle weight="fill" className={OPTION_ICON_CLASS} /> },
-  { id: "paid", label: "Payant", icon: <Tag weight="fill" className={OPTION_ICON_CLASS} /> },
-  { id: "subscription", label: "Abonnement", icon: <ArrowsClockwise weight="fill" className={OPTION_ICON_CLASS} /> },
-  { id: "one_time_purchase", label: "Achat unique", icon: <ShoppingCart weight="fill" className={OPTION_ICON_CLASS} /> },
-  { id: "open_source_donationware", label: "Open Source / Dons", icon: <Heart weight="fill" className={OPTION_ICON_CLASS} /> },
-];
+// PLATFORMS and PRICING_MODELS are now imported from @/config/platforms and @/config/pricing
+// They are mapped inline below with JSX icons at the required size
 
 const DEV_FACING_TYPES = ["cli", "package", "framework", "plugin"];
 
@@ -123,6 +80,7 @@ export function SubmitMetadataSection() {
         </label>
         <div className="flex flex-wrap gap-2">
           {PLATFORMS.map((platform) => {
+            const PlatformIcon = platform.icon;
             const isSelected = selectedPlatforms.includes(platform.id);
             return (
               <button
@@ -136,7 +94,7 @@ export function SubmitMetadataSection() {
                     : "bg-muted/30 text-muted-foreground border border-border/40 hover:bg-muted/60 hover:text-foreground",
                 )}
               >
-                {platform.icon}
+                <PlatformIcon weight="fill" className="w-4 h-4" />
                 {platform.label}
               </button>
             );
@@ -157,7 +115,10 @@ export function SubmitMetadataSection() {
           <Select
             value={selectedPricing}
             onChange={setSelectedPricing}
-            options={PRICING_MODELS}
+            options={PRICING_MODELS.map((m) => {
+              const Ico = m.icon;
+              return { id: m.id, label: m.label, icon: <Ico weight="fill" className={OPTION_ICON_CLASS} /> };
+            })}
             icon={<CurrencyCircleDollar weight="fill" className="w-5 h-5 text-muted-foreground/60 transition-colors" />}
           />
         </div>

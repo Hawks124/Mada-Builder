@@ -1,51 +1,167 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { after } from "next/server";
+import { AvatarImage } from "@/components/ui/avatar-image";
+import { notFound } from "next/navigation";
 import {
   GlobeIcon,
   GithubLogoIcon,
   XLogoIcon,
+  FacebookLogoIcon,
+  InstagramLogoIcon,
+  LinkedinLogoIcon,
+  TiktokLogoIcon,
+  WhatsappLogoIcon,
   MapPinIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { getOccupationById } from "@/config/occupations";
+import { logPageView } from "@/services/stats.service";
 import { OverviewStats } from "@/components/dashboard/overview-stats";
-import { MakerAppRow } from "@/components/makers/maker-app-row";
-import {
-  MOCK_APPS,
-  getDashboardTotals,
-  type DashboardApp,
-} from "@/components/dashboard/dashboard-mock";
-
-// TODO(auth): noindex temporaire — contenu mock. Lever quand le profile
-// edit branchera les vraies données (PRD §7 : profils makers indexables).
-export const metadata: Metadata = {
-  robots: { index: false, follow: false },
-};
-
-const MAKER_SOCIALS = [
-  { id: "website", label: "Site web", href: "https://kaliana.dev" },
-  { id: "github", label: "GitHub", href: "https://github.com/kaliana" },
-  { id: "x", label: "X", href: "https://x.com/kaliana" },
-];
+import type { DashboardTotals } from "@/components/dashboard/dashboard-mock";
+import { getUserProfile } from "@/services/users.service";
 
 // Profil public maker (PRD §6D) : avatar, nom, bio, liens, produits
 // publiés, total votes, MRR combiné. Pas de messagerie in-app (hors V1) :
 // le contact passe par les liens sortants du maker.
+// Produits : vide honnête jusqu'au milestone listings (aucun mock).
+// Indexable (§7) dès que les données sont réelles.
+const SOCIAL_DEFS = [
+  { id: "website", label: "Site web", icon: GlobeIcon },
+  { id: "github", label: "GitHub", icon: GithubLogoIcon },
+  { id: "x", label: "X", icon: XLogoIcon },
+  { id: "facebook", label: "Facebook", icon: FacebookLogoIcon },
+  { id: "instagram", label: "Instagram", icon: InstagramLogoIcon },
+  { id: "linkedin", label: "LinkedIn", icon: LinkedinLogoIcon },
+  { id: "tiktok", label: "TikTok", icon: TiktokLogoIcon },
+  { id: "whatsapp", label: "WhatsApp", icon: WhatsappLogoIcon },
+] as const;
+
+const ZERO_TOTALS: DashboardTotals = {
+  totalUpvotes: 0,
+  liveCount: 0,
+  totalListings: 0,
+  totalViews: 0,
+  pendingCount: 0,
+  totalMrrAr: 0,
+  totalComments: 0,
+  globalRating: 0,
+};
+
+type Params = { username: string };
+
+type PublicProfile = {
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  occupation: string;
+  city: string | null;
+  country: string | null;
+  websiteUrl: string | null;
+  socialLinks: Record<string, string>;
+  banned: boolean;
+};
+
+// Démo sans backend (contributeur) : mock documenté, noindex forcé.
+// Avec backend : réel ou 404, jamais de faux contenu.
+const DEMO_PROFILE: PublicProfile = {
+  username: "kaliana",
+  displayName: "Kaliana R.",
+  avatarUrl: "https://i.pravatar.cc/150?u=kaliana",
+  bio: "Maker malgache — SaaS RH et outils fintech.",
+  occupation: "maker",
+  city: "Antananarivo",
+  country: "Madagascar",
+  websiteUrl: "https://kaliana.dev",
+  socialLinks: {
+    github: "https://github.com/kaliana",
+    x: "https://x.com/kaliana",
+  },
+  banned: false,
+};
+
+async function loadProfile(
+  username: string,
+): Promise<{ profile: PublicProfile | null; demo: boolean }> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return {
+      profile: username.toLowerCase() === "kaliana" ? DEMO_PROFILE : null,
+      demo: true,
+    };
+  }
+  try {
+    const row = await getUserProfile(username.toLowerCase());
+    if (!row) return { profile: null, demo: false };
+    const socialLinks: Record<string, string> = {};
+    for (const [k, v] of Object.entries(row.socialLinks ?? {})) {
+      if (typeof v === "string" && v !== "") socialLinks[k] = v;
+    }
+    // Transparence modération : profil visible + badge (jamais d'effacement).
+    const banned = row.bannedAt !== null;
+    return {
+      profile: {
+        username: row.username,
+        displayName: row.displayName,
+        avatarUrl: row.avatarUrl,
+        bio: row.bio,
+        occupation: row.occupation,
+        city: row.city,
+        country: row.country,
+        websiteUrl: row.websiteUrl,
+        socialLinks,
+        banned,
+      },
+      demo: false,
+    };
+  } catch {
+    return { profile: null, demo: false };
+  }
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<Params>;
+}): Promise<Metadata> {
+  const { username } = await params;
+  const { profile, demo } = await loadProfile(username);
+  if (!profile || demo) return { robots: { index: false, follow: false } };
+  return {
+    title: `${profile.displayName} (@${profile.username})`,
+    description: profile.bio ?? `Profil maker de ${profile.displayName}.`,
+  };
+}
+
 export default async function MakerPage({
   params,
 }: {
-  params: Promise<{ username: string }>;
+  params: Promise<Params>;
 }) {
   const { username } = await params;
-  const isKaliana = username === "kaliana";
-  const displayName = isKaliana ? "Kaliana R." : username;
-  const occupation = getOccupationById("maker");
+  const { profile } = await loadProfile(username);
+  if (!profile) notFound();
 
-  // Seuls les produits publiés sont visibles en public — jamais
-  // pending/rejected (confidentialité de la revue).
-  const publishedApps: DashboardApp[] = isKaliana
-    ? MOCK_APPS.filter((a) => a.status === "live")
-    : [];
-  const totals = getDashboardTotals(publishedApps);
+  // Compteur vitrine anonyme (même pattern que la home).
+  after(() => logPageView(`/makers/${profile.username}`));
+
+  const occupation =
+    getOccupationById(profile.occupation) ?? getOccupationById("maker")!;
+  const location = [profile.city, profile.country].filter(Boolean).join(", ");
+  const links = SOCIAL_DEFS.flatMap((def) => {
+    const href =
+      def.id === "website"
+        ? (profile.websiteUrl ?? profile.socialLinks.website)
+        : profile.socialLinks[def.id];
+    return typeof href === "string" && href !== ""
+      ? [{ ...def, href }]
+      : [];
+  });
+  const initials = profile.displayName
+    .split(/[\s_.-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
 
   return (
     <main className="min-h-screen bg-background">
@@ -53,16 +169,30 @@ export default async function MakerPage({
         {/* Identity */}
         <div className="flex flex-col gap-5">
           <div className="flex items-center gap-5 md:gap-6">
-            <img
-              src={`https://i.pravatar.cc/150?u=${username}`}
-              alt={displayName}
-              className="h-20 w-20 md:h-24 md:w-24 rounded-full object-cover shrink-0"
-            />
+            {profile.avatarUrl ? (
+              <AvatarImage
+                src={profile.avatarUrl}
+                name={profile.displayName}
+                size={96}
+              />
+            ) : (
+              <span
+                aria-hidden="true"
+                className="h-20 w-20 md:h-24 md:w-24 rounded-full bg-[#EA580C] flex items-center justify-center text-white font-bold text-3xl shrink-0"
+              >
+                {initials || "M"}
+              </span>
+            )}
             <div className="flex flex-col gap-1.5 min-w-0">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="text-3xl md:text-4xl font-black tracking-tight text-foreground truncate">
-                  {displayName}
+                  {profile.displayName}
                 </h1>
+                {profile.banned && (
+                  <span className="inline-flex items-center rounded-full border border-red-500/25 bg-red-500/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 shrink-0">
+                    Suspendu
+                  </span>
+                )}
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-[11px] font-bold text-muted-foreground shrink-0">
                   <occupation.icon
                     weight="fill"
@@ -72,48 +202,50 @@ export default async function MakerPage({
                   {occupation.label}
                 </span>
               </div>
-              <p className="text-[15px] font-medium text-muted-foreground leading-relaxed">
-                Maker malgache — SaaS RH et outils fintech.
-              </p>
-              <p className="flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
-                <MapPinIcon weight="fill" className="w-4 h-4" aria-hidden="true" />
-                Antananarivo, Madagascar
-              </p>
+              {profile.bio && (
+                <p className="text-[15px] font-medium text-muted-foreground leading-relaxed">
+                  {profile.bio}
+                </p>
+              )}
+              {location !== "" && (
+                <p className="flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
+                  <MapPinIcon
+                    weight="fill"
+                    className="w-4 h-4"
+                    aria-hidden="true"
+                  />
+                  {location}
+                </p>
+              )}
             </div>
           </div>
 
           {/* Outbound links — le contact passe par ici, pas de DM (hors V1) */}
-          {isKaliana && (
+          {links.length > 0 && (
             <div className="flex items-center gap-2">
-              {MAKER_SOCIALS.map((social) => (
+              {links.map((social) => (
                 <Link
                   key={social.id}
                   href={social.href}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={social.label}
-                  aria-label={`${social.label} de ${displayName} (nouvel onglet)`}
+                  aria-label={`${social.label} de ${profile.displayName} (nouvel onglet)`}
                   className="flex items-center justify-center h-10 w-10 rounded-full border border-border/40 text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-muted/50 transition-colors"
                 >
-                  {social.id === "website" ? (
-                    <GlobeIcon weight="bold" className="w-[18px] h-[18px]" />
-                  ) : social.id === "github" ? (
-                    <GithubLogoIcon
-                      weight="fill"
-                      className="w-[18px] h-[18px]"
-                    />
-                  ) : (
-                    <XLogoIcon weight="fill" className="w-[18px] h-[18px]" />
-                  )}
+                  <social.icon
+                    weight="fill"
+                    className="w-[18px] h-[18px]"
+                  />
                 </Link>
               ))}
             </div>
           )}
         </div>
 
-        {/* Stats publiques (§6D strict) */}
+        {/* Stats publiques (§6D strict) — zéros sans produits, jamais de mock */}
         <OverviewStats
-          totals={totals}
+          totals={ZERO_TOTALS}
           mode="public"
           revenueDisplay="full"
         />
@@ -127,22 +259,14 @@ export default async function MakerPage({
               Produits
             </h2>
             <span className="text-[13px] font-medium text-muted-foreground">
-              {publishedApps.length} publié
-              {publishedApps.length > 1 ? "s" : ""}
+              0 publié
             </span>
           </div>
 
-          {publishedApps.length === 0 ? (
-            <p className="text-[14px] font-medium text-muted-foreground py-8 text-center">
-              Aucun produit publié pour le moment.
-            </p>
-          ) : (
-            <div className="flex flex-col">
-              {publishedApps.map((app) => (
-                <MakerAppRow key={app.id} app={app} />
-              ))}
-            </div>
-          )}
+          {/* Milestone listings : lister ici les produits publiés du maker. */}
+          <p className="text-[14px] font-medium text-muted-foreground py-8 text-center">
+            Aucun produit publié pour le moment.
+          </p>
         </div>
       </div>
     </main>

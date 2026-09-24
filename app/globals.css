@@ -6,6 +6,7 @@
   /* Monochrome Zinc Light Mode */
   --background: #fafafa; /* zinc-50 */
   --foreground: #09090b; /* zinc-950 */
+  --neutral: #ffffff;
   
   --muted: #f4f4f5; /* zinc-100 */
   --muted-foreground: #71717a; /* zinc-500 */
@@ -22,6 +23,7 @@
   /* Monochrome Zinc Dark Mode */
   --background: #09090b; /* zinc-950 */
   --foreground: #fafafa; /* zinc-50 */
+  --neutral: #000000;
   
   --muted: #27272a; /* zinc-800 */
   --muted-foreground: #a1a1aa; /* zinc-400 */

@@ -1,19 +1,20 @@
 import {
-  CaretUpIcon,
-  ChatCircleIcon,
+  ChatCircleTextIcon,
   StarIcon,
   SealCheckIcon,
   AppleLogoIcon,
   AndroidLogoIcon,
   WindowsLogoIcon,
   UsersIcon,
-} from "@phosphor-icons/react";
+  GlobeIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { ActionButton } from "@/components/ui/action-button";
-import { GlobeIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { AgeBadge } from "@/components/ui/age-badge";
+import { VoteButton } from "@/components/votes/vote-button";
 
 export function FeaturedProduct() {
   return (
@@ -56,7 +57,7 @@ export function FeaturedProduct() {
                   className={cn(
                     "inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-colors",
                     getCategoryById("employment")!.chipClass,
-                    getCategoryById("employment")!.hoverClass
+                    getCategoryById("employment")!.hoverClass,
                   )}
                 >
                   {getCategoryById("employment")!.name}
@@ -76,25 +77,19 @@ export function FeaturedProduct() {
           {/* Vote + Comment — Zero UI (no borders, no bg) */}
           <div className="flex items-start justify-center gap-6 w-full md:w-auto">
             {/* Upvote */}
-            <button className="flex flex-col items-center gap-1 group cursor-pointer">
-              <CaretUpIcon
-                weight="fill"
-                className="w-7 h-7 text-green-500 group-hover:-translate-y-1 transition-transform duration-200"
-              />
-              <span className="text-[22px] font-black tracking-tighter text-foreground leading-none">
-                342
-              </span>
-              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
-                votes
-              </span>
-            </button>
+            <VoteButton
+              productId="avotra-hr"
+              productName="Avotra HR"
+              votes={342}
+              variant="hero"
+            />
 
             {/* Divider */}
             <div className="w-px bg-border/60 self-stretch" />
 
             {/* Comment */}
             <button className="flex flex-col items-center gap-1 group cursor-pointer">
-              <ChatCircleIcon
+              <ChatCircleTextIcon
                 weight="fill"
                 className="w-7 h-7 text-muted-foreground group-hover:text-foreground transition-colors duration-200"
               />
@@ -141,10 +136,11 @@ export function FeaturedProduct() {
             href="/makers/kaliana"
             className="flex items-center gap-2 group p-1 -ml-1 rounded-full hover:bg-muted/50 transition-colors w-max"
           >
-            <img
+            <AvatarImage
               src="https://i.pravatar.cc/150?u=kaliana"
-              className="w-6 h-6 rounded-full group-hover:scale-105 transition-transform"
-              alt="Kaliana R."
+              name="Kaliana R."
+              size={24}
+              className="group-hover:scale-105 transition-transform"
             />
             <span className="text-[14px] font-semibold flex items-center gap-1 group-hover:text-primary transition-colors">
               Kaliana R.{" "}
@@ -163,7 +159,7 @@ export function FeaturedProduct() {
           </span>
           <div className="flex items-center gap-3 pl-1">
             <span className="text-foreground hover:text-sky-500 transition-colors cursor-pointer">
-              <GlobeIcon height="bold" className="w-4.5 h-4.5" />
+              <GlobeIcon weight="bold" className="w-4.5 h-4.5" />
             </span>
             <span className="text-foreground hover:text-foreground/50 transition-colors cursor-pointer">
               <AppleLogoIcon weight="fill" className="w-4.5 h-4.5" />
