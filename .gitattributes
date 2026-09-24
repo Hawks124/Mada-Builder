@@ -1,0 +1,8 @@
+# Normalisation fins de ligne : LF partout dans le repo (Windows/macOS/Linux
+# identiques — finis les diffs fantômes CRLF et les faux positifs Prettier).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
+*.svg text eol=lf
