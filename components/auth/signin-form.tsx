@@ -298,9 +298,9 @@ export function SigninForm() {
       )}
       {/* Titre d'accueil (état par défaut — la vérification a le sien). */}
       <div className="flex flex-col gap-2 mb-7">
-        <h1 className="text-4xl font-black tracking-tight text-foreground">Bienvenue</h1>
+        <h1 className="text-4xl font-black tracking-tight text-foreground">Connecte-toi</h1>
         <p className="text-base text-muted-foreground font-medium">
-          Connectez-vous pour voter, soumettre et suivre vos produits.
+          Pour voter, soumettre un produit et suivre tes publications.
         </p>
       </div>
       {/* Google — spec officielle : fond blanc/bordure, G intact */}

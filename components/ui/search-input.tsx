@@ -9,6 +9,8 @@ type SearchInputVariant = "nav" | "page";
 interface SearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
   variant?: SearchInputVariant;
   showKbd?: boolean;
+  /** Libellé du hint clavier — doit matcher le handler réel ("Alt K" nav, etc.). */
+  kbdLabel?: string;
 }
 
 // Shared search — nav (compact, Alt K) et page (full-width).
@@ -17,6 +19,7 @@ export function SearchInput({
   variant = "nav",
   placeholder = "Rechercher...",
   showKbd,
+  kbdLabel = "Alt K",
   className,
   ...props
 }: SearchInputProps) {
@@ -39,13 +42,16 @@ export function SearchInput({
           "transition-all focus:outline-none placeholder:text-muted-foreground/70",
           isNav
             ? "h-10 w-64 rounded-full bg-muted/50 border border-transparent pl-11 pr-14 text-[14px] focus:border-border/60 focus:bg-background"
-            : "h-12 w-full rounded-2xl bg-muted/50 border border-transparent pl-12 pr-4 text-[15px] font-medium focus:border-border/60 focus:bg-background",
+            : cn(
+                "h-12 w-full rounded-full bg-muted/50 border border-transparent pl-12 text-[15px] font-medium focus:border-border/60 focus:bg-background",
+                kbd ? "pr-20" : "pr-4",
+              ),
         )}
         {...props}
       />
       {kbd && (
         <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground bg-background border border-border/60 px-1.5 py-0.5 rounded shadow-sm pointer-events-none">
-          Alt K
+          {kbdLabel}
         </div>
       )}
     </div>

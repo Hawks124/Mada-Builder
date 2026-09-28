@@ -16,7 +16,8 @@
     "db:setup": "tsx scripts/db-setup.ts",
     "db:ping": "tsx scripts/db-ping.ts",
     "email:preview": "tsx scripts/render-email-previews.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "check:encoding": "node scripts/check-encoding.mjs"
   },
   "engines": {
     "node": "22.x"
@@ -43,6 +44,7 @@
     "react-dom": "19.2.8",
     "react-easy-crop": "^6.2.3",
     "react-markdown": "^10.1.0",
+    "react-qr-code": "^2.2.0",
     "recharts": "^3.10.1",
     "resend": "^6.28.1",
     "sharp": "^0.35.4",

@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -14,8 +15,8 @@ import {
   ToggleRight,
   ToggleLeft,
 } from "@phosphor-icons/react";
-import { PLATFORMS } from "@/config/platforms";
-import { PRICING_MODELS } from "@/config/pricing";
+import { PLATFORMS, PLATFORMS_BY_TYPE } from "@/config/platforms";
+import { PRICING_MODELS, isMonetizedPricing } from "@/config/pricing";
 
 const OPTION_ICON_CLASS = "w-4 h-4 shrink-0";
 
@@ -25,13 +26,29 @@ const OPTION_ICON_CLASS = "w-4 h-4 shrink-0";
 const DEV_FACING_TYPES = ["cli", "package", "framework", "plugin"];
 
 export function SubmitMetadataSection() {
-  const { productType, editApp } = useSubmitForm();
+  const {
+    productType,
+    editApp,
+    pricing: selectedPricing,
+    setPricing: setSelectedPricing,
+  } = useSubmitForm();
   const isDevFacing = DEV_FACING_TYPES.includes(productType);
 
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(editApp?.platforms ?? []);
-  const [selectedPricing, setSelectedPricing] = useState(
-    PRICING_MODELS.find((o) => o.label === editApp?.pricing)?.id ?? "free",
+  // Suggestion par type : dérivée au rendu (pas d'effect) — suit le type
+  // tant que l'utilisateur n'a rien coché/décoché (null = suggestion).
+  // En édition : valeurs existantes, jamais écrasées par la suggestion.
+  const suggestedPlatforms = !editApp ? (PLATFORMS_BY_TYPE[productType] ?? []) : [];
+  const [manualPlatforms, setManualPlatforms] = useState<string[] | null>(
+    editApp ? (editApp.platforms ?? []) : null,
   );
+  const selectedPlatforms = manualPlatforms ?? suggestedPlatforms;
+
+  const togglePlatform = (p: string) => {
+    setManualPlatforms((prev) => {
+      const base = prev ?? suggestedPlatforms;
+      return base.includes(p) ? base.filter((x) => x !== p) : [...base, p];
+    });
+  };
 
   // Revenue connection — optional block, engaged via explicit toggle
   const [revenueEnabled, setRevenueEnabled] = useState(false);
@@ -41,11 +58,7 @@ export function SubmitMetadataSection() {
   const [hasAds, setHasAds] = useState(false);
   const [hasThirdParty, setHasThirdParty] = useState(false);
 
-  const togglePlatform = (p: string) => {
-    setSelectedPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
-  };
-
-  const isMonetized = ["freemium", "paid", "subscription"].includes(selectedPricing);
+  const isMonetized = isMonetizedPricing(selectedPricing);
 
   return (
     <div className="flex flex-col gap-10">
@@ -301,6 +314,24 @@ export function SubmitMetadataSection() {
           placeholder="ex: v1.0.4"
         />
       </div>
+
+      {/* ── Configuration requise + Changelog (game/desktop/os, optionnel) ── */}
+      {(productType === "game" || productType === "app_desktop" || productType === "os") && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+          <InputField
+            label="Configuration requise"
+            subtitle="Un jeu sans config fait amateur : OS, RAM, stockage."
+            isOptional={true}
+            placeholder="ex : Windows 10, 8 Go RAM, 500 Mo"
+          />
+          <InputField
+            label="Journal des modifications"
+            subtitle="Lien vers vos notes de version."
+            isOptional={true}
+            placeholder="https://…/CHANGELOG"
+          />
+        </div>
+      )}
 
       {/* ── Advanced Toggles ── */}
       <div className="w-full h-px bg-border/40 mt-4 mb-2" />

@@ -12,6 +12,8 @@ export type LifecycleStatus = {
   id: LifecycleId;
   label: string;
   description: string;
+  /** Placeholder prototype, comme `categories.count` (backend : count(*)). */
+  count: number;
   icon: Icon;
   /** Pill teintée (reviews, rows publiques, sidebar détail). */
   pillClass: string;
@@ -26,6 +28,7 @@ export const LIFECYCLE_STATUS: LifecycleStatus[] = [
     id: "dev",
     label: "En développement",
     description: "Encore en chantier, pas utilisable",
+    count: 41,
     icon: HammerIcon,
     pillClass: "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400",
     textClass: "text-amber-600 dark:text-amber-400",
@@ -34,6 +37,7 @@ export const LIFECYCLE_STATUS: LifecycleStatus[] = [
     id: "beta",
     label: "Bêta",
     description: "Testable, en phase de test",
+    count: 28,
     icon: FlaskIcon,
     pillClass: "border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-400",
     textClass: "text-sky-600 dark:text-sky-400",
@@ -42,6 +46,7 @@ export const LIFECYCLE_STATUS: LifecycleStatus[] = [
     id: "live",
     label: "Lancé",
     description: "En production, utilisable",
+    count: 153,
     icon: RocketLaunchIcon,
     pillClass: "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     textClass: "text-emerald-600 dark:text-emerald-400",

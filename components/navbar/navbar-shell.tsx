@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { SearchInput } from "@/components/ui/search-input";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ProductDropdown } from "./product-dropdown";
@@ -37,6 +38,8 @@ export type NavbarUser = {
 // Anonyme : bouton "Se connecter" (CTA conversion principal de la nav).
 export function NavbarShell({ user }: { user: NavbarUser }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [navQuery, setNavQuery] = React.useState("");
+  const router = useRouter();
 
   // Block scrolling when mobile menu is open
   React.useEffect(() => {
@@ -46,6 +49,43 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
       document.body.style.overflow = "unset";
     }
   }, [isMobileMenuOpen]);
+
+  // Alt+K global : focus le search visible prioritaire (page discover > nav).
+  // Garde : jamais en cours de frappe. Le badge "Alt K" du SearchInput est réel.
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.metaKey || e.ctrlKey) return;
+      if (e.key.toLowerCase() !== "k") return;
+      const el = e.target as HTMLElement | null;
+      if (
+        el != null &&
+        (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)
+      )
+        return;
+      const visible = (input: HTMLInputElement | null) =>
+        input != null && input.offsetParent !== null;
+      const primary = document.querySelector<HTMLInputElement>('input[data-search-primary="true"]');
+      const target =
+        primary != null && visible(primary)
+          ? primary
+          : Array.from(document.querySelectorAll<HTMLInputElement>('input[type="search"]')).find(
+              visible,
+            );
+      if (target != null) {
+        e.preventDefault();
+        target.focus();
+        target.select?.();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const submitNavSearch = () => {
+    const q = navQuery.trim();
+    setIsMobileMenuOpen(false);
+    router.push(q !== "" ? `/discover?q=${encodeURIComponent(q)}` : "/discover");
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full bg-background/30 backdrop-blur-xl border-b border-transparent">
@@ -78,7 +118,15 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-3 sm:gap-4">
-          <SearchInput variant="nav" placeholder="Rechercher des produits" />
+          <SearchInput
+            variant="nav"
+            placeholder="Rechercher des produits"
+            value={navQuery}
+            onChange={(e) => setNavQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitNavSearch();
+            }}
+          />
 
           <div className="hidden sm:flex items-center gap-3">
             <ThemeToggle />
@@ -128,7 +176,15 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
       {isMobileMenuOpen && (
         <div className="md:hidden absolute top-18 left-0 w-full h-[calc(100vh-72px)] bg-background/95 backdrop-blur-xl p-6 flex flex-col gap-6 z-40 border-t border-border/40 overflow-y-auto">
           <div className="w-full mb-2">
-            <SearchInput variant="page" placeholder="Rechercher des produits..." />
+            <SearchInput
+              variant="page"
+              placeholder="Rechercher des produits..."
+              value={navQuery}
+              onChange={(e) => setNavQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitNavSearch();
+              }}
+            />
           </div>
 
           <div className="flex flex-col gap-1">
@@ -172,7 +228,7 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
             </div>
 
             <MobileNavItem
-              href="/"
+              href="/leaderboard"
               icon={<TrophyIcon weight="fill" className="h-6 w-6" />}
               label="Classement"
               onClick={() => setIsMobileMenuOpen(false)}

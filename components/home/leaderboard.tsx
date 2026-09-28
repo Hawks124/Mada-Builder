@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { ChatCircleTextIcon, SealCheckIcon, StarIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, ChatCircleTextIcon, SealCheckIcon, StarIcon } from "@phosphor-icons/react";
 import { cn, slugifyName } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { VoteButton } from "@/components/votes/vote-button";
@@ -90,7 +90,18 @@ const MOCK_LEADERBOARD = [
   },
 ];
 
-export function Leaderboard() {
+const HOME_WINDOWS = [
+  { label: "Aujourd'hui", href: "/leaderboard" },
+  { label: "Cette semaine", href: "/leaderboard?w=week" },
+  { label: "Ce mois", href: "/leaderboard?w=month" },
+  { label: "Toujours", href: "/leaderboard?w=all" },
+];
+
+/**
+ * Teaser home — top 5 + CTA vers /leaderboard (page classement complète).
+ * Les onglets temps sont des liens (pas d'état local dupliqué).
+ */
+export function Leaderboard({ limit = 5 }: { limit?: number }) {
   return (
     <section className="container px-4 md:px-8 max-w-5xl mx-auto w-full pt-16 pb-24">
       {/* HEADER & FILTERS */}
@@ -104,11 +115,12 @@ export function Leaderboard() {
           </h3>
         </div>
 
-        {/* TIME FILTERS (iOS segmented control style) */}
+        {/* TIME FILTERS → liens vers /leaderboard (iOS segmented control style) */}
         <div className="inline-flex items-center p-1 bg-muted/50 rounded-full border border-border/40">
-          {["Aujourd'hui", "Cette semaine", "Ce mois", "Toujours"].map((label, i) => (
-            <button
-              key={label}
+          {HOME_WINDOWS.map((opt, i) => (
+            <Link
+              key={opt.label}
+              href={opt.href}
               className={cn(
                 "px-4 py-1.5 rounded-full text-[13px] font-bold transition-all",
                 i === 0
@@ -116,15 +128,15 @@ export function Leaderboard() {
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {label}
-            </button>
+              {opt.label}
+            </Link>
           ))}
         </div>
       </div>
 
-      {/* LISTING */}
+      {/* LISTING (teaser) */}
       <div className="flex flex-col gap-2">
-        {MOCK_LEADERBOARD.map((product) => {
+        {MOCK_LEADERBOARD.slice(0, limit).map((product) => {
           let rankColor = "text-muted-foreground/30";
           if (product.rank === 1) rankColor = "text-amber-500 dark:text-amber-400 drop-shadow-sm";
           if (product.rank === 2) rankColor = "text-zinc-400 dark:text-zinc-300 drop-shadow-sm";
@@ -243,6 +255,22 @@ export function Leaderboard() {
             </div>
           );
         })}
+      </div>
+
+      {/* CTA vers la page classement complète */}
+      <div className="flex items-center justify-center mt-10 gap-4">
+        <div className="h-px flex-1 bg-border/40" />
+        <Link
+          href="/leaderboard"
+          className="group flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+        >
+          Voir le classement complet
+          <ArrowRightIcon
+            weight="bold"
+            className="w-4 h-4 group-hover:translate-x-1 transition-transform"
+          />
+        </Link>
+        <div className="h-px flex-1 bg-border/40" />
       </div>
     </section>
   );

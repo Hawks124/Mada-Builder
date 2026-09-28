@@ -1,10 +1,20 @@
-import Link from "next/link";
-import ReactMarkdown from "react-markdown";
-import * as React from "react";
-import { slugifyHeading, type LegalDoc } from "@/lib/legal";
+import { EnvelopeSimpleIcon } from "@phosphor-icons/react/dist/ssr";
+import { Prose } from "@/components/ui/prose";
+import { DocLayout } from "@/components/ui/doc-layout";
+import { LegalBlock } from "@/components/legal/legal-blocks";
+import { LegalIdentitySummary } from "@/components/legal/legal-identity-summary";
+import { LEGAL_IDENTITY } from "@/lib/legal-content";
+import type { LegalDoc } from "@/lib/legal";
 
-// Layout partagé des docs juridiques versionnés git (confidentialité,
-// conditions). Sommaire ancré + prose + liens croisés.
+/**
+ * Layout des documents juridiques — la coquille de `DocLayout` plus les deux
+ * blocs que seuls des actes juridiques portent : l'identité du responsable de
+ * traitement et le contact opposable.
+ *
+ * `/regles` n'utilise **pas** ce composant : une charte communautaire n'est pas
+ * un acte juridique, et lui afficher une identité de responsable de traitement
+ * ferait passer un guideline pour un contrat.
+ */
 export function LegalLayout({
   doc,
   siblings,
@@ -13,76 +23,59 @@ export function LegalLayout({
   siblings: { href: string; label: string }[];
 }) {
   return (
-    <main className="min-h-screen bg-background">
-      <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32 flex flex-col gap-10">
-        <div className="flex flex-col gap-3">
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight text-foreground">
-            {doc.title}
-          </h1>
-          {doc.description && (
-            <p className="text-lg font-medium text-muted-foreground">{doc.description}</p>
-          )}
-          {doc.updated && (
-            <p className="text-[12px] font-bold uppercase tracking-widest text-muted-foreground/70">
-              Mis à jour le{" "}
-              {new Date(doc.updated + "T00:00:00").toLocaleDateString("fr-FR", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
-            </p>
-          )}
-        </div>
+    <DocLayout
+      eyebrow="Document juridique"
+      title={doc.title}
+      description={doc.description}
+      updated={doc.updated}
+      headings={doc.headings}
+      footer={
+        <>
+          <LegalIdentitySummary className="mt-0" />
+          <ContactBlock />
+        </>
+      }
+      siblings={siblings}
+    >
+      {doc.parts.map((part, i) =>
+        part.kind === "markdown" ? (
+          <Prose key={`md-${i}`} headingIds className="max-w-none">
+            {part.text}
+          </Prose>
+        ) : (
+          <LegalBlock key={`block-${i}-${part.key}`} blockKey={part.key} />
+        ),
+      )}
+    </DocLayout>
+  );
+}
 
-        {doc.headings.length > 0 && (
-          <nav
-            aria-label="Sommaire"
-            className="flex flex-col gap-1 rounded-3xl border border-border/40 bg-muted/20 px-6 py-5"
-          >
-            {doc.headings.map((h, i) => (
-              <Link
-                key={h.id}
-                href={`#${h.id}`}
-                className="flex items-baseline gap-3 py-1 text-[14px] font-semibold text-muted-foreground hover:text-foreground transition-colors w-fit"
-              >
-                <span className="text-[12px] font-black tabular-nums text-muted-foreground/60">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                {h.text}
-              </Link>
-            ))}
-          </nav>
-        )}
-
-        <div className="prose prose-zinc dark:prose-invert prose-p:text-muted-foreground prose-p:font-medium prose-p:leading-relaxed prose-headings:font-extrabold prose-headings:tracking-tight prose-headings:scroll-mt-24 prose-li:font-medium prose-li:text-muted-foreground prose-strong:text-foreground prose-a:text-foreground prose-a:font-bold max-w-none text-[15px] md:text-[16px]">
-          <ReactMarkdown
-            components={{
-              h2: ({ children }) => {
-                const text = React.Children.toArray(children)
-                  .map((c) => (typeof c === "string" ? c : ""))
-                  .join("");
-                return <h2 id={slugifyHeading(text)}>{children}</h2>;
-              },
-            }}
-          >
-            {doc.body}
-          </ReactMarkdown>
-        </div>
-
-        <div className="w-full h-px bg-border/40" />
-
-        <div className="flex flex-wrap gap-2">
-          {siblings.map((s) => (
-            <Link
-              key={s.href}
-              href={s.href}
-              className="rounded-full border border-border/60 px-5 py-2.5 text-[14px] font-bold text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-muted/50 transition-colors"
-            >
-              {s.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-    </main>
+/**
+ * Contact — remplace les trois renvois vers une page `/contact` qui n'a jamais
+ * existé (le seul vestige en était un item « Contact » marqué « Bientôt » dans
+ * la barre de navigation). Un renvoi mort dans un document juridique, c'est un
+ * droit qui n'est pas exercable.
+ */
+function ContactBlock() {
+  return (
+    <section aria-labelledby="legal-contact" className="mt-8">
+      <h2
+        id="legal-contact"
+        className="flex items-center gap-2.5 text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground"
+      >
+        <EnvelopeSimpleIcon weight="fill" className="h-4 w-4" />
+        En cas de question
+      </h2>
+      <p className="mt-3 max-w-[60ch] text-[15px] font-medium leading-relaxed text-muted-foreground">
+        Accès à vos données, export, suppression, contestation d&apos;une modération, réclamation :
+        une seule adresse, traitée par la personne qui publie ce site.
+      </p>
+      <a
+        href={`mailto:${LEGAL_IDENTITY.contactEmail}`}
+        className="mt-4 inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-[14px] font-bold text-background transition-opacity hover:opacity-90"
+      >
+        {LEGAL_IDENTITY.contactEmail}
+      </a>
+    </section>
   );
 }

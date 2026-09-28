@@ -6,9 +6,7 @@ import {
   GlobeIcon,
   AppleLogoIcon,
   GooglePlayLogoIcon,
-  GithubLogoIcon,
   ShieldCheckIcon,
-  FileTextIcon,
   HourglassIcon,
   CheckIcon,
   MinusIcon,
@@ -22,37 +20,22 @@ import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { getRatingById } from "@/config/ratings";
 import { getProductTypeById } from "@/config/product-types";
+import { PRODUCT_LINK_FIELDS, hasAccessPoint, linkIdsForType } from "@/config/product-links";
+import { getLinkVerdicts } from "@/services/url-check.service";
+import { classifyForSubmit } from "@/lib/url-verdict";
 import { LifecyclePill } from "@/components/ui/lifecycle-pill";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { TagPill } from "@/components/ui/tag-pill";
 import { ReviewVerdict } from "@/components/admin/review-verdict";
+import { ReviewLinks } from "@/components/admin/review-links";
 import { MOCK_REVIEW_QUEUE } from "@/components/admin/admin-mock";
-import { formatCompactAr } from "@/components/dashboard/dashboard-mock";
+import { formatMoney } from "@/lib/utils";
 
 // noindex strict — jamais indexé, même au backend.
 export const metadata: Metadata = {
   title: "Admin — Vérifier",
   robots: { index: false, follow: false },
 };
-
-const LINK_ICONS = {
-  globe: GlobeIcon,
-  apple: AppleLogoIcon,
-  play: GooglePlayLogoIcon,
-  github: GithubLogoIcon,
-  shield: ShieldCheckIcon,
-  file: FileTextIcon,
-} as const;
-
-/** Les 6 slots du form — toujours rendus (fourni vs Non fourni). */
-const LINK_SLOTS = [
-  { icon: "globe", label: "Site web officiel" },
-  { icon: "apple", label: "Apple App Store" },
-  { icon: "play", label: "Google Play Store" },
-  { icon: "github", label: "GitHub (Open Source)" },
-  { icon: "shield", label: "Politique de confidentialité" },
-  { icon: "file", label: "Conditions d'utilisation (ToS)" },
-] as const;
 
 const SLA_HOURS = 24;
 
@@ -76,7 +59,26 @@ export default async function AdminReviewDetailPage({
   const productType = getProductTypeById(item.productTypeId);
   const exceeded = item.waitingHours > SLA_HOURS;
 
-  const requiredFields = [
+  // Liens pilotés matrice (socle + bloc du type) + verdicts re-vérifiés
+  // serveur au chargement (bulk cache-first — le reviewer ne clique plus
+  // chaque lien à la main). La pastille client permet un "revérifier".
+  const linkIds = linkIdsForType(item.productTypeId).filter((id) => id !== "video");
+  const filledLinks = linkIds.filter((id) => (item.linkValues[id] ?? "").trim() !== "");
+  const verdicts = await getLinkVerdicts({
+    ...item.linkValues,
+    ...(item.videoUrl ? { video: item.videoUrl } : {}),
+  });
+  const okCount = filledLinks.filter(
+    (id) => classifyForSubmit(verdicts[id]?.verdict ?? "connection_error") === "ok",
+  ).length;
+  const warnCount = filledLinks.filter(
+    (id) => classifyForSubmit(verdicts[id]?.verdict ?? "connection_error") === "warn",
+  ).length;
+  const hasAccess = hasAccessPoint(item.linkValues);
+
+  // Remplissage calculé (jamais de liste en dur) : base toujours exigée +
+  // point d'accès + champs effectifs du type remplis.
+  const requiredBase = [
     "Nom",
     "Tagline",
     "Type",
@@ -84,12 +86,15 @@ export default async function AdminReviewDetailPage({
     "Audience",
     "Description",
     "Catégorie",
-    "Site web",
     "Plateformes",
     "Modèle",
     "Logo",
   ];
   const optionalFields: { label: string; filled: boolean }[] = [
+    ...linkIds.map((id) => ({
+      label: PRODUCT_LINK_FIELDS[id]?.label ?? id,
+      filled: (item.linkValues[id] ?? "").trim() !== "",
+    })),
     { label: "Version", filled: !!item.version },
     {
       label: `Captures d'écran (${item.screenshots})`,
@@ -98,6 +103,15 @@ export default async function AdminReviewDetailPage({
     { label: "Revenus vérifiés", filled: !!item.revenue },
     { label: "Licence", filled: !!item.license },
     { label: "Commande d'installation", filled: !!item.installCommand },
+    { label: "Vidéo", filled: !!item.videoUrl },
+    { label: "Config requise", filled: !!item.requirements },
+    { label: "Changelog", filled: !!item.changelogUrl },
+    ...(item.audienceId === "kids"
+      ? [
+          { label: "Privacy enfants", filled: (item.linkValues.privacy ?? "").trim() !== "" },
+          { label: "Sécurité enfants", filled: !!item.kidsPolicyUrl },
+        ]
+      : []),
   ];
 
   return (
@@ -149,7 +163,7 @@ export default async function AdminReviewDetailPage({
               {item.waitingText}
             </span>
             {exceeded && (
-              <span className="inline-flex items-center rounded-md border border-red-500/25 bg-red-500/10 px-1.5 py-[3px] text-[9px] font-black uppercase tracking-[0.14em] leading-none text-red-600 dark:text-red-400 shrink-0">
+              <span className="inline-flex items-center rounded-md border border-red-500/25 bg-red-500/10 px-1.5 py-0.75 text-[9px] font-black uppercase tracking-[0.14em] leading-none text-red-600 dark:text-red-400 shrink-0">
                 Dépassé
               </span>
             )}
@@ -160,46 +174,35 @@ export default async function AdminReviewDetailPage({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
         {/* Colonne preuve */}
         <div className="lg:col-span-8 flex flex-col gap-10 min-w-0">
-          <ProofSection title="Liens — tous cliquables">
-            <div className="flex flex-col">
-              {LINK_SLOTS.map((slot) => {
-                const Icon = LINK_ICONS[slot.icon];
-                const link = item.links.find((l) => l.icon === slot.icon);
-                if (!link) {
-                  return (
-                    <div
-                      key={slot.icon}
-                      className="flex items-center gap-3 rounded-2xl px-4 py-3 -mx-4 opacity-60"
-                    >
-                      <span className="h-9 w-9 rounded-xl bg-muted/40 border border-border/40 flex items-center justify-center shrink-0 text-muted-foreground/50">
-                        <Icon weight="fill" className="w-4 h-4" />
-                      </span>
-                      <span className="flex flex-col min-w-0 flex-1">
-                        <span className="text-[14px] font-bold text-muted-foreground">
-                          {slot.label}
-                        </span>
-                        <span className="text-[12px] font-medium text-muted-foreground/60">
-                          Non fourni
-                        </span>
-                      </span>
-                    </div>
-                  );
-                }
-                return (
+          <ProofSection title={`Liens — ${okCount}/${filledLinks.length} joignables`}>
+            <ReviewLinks
+              productType={item.productTypeId}
+              linkValues={item.linkValues}
+              initialVerdicts={verdicts}
+              only={linkIds}
+            />
+            {/* URL sécu enfants — requise si audience kids */}
+            {item.audienceId === "kids" && (
+              <div className="flex flex-col gap-1 rounded-2xl px-4 py-3 -mx-4">
+                {item.kidsPolicyUrl ? (
                   <Link
-                    key={slot.icon}
-                    href={link.href}
+                    href={item.kidsPolicyUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group flex items-center gap-3 rounded-2xl px-4 py-3 -mx-4 hover:bg-muted/50 transition-colors"
+                    className="group flex items-center gap-3"
                   >
-                    <span className="h-9 w-9 rounded-xl bg-muted/40 border border-border/40 flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-foreground transition-colors">
-                      <Icon weight="fill" className="w-4 h-4" />
+                    <span className="h-9 w-9 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center shrink-0 text-amber-600 dark:text-amber-400">
+                      <ShieldCheckIcon weight="fill" className="w-4 h-4" />
                     </span>
                     <span className="flex flex-col min-w-0 flex-1">
-                      <span className="text-[14px] font-bold text-foreground">{slot.label}</span>
+                      <span className="text-[14px] font-bold text-foreground">
+                        Politique de sécurité enfants{" "}
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                          requis
+                        </span>
+                      </span>
                       <span className="text-[12px] font-medium text-muted-foreground truncate">
-                        {link.href}
+                        {item.kidsPolicyUrl}
                       </span>
                     </span>
                     <ArrowSquareOutIcon
@@ -207,55 +210,23 @@ export default async function AdminReviewDetailPage({
                       className="w-4 h-4 text-muted-foreground/60 group-hover:text-foreground transition-colors shrink-0"
                     />
                   </Link>
-                );
-              })}
-              {/* URL sécu enfants — requise si audience kids */}
-              {item.audienceId === "kids" && (
-                <div className="flex flex-col gap-1 rounded-2xl px-4 py-3 -mx-4">
-                  {item.kidsPolicyUrl ? (
-                    <Link
-                      href={item.kidsPolicyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group flex items-center gap-3"
-                    >
-                      <span className="h-9 w-9 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center shrink-0 text-amber-600 dark:text-amber-400">
-                        <ShieldCheckIcon weight="fill" className="w-4 h-4" />
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <span className="h-9 w-9 rounded-xl bg-red-500/10 border border-red-500/25 flex items-center justify-center shrink-0 text-red-500">
+                      <ShieldCheckIcon weight="fill" className="w-4 h-4" />
+                    </span>
+                    <span className="flex flex-col min-w-0 flex-1">
+                      <span className="text-[14px] font-bold text-red-600 dark:text-red-400">
+                        Politique de sécurité enfants — manquante
                       </span>
-                      <span className="flex flex-col min-w-0 flex-1">
-                        <span className="text-[14px] font-bold text-foreground">
-                          Politique de sécurité enfants{" "}
-                          <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
-                            requis
-                          </span>
-                        </span>
-                        <span className="text-[12px] font-medium text-muted-foreground truncate">
-                          {item.kidsPolicyUrl}
-                        </span>
+                      <span className="text-[12px] font-medium text-muted-foreground/70">
+                        Requise pour l&apos;audience -13 ans (store compliance)
                       </span>
-                      <ArrowSquareOutIcon
-                        weight="bold"
-                        className="w-4 h-4 text-muted-foreground/60 group-hover:text-foreground transition-colors shrink-0"
-                      />
-                    </Link>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <span className="h-9 w-9 rounded-xl bg-red-500/10 border border-red-500/25 flex items-center justify-center shrink-0 text-red-500">
-                        <ShieldCheckIcon weight="fill" className="w-4 h-4" />
-                      </span>
-                      <span className="flex flex-col min-w-0 flex-1">
-                        <span className="text-[14px] font-bold text-red-600 dark:text-red-400">
-                          Politique de sécurité enfants — manquante
-                        </span>
-                        <span className="text-[12px] font-medium text-muted-foreground/70">
-                          Requise pour l&apos;audience -13 ans (store compliance)
-                        </span>
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </ProofSection>
 
           <ProofSection title="Fiche">
@@ -308,8 +279,29 @@ export default async function AdminReviewDetailPage({
                 value={item.sharesData ? "Oui — tiers (Ads, Analytics)" : "Non"}
                 muted={!item.sharesData}
               />
+              <TechRow
+                label="Configuration requise"
+                value={item.requirements ?? "Non fournie"}
+                muted={!item.requirements}
+              />
+              <TechRow
+                label="Changelog"
+                value={item.changelogUrl ?? "Non fourni"}
+                muted={!item.changelogUrl}
+              />
             </div>
           </ProofSection>
+
+          {item.videoUrl && (
+            <ProofSection title="Vidéo">
+              <ReviewLinks
+                productType={item.productTypeId}
+                linkValues={{ video: item.videoUrl }}
+                initialVerdicts={verdicts}
+                only={["video"]}
+              />
+            </ProofSection>
+          )}
 
           <ProofSection title="Médias">
             {item.screenshots > 0 ? (
@@ -338,7 +330,7 @@ export default async function AdminReviewDetailPage({
                   Requis — toujours complets
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {requiredFields.map((f) => (
+                  {requiredBase.map((f) => (
                     <span
                       key={f}
                       className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400"
@@ -385,7 +377,7 @@ export default async function AdminReviewDetailPage({
                 <p className="text-[14px] font-medium text-muted-foreground">
                   Clé connectée —{" "}
                   <span className="font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
-                    {formatCompactAr(item.revenue.mrrAr)}
+                    {formatMoney(item.revenue.mrrCents, "USD", { compact: true })}
                   </span>{" "}
                   via {item.revenue.provider === "stripe" ? "Stripe" : "RevenueCat"}
                 </p>
@@ -418,15 +410,21 @@ export default async function AdminReviewDetailPage({
             </h2>
             <div className="flex flex-col gap-2">
               <ChecklistRow
-                ok={item.links.some((l) => l.icon === "globe")}
-                label="Réel et joignable — site fourni"
+                ok={hasAccess}
+                label={
+                  hasAccess
+                    ? `Point d'accès présent — ${okCount}/${filledLinks.length} lien${filledLinks.length > 1 ? "s" : ""} joignable${okCount > 1 ? "s" : ""}`
+                    : "AUCUN point d'accès — rejet probable"
+                }
               />
+              {warnCount > 0 && (
+                <ChecklistRow
+                  ok={false}
+                  label={`${warnCount} lien${warnCount > 1 ? "s" : ""} à examiner (privé ou invérifiable)`}
+                />
+              )}
               <ChecklistRow ok={true} label="Niche & région — catégorie OK" />
               <ChecklistRow ok={true} label="Pas de spam — aucun doublon" />
-              <ChecklistRow
-                ok={item.links.length >= 2}
-                label={`${item.links.length} liens à vérifier`}
-              />
               <ChecklistRow ok={true} label="Icône exploitable — 256px+" />
             </div>
           </div>

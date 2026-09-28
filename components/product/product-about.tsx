@@ -1,67 +1,105 @@
-"use client";
+import { Prose } from "@/components/ui/prose";
+import { getProductById } from "@/services/catalog-mock.service";
+import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react/dist/ssr";
 
-import { useState } from "react";
-import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
-import ReactMarkdown from "react-markdown";
+/**
+ * Description longue d'une fiche produit — **composant serveur**.
+ *
+ * Trois défauts corrigés ici, tous visibles sur la page produit :
+ *
+ * 1. **Le contenu était codé en dur.** Une constante Markdown dans le
+ *    composant décrivait un produit fictif quelle que soit la fiche affichée :
+ *    toutes les pages produit racontaient la même histoire. La prose vient
+ *    maintenant du catalogue, et l'absence de description est un état normal
+ *    (`null` → rien) plutôt qu'un texte fantaisiste.
+ *
+ * 2. **La troncature cassait le markdown.** `split(" ").slice(0, 80)` coupe au
+ *    milieu d'un mot, donc au milieu d'un `**gras**` ou d'une puce : selon
+ *    l'endroit, on affichait des astérisques littéraux ou une puce orpheline.
+ *    Ici on découpe **par blocs** (séparés par une ligne vide) : un bloc est
+ *    entièrement gardé ou entièrement laissé de côté, jamais coupé.
+ *
+ * 3. **Seuls les 80 premiers mots arrivaient au HTML serveur.** Le reste
+ *    n'apparaissait qu'après un clic, donc la description longue n'était pas
+ *    dans le document indexable — contraire au PRD §1 et §6 (« description
+ *    longue (markdown) », pages serveur et indexables).
+ *
+ * **Le repli est une case à cocher CSS, pas un `<details>`.** `<details>` ne
+ * sait replier qu'un bloc entier ; il aurait fallu décider malgré tout où
+ * couper, donc rendre deux fois le markdown (aperçu + suite) — donc
+ * **dupliquer le texte dans le HTML**, ce qui pèse sur l'indexation. Ici le
+ * markdown est rendu **une seule fois, complet** ; c'est une règle CSS
+ * (`[&>h2~*]:hidden`) qui masque ce qui suit le premier `h2` tant que la case
+ * n'est pas cochée. Le texte complet est donc toujours présent dans le HTML
+ * rendu, et le composant n'a besoin d'aucun JavaScript — d'où le passage en
+ * composant serveur, qui rend toute la section indexable.
+ */
+export function ProductAbout({ productId }: { productId: string }) {
+  const product = getProductById(productId);
+  const markdown = product?.description?.trim();
+  // Pas de description longue : on ne rend rien. Un cadre vide serait pire
+  // qu'une absence — le lecteur ne doit pas deviner ce qui manque.
+  if (!product || !markdown) return null;
 
-const FULL_CONTENT = `
-Tarsi est une application de finance personnelle **offline-first** conçue pour les utilisateurs qui veulent reprendre le contrôle de leur argent sans friction. Pensée pour la réalité malgache — des connexions internet instables aux habitudes de paiement en cash — Tarsi fonctionne partout, tout le temps.
-
-## Ce qui rend Tarsi unique
-
-Contrairement aux applications bancaires classiques, Tarsi ne requiert aucune connexion bancaire pour fonctionner. Vous entrez vos transactions manuellement ou vous les importez via CSV, et l'application s'occupe du reste : catégorisation intelligente, alertes de budget, et insights visuels en temps réel.
-
-### Fonctionnalités clés
-
-- **Suivi offline complet** — synchronisé dès que vous vous reconnectez
-- **Interface Zero-UI** — pas de bruit visuel, juste vos données
-- **Budgets intelligents** — alertes à 80% avant de dépasser
-- **Rapports mensuels** — exportables en PDF ou CSV
-- **Multi-devises** — support natif de l'ariary (MGA) et du dollar
-- **Sécurité locale** — vos données ne quittent jamais votre appareil sans votre accord
-
-## Stack technique
-
-Construit avec **Next.js**, **React Native** et **Supabase** pour une expérience native cross-plateforme. Le moteur de synchronisation est basé sur CRDTs pour garantir la cohérence des données sans conflits.
-
-> "Je voulais une app à la fois belle et honnête avec les données. Tarsi, c'est ma réponse à tout ce que les apps de finance font mal." — *Bryl Lim, créateur*
-
-## Roadmap publique
-
-La V2 est en cours de développement avec le support des comptes Mobile Money (MVola, Orange Money) et un mode famille pour les dépenses partagées.
-`;
-
-const PREVIEW_WORDS = 80;
-
-export function ProductAbout() {
-  const [expanded, setExpanded] = useState(false);
-
-  const words = FULL_CONTENT.trim().split(/\s+/);
-  const previewContent = words.slice(0, PREVIEW_WORDS).join(" ") + "…";
-  const shown = expanded ? FULL_CONTENT : previewContent;
+  const collapsible = hasSubsequentBlocks(markdown);
 
   return (
-    <div className="flex flex-col gap-5 pt-6 border-t border-border/40">
-      <h2 className="text-2xl font-extrabold tracking-tight text-foreground">À propos de Tarsi</h2>
+    <section
+      aria-labelledby="product-about"
+      className="flex flex-col gap-5 border-t border-border/40 pt-6"
+    >
+      <h2 id="product-about" className="text-2xl font-extrabold tracking-tight text-foreground">
+        À propos de {product.name}
+      </h2>
 
-      <div className="prose prose-zinc dark:prose-invert prose-p:text-muted-foreground prose-p:font-medium prose-p:leading-relaxed prose-headings:font-extrabold prose-headings:tracking-tight prose-li:font-medium prose-li:text-muted-foreground prose-blockquote:border-l-border prose-blockquote:text-muted-foreground prose-strong:text-foreground max-w-none text-[15px] md:text-[16px] transition-all">
-        <ReactMarkdown>{shown}</ReactMarkdown>
-      </div>
+      {collapsible ? (
+        <div className="group/about">
+          <input
+            type="checkbox"
+            id="product-about-toggle"
+            className="peer sr-only"
+            aria-label={`Afficher la description complète de ${product.name}`}
+          />
 
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="self-start flex items-center gap-1.5 text-[12px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors mt-1"
-      >
-        {expanded ? (
-          <>
-            <CaretUpIcon weight="bold" className="w-3.5 h-3.5" /> Voir moins
-          </>
-        ) : (
-          <>
-            <CaretDownIcon weight="bold" className="w-3.5 h-3.5" /> Voir plus
-          </>
-        )}
-      </button>
-    </div>
+          {/* Repli : on masque tout ce qui suit le premier titre de niveau 2,
+              c'est-à-dire tout au-delà de l'accroche. */}
+          <div className="[&>h2]:mt-8 [&>h2:first-child]:mt-0 [&>h2~*]:hidden peer-checked:[&>h2~*]:block">
+            <Prose className="max-w-none">{markdown}</Prose>
+          </div>
+
+          <label
+            htmlFor="product-about-toggle"
+            className="mt-1 flex w-fit cursor-pointer items-center gap-1.5 text-[12px] font-black uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <CaretDownIcon
+              weight="bold"
+              className="h-3.5 w-3.5 transition-transform duration-200 group-has-checked/about:hidden"
+            />
+            Voir plus
+            <CaretUpIcon
+              weight="bold"
+              className="hidden h-3.5 w-3.5 group-has-checked/about:block"
+            />
+            Voir moins
+          </label>
+        </div>
+      ) : (
+        <Prose className="max-w-none">{markdown}</Prose>
+      )}
+    </section>
   );
+}
+
+/**
+ * Le markdown contient-il des blocs au-delà de son premier `h2` ?
+ *
+ * Sans ce test, une description d'un seul paragraphe poserait un interrupteur
+ * qui ne changeait rien — un contrôle qui ne commande aucun changement, donc
+ * un mensonge de l'interface.
+ */
+function hasSubsequentBlocks(markdown: string): boolean {
+  const blocks = markdown.trim().split(/\n{2,}/);
+  const firstHeading = blocks.findIndex((b) => /^#{2,3}\s/.test(b.trim()));
+  if (firstHeading < 0) return blocks.length > 1;
+  return blocks.slice(firstHeading + 1).some((b) => b.trim() !== "");
 }

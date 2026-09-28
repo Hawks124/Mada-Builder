@@ -75,9 +75,9 @@ export function SubmitBasicsSection() {
         {/* Tagline */}
         <InputField
           label="Tagline"
-          subtitle="Une ligne accrocheuse — jusqu'à 80 caractères."
+          subtitle="Une ligne accrocheuse — jusqu'à 100 caractères."
           placeholder="Envoyez de l'argent, payez vos factures et épargnez dans une seule application."
-          maxLength={80}
+          maxLength={100}
           defaultValue={editApp?.tagline ?? ""}
           isRequired={true}
         />
@@ -112,7 +112,7 @@ export function SubmitBasicsSection() {
         <div className="grid grid-cols-1 gap-8 items-start">
           <div className="flex flex-col gap-2 relative z-10">
             <label className="text-[14px] font-bold text-foreground flex items-center gap-2">
-              Audience & Âge
+              Audience & âge
               <FieldBadge variant="required" />
             </label>
             <Select value={audience} onChange={setAudience} options={AUDIENCE_RATINGS} />

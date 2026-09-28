@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
 
-export const FACEBOOK_GROUP_URL = "https://facebook.com/groups/malagasytech";
+export const FACEBOOK_GROUP_URL = "https://web.facebook.com/groups/facedev.mg?locale=fr_FR";
 
 // Communauté — même pattern hover que ProductDropdown.
 // Contact reste un item mort honnête (pill "Bientôt") jusqu'à la page admin.

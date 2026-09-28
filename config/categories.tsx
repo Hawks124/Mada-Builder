@@ -774,3 +774,70 @@ export const TOTAL_PRODUCT_COUNT = PRODUCT_CATEGORIES.reduce((acc, c) => acc + c
 export function getCategoryById(id: string): ProductCategory | undefined {
   return PRODUCT_CATEGORIES.find((c) => c.id === id);
 }
+
+/**
+ * Familles éditoriales — regroupement des 35 catégories atomiques en 9
+ * domaines. Rôle strictement éditorial : sert à l'index `/categories`
+ * (lisibilité) — PAS une taxonomie de_second niveau, donc pas de
+ * route `/categories/[famille]` (évite des pages quasi vides, PRD §18).
+ */
+export type CategoryFamily = {
+  id: string;
+  label: string;
+  categoryIds: string[];
+};
+
+export const CATEGORY_FAMILIES: CategoryFamily[] = [
+  {
+    id: "business",
+    label: "Business & Travail",
+    categoryIds: ["saas", "productivity", "ecommerce", "employment", "real-estate"],
+  },
+  {
+    id: "tech",
+    label: "Tech & Data",
+    categoryIds: ["dev-tools", "data", "security", "communication", "robotics"],
+  },
+  {
+    id: "ai",
+    label: "IA & Automatisation",
+    categoryIds: ["ai", "iot"],
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    categoryIds: ["finance", "fintech", "blockchain"],
+  },
+  {
+    id: "learning",
+    label: "Savoir & Santé",
+    categoryIds: ["education", "health", "science"],
+  },
+  {
+    id: "impact",
+    label: "Impact & Société",
+    categoryIds: ["social", "nonprofit", "agriculture", "government", "religion"],
+  },
+  {
+    id: "media",
+    label: "Média & Créatif",
+    categoryIds: ["design", "video", "music", "entertainment", "gaming", "news"],
+  },
+  {
+    id: "life",
+    label: "Quotidien",
+    categoryIds: ["lifestyle", "food", "transport", "travel"],
+  },
+  {
+    id: "industry",
+    label: "Infrastructure",
+    categoryIds: ["industry", "other"],
+  },
+];
+
+/** Catégories d'une famille, dans l'ordre de la famille (categories inconnu ignorées). */
+export function getFamilyCategories(family: CategoryFamily): ProductCategory[] {
+  return family.categoryIds
+    .map((id) => PRODUCT_CATEGORIES.find((c) => c.id === id))
+    .filter((c): c is ProductCategory => c != null);
+}

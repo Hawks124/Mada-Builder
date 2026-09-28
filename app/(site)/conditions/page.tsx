@@ -6,7 +6,21 @@ import { getLegalDoc } from "@/lib/legal";
 export async function generateMetadata(): Promise<Metadata> {
   const doc = await getLegalDoc("conditions");
   if (!doc) return {};
-  return { title: doc.title, description: doc.description };
+  return {
+    title: doc.title,
+    description: doc.description,
+    alternates: {
+      canonical: "/conditions",
+      languages: { "fr-FR": "/conditions" },
+    },
+    openGraph: {
+      title: doc.title,
+      description: doc.description,
+      type: "article",
+      locale: "fr_FR",
+      url: "/conditions",
+    },
+  };
 }
 
 export default async function ConditionsPage() {

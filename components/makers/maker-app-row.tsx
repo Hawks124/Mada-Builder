@@ -10,14 +10,14 @@ import {
   AppleLogoIcon,
   AndroidLogoIcon,
 } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { getRatingById } from "@/config/ratings";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { TagPill } from "@/components/ui/tag-pill";
 import { LifecyclePill } from "@/components/ui/lifecycle-pill";
 import { VoteButton } from "@/components/votes/vote-button";
-import { formatCompactAr, type DashboardApp } from "@/components/dashboard/dashboard-mock";
+import type { DashboardApp } from "@/components/dashboard/dashboard-mock";
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   web: <GlobeIcon weight="fill" className="w-3.5 h-3.5" />,
@@ -128,7 +128,7 @@ export function MakerAppRow({ app }: { app: DashboardApp }) {
               className="text-[13px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums"
               title={`MRR vérifié via ${app.revenue.provider}`}
             >
-              {formatCompactAr(app.revenue.mrrAr)}
+              {formatMoney(app.revenue.mrrCents, "USD", { compact: true })}
             </span>
           ))}
 

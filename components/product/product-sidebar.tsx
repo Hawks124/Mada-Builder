@@ -2,23 +2,20 @@
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
-  ShareNetworkIcon,
   SealCheckIcon,
   GlobeIcon,
   AppleLogoIcon,
   CheckCircleIcon,
   XCircleIcon,
-  ArrowSquareOutIcon,
-  GithubLogoIcon,
   DeviceMobileIcon,
   ShieldCheckIcon,
   TwitterLogoIcon,
   LinkedinLogoIcon,
-  CopyIcon,
-  PackageIcon,
   GooglePlayLogoIcon,
 } from "@phosphor-icons/react";
-import { ActionButton } from "@/components/ui/action-button";
+import { ProductLinks, MOCK_TARSI_LINKS } from "@/components/product/product-links";
+import { ShareDialog } from "@/components/product/share-dialog";
+import * as React from "react";
 import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { AgeBadge } from "@/components/ui/age-badge";
@@ -57,62 +54,30 @@ function IndicatorBadge({ active, label }: { active: boolean; label: string }) {
 }
 
 export function ProductSidebar() {
+  const [shareOpen, setShareOpen] = React.useState(false);
   return (
     <div className="flex flex-col gap-6">
-      {/* ── PRIMARY ACTION ───────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-2">
-        <ActionButton
-          href="https://example.com"
-          variant="primary"
-          className="w-full justify-center h-12 text-[15px] font-bold hover:opacity-90 transition-all active:scale-95"
-        >
-          Visiter le site <ArrowSquareOutIcon weight="bold" className="w-4 h-4 ml-1 shrink-0" />
-        </ActionButton>
-
-        {/* Store links — App Store + Google Play */}
-        <div className="flex items-center gap-2">
-          <Link
-            href="https://apps.apple.com"
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-full border border-border/50 bg-muted/20 hover:bg-foreground hover:text-background hover:border-foreground transition-all duration-200 text-[12px] font-bold group"
-          >
-            <AppleLogoIcon weight="fill" className="w-4 h-4" /> App Store
-          </Link>
-          <Link
-            href="https://play.google.com"
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-full border border-border/50 bg-muted/20 hover:bg-foreground hover:text-background hover:border-foreground transition-all duration-200 text-[12px] font-bold group"
-          >
-            <GooglePlayLogoIcon weight="fill" className="w-4 h-4" /> Google Play
-          </Link>
-          <Link
-            href="https://github.com"
-            className="p-2.5 rounded-full border border-border/50 bg-muted/20 hover:bg-foreground hover:text-background hover:border-foreground transition-all duration-200 text-foreground group"
-          >
-            <GithubLogoIcon weight="fill" className="w-4 h-4" />
-          </Link>
-          <button className="p-2.5 rounded-full border border-border/50 bg-muted/20 hover:bg-foreground hover:text-background hover:border-foreground transition-all duration-200 text-foreground group cursor-pointer">
-            <ShareNetworkIcon weight="bold" className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* ── INSTALL COMMAND (for CLI / package products) ──────────────────── */}
-      <div className="flex flex-col gap-3 p-4  bg-muted/10">
-        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-          Installation (NPM)
-        </span>
-        <div className="flex items-center justify-between px-3.5 py-3  bg-background rounded-[5px] border border-border/50 font-mono text-[13px] text-foreground">
-          <span>npm i tarsi-core</span>
-          <button className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted cursor-pointer">
-            <CopyIcon className="w-4 h-4" />
-          </button>
-        </div>
-        <Link
-          href="https://npmjs.com"
-          className="flex items-center justify-center gap-1.5 py-2 rounded-full bg-orange-500/10 text-orange-600 hover:text-white dark:text-orange-400 text-[12px] font-bold hover:bg-orange-500 transition-colors"
-        >
-          <PackageIcon weight="bold" className="w-4 h-4" /> Voir sur NPM
-        </Link>
-      </div>
+      {/* ── PRIMARY ACTION ─────────────────────────────────────────────────
+          Blocs liens par type (matrice product-links) — mock Tarsi en
+          attendant la DB (milestone listings) : même forme que le submit.
+      ─────────────────────────────────────────────────────────────────── */}
+      <ProductLinks
+        productType="app_mobile"
+        links={MOCK_TARSI_LINKS}
+        installCommand={null}
+        share
+        onShare={() => setShareOpen(true)}
+        unverifiedCount={1}
+      />
+      <ShareDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        productName="Tarsi"
+        productLogo={{ initials: "TA", gradient: "from-blue-600 to-indigo-700" }}
+        makerName="Bryl Lim"
+        makerVerified
+        voteCount={311}
+      />
 
       {/* ── MAKER CARD WITH SOCIALS ───────────────────────────────────────── */}
       <div className="flex flex-col gap-4 p-4 rounded-2xl border border-border/40 bg-muted/10 hover:border-border/60 transition-all">
@@ -245,6 +210,19 @@ export function ProductSidebar() {
             value={<span className="text-foreground font-mono text-[11px] font-bold">2.4.1</span>}
           />
           <MetaRow
+            label="Changelog"
+            value={
+              <Link
+                href="https://example.com/changelog"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-foreground font-bold hover:underline"
+              >
+                Notes de version
+              </Link>
+            }
+          />
+          <MetaRow
             label="Licence"
             value={
               <span className="flex items-center justify-end gap-1 text-foreground">
@@ -257,7 +235,7 @@ export function ProductSidebar() {
             label="Public"
             value={<span className="text-foreground font-medium">Particuliers (B2C)</span>}
           />
-          <MetaRow label="Âge" value={<AgeBadge value="4+" size="sm" />} />
+          <MetaRow label="âge" value={<AgeBadge value="4+" size="sm" />} />
         </div>
 
         {/* Indicators: Ads & IAP */}

@@ -5,9 +5,21 @@ import { DeviceMobileIcon, MonitorIcon } from "@phosphor-icons/react/dist/ssr";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { FieldBadge } from "@/components/ui/field-badge";
+import { useSubmitForm } from "@/components/submit/submit-form-context";
+
+/** Orientation par défaut par type (paysage pour jeux et desktop). */
+const LANDSCAPE_TYPES = new Set(["game", "app_desktop"]);
 
 export function SubmitMediaSection() {
-  const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
+  const { productType } = useSubmitForm();
+  // Dérivé au rendu (pas d'effect) : suit le type tant que l'utilisateur
+  // n'a pas choisi — le toggle reste souverain, zéro setState synchrone.
+  const [manual, setManual] = useState<"portrait" | "landscape" | null>(null);
+  const orientation = manual ?? (LANDSCAPE_TYPES.has(productType) ? "landscape" : "portrait");
+
+  const pickOrientation = (value: "portrait" | "landscape") => {
+    setManual(value);
+  };
 
   return (
     <div className="flex flex-col gap-10">
@@ -64,7 +76,7 @@ export function SubmitMediaSection() {
           {/* Orientation Toggle */}
           <div className="flex items-center p-1 rounded-full border border-border/40 bg-transparent">
             <button
-              onClick={() => setOrientation("portrait")}
+              onClick={() => pickOrientation("portrait")}
               className={cn(
                 "px-5 py-2.5 text-[13px] font-bold rounded-full transition-all cursor-pointer flex items-center gap-2",
                 orientation === "portrait"
@@ -79,7 +91,7 @@ export function SubmitMediaSection() {
               Portrait
             </button>
             <button
-              onClick={() => setOrientation("landscape")}
+              onClick={() => pickOrientation("landscape")}
               className={cn(
                 "px-5 py-2.5 text-[13px] font-bold rounded-full transition-all cursor-pointer flex items-center gap-2",
                 orientation === "landscape"

@@ -13,7 +13,7 @@ import {
   AndroidLogoIcon,
   FunnelIcon,
 } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -159,7 +159,7 @@ export function ProductsTable() {
                 `${formatCompactCount(deleteTarget.votes)} votes`,
                 `${formatCompactCount(deleteTarget.views)} vues cumulées`,
                 deleteTarget.revenue
-                  ? `MRR ${deleteTarget.revenue.mrrAr.toLocaleString("fr-FR")} Ar déconnecté`
+                  ? `MRR ${formatMoney(deleteTarget.revenue.mrrCents, "USD", { compact: true })} déconnecté`
                   : "Aucun revenu connecté",
               ]
             : []

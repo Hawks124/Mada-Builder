@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/layout/footer";
 import { DegradedBanner } from "@/components/ui/degraded-banner";
 import { getOnboardingRedirect, isViewerDegraded } from "@/app/actions/onboarding";
 
-// Public shell — global navbar + content wrapper.
+// Public shell — global navbar + content wrapper + footer.
 // Authenticated areas live under (dashboard) without this navbar.
 // Gate /bienvenue (profils incomplets) — inbypassable par navigation.
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
@@ -17,7 +18,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     <>
       {degraded && <DegradedBanner />}
       <Navbar />
+      {/* `flex-1` sur `main` : le footer reste collé en bas sur une page courte. */}
       <main className="flex-1 flex flex-col w-full relative">{children}</main>
+      <Footer />
     </>
   );
 }

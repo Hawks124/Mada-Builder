@@ -59,6 +59,19 @@ clair/sombre), footer juridique (`footer.ts`), footer modération incitatif
 (ban/déban/décision). Rendus couverts par `scripts/verify-email-templates.ts`.
 `appeal-notify` = interne staff (pas de footer légal).
 
+## Liens vérifiés (anti-liens-cassés, allège la revue)
+
+`services/url-check.service.ts` (pur, SSRF durci : scheme http(s),
+blocklist hôtes, DNS→IP validée à chaque hop, redirects ≤ 5, timeouts
+bornés, body jamais stocké/renvoyé) + cache Upstash TTL 24 h (erreurs
+transitoires 5 min) + `POST /api/v1/urls/check` (Bearer, 30/min).
+Verdicts → politique `block` (malformé, privé, DNS, timeout, connexion)
+ou `warn` (404/410, auth, bot, 5xx — submit autorisé + flag revue).
+Formulaire : `config/product-links.tsx` (matrice type → champs, source
+unique), pastille par champ (`useUrlCheck`, debounce), résumé pré-submit.
+Le serveur re-vérifie TOUJOURS (jamais confiance au client). Couvert par
+`scripts/verify-url-check.ts` (loopback éphémère, zéro net externe).
+
 ## Jobs (pg_cron + GitHub Actions si besoin)
 
 - Score leaderboard (15 min), produit du jour (quotidien), sync revenus (horaire) : **pg_cron** (DB-local, pas de secrets en CI).

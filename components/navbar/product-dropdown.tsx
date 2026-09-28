@@ -29,7 +29,7 @@ export function ProductDropdown() {
       <div className="absolute left-0 top-[calc(100%+0.25rem)] z-50 hidden group-hover:block">
         <div className="w-60 rounded-2xl border border-border/60 bg-background/95 backdrop-blur-2xl p-2.5 shadow-2xl flex flex-col gap-1">
           <DropdownItem
-            href="/"
+            href="/leaderboard"
             title="Classement"
             icon={<TrophyIcon weight="fill" className="h-5 w-5" />}
           />

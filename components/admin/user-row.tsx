@@ -137,7 +137,7 @@ export function UserRow({
                   Modo
                 </span>
               ) : user.status === "banned" ? (
-                <span className="inline-flex items-center rounded-md border border-red-500/25 bg-red-500/10 px-1.5 py-[3px] text-[9px] font-black uppercase tracking-[0.14em] leading-none text-red-600 dark:text-red-400 shrink-0">
+                <span className="inline-flex items-center rounded-md border border-red-500/25 bg-red-500/10 px-1.5 py-0.75 text-[9px] font-black uppercase tracking-[0.14em] leading-none text-red-600 dark:text-red-400 shrink-0">
                   Banni
                 </span>
               ) : null
@@ -244,7 +244,7 @@ export function UserRow({
       {/* Ban reason — inline, obligatoire. Indent aligné avatar sur
           desktop, resserré sur mobile (72 px récupérés). */}
       {banning && user.status === "active" && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pl-3 sm:pl-[84px] pr-3 pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 pl-3 sm:pl-21 pr-3 pb-5">
           <input
             type="text"
             value={banReason}
@@ -280,7 +280,7 @@ export function UserRow({
           l'audit post-suivi (un ban pré-suivi vaut 0 — l'afficher serait
           un mensonge), appels vient de la table (fiable). Zéro "0×". */}
       {expanded && (
-        <div className="pl-[84px] pr-3 pb-5">
+        <div className="pl-21 pr-3 pb-5">
           {historyLoading || !history ? (
             <p className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground py-2">
               <Spinner size="xs" />

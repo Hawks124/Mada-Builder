@@ -1,243 +1,147 @@
-"use client";
-
-import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 import Link from "next/link";
-import Image from "next/image";
+import { cn, formatMoney } from "@/lib/utils";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { SealCheckIcon, LockSimpleIcon } from "@phosphor-icons/react";
-import { cn, slugifyName } from "@/lib/utils";
+import { RevenueBadge } from "@/components/revenue/verified-revenue-badge";
+import { RevenueSparkline } from "@/components/revenue/revenue-sparkline";
+import type { RevenueView } from "@/components/revenue/revenue-types";
 
-// Real provider logos stored in /public/logos/
-const PROVIDER_LOGO: Record<
-  "Stripe" | "RevenueCat",
-  { src: string; color: string; label: string }
-> = {
-  Stripe: {
-    src: "/logos/stripe.svg",
-    color: "#635BFF",
-    label: "Stripe",
-  },
-  RevenueCat: {
-    src: "/logos/revenuecat.svg",
-    color: "#F5820D",
-    label: "RevenueCat",
-  },
-};
-
-interface RevenueDataPoint {
-  day: string;
-  revenue: number;
-}
-
-interface VerifiedRevenueCardProps {
-  /* App */
-  appName: string;
-  appTagline: string;
-  appInitials: string;
-  appIconGradient: string;
-  /* Maker */
-  makerName: string;
-  makerAvatar: string;
-  makerVerified?: boolean;
-  /* Revenue */
-  provider: "Stripe" | "RevenueCat";
-  mrr: number;
-  arr: number;
-  activeSubscribers: number;
-  lastSyncedText: string;
-  historyData: RevenueDataPoint[];
-  currency?: string;
-  className?: string;
-}
-
-function formatCompact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
-  return n.toLocaleString("fr-FR");
-}
-
+/**
+ * Card « revenus vérifiés » de la home.
+ *
+ * C'est le SEUL endroit du site où un graphique est le contenu et non de la
+ * décoration : le ranked `/revenue` et la fiche produit ont une ligne, la home
+ * a besoin de l'wow. D'où la card conservée — mais alignée sur la grammaire du
+ * reste (tokens typo du site, badge partagé, courbe partagée, pas de recharts,
+ * pas de glow, pas d'ombre au survol).
+ */
 export function VerifiedRevenueCard({
-  appName,
-  appTagline,
-  appInitials,
-  appIconGradient,
+  productId,
+  productName,
+  productTagline,
+  initials,
+  iconGradient,
   makerName,
   makerAvatar,
-  makerVerified = true,
-  provider,
-  mrr,
-  arr,
-  activeSubscribers,
-  lastSyncedText,
-  historyData,
-  currency = "Ar",
+  revenue,
+  lastSyncedLabel,
   className,
-}: VerifiedRevenueCardProps) {
-  const first = historyData[0]?.revenue ?? 0;
-  const last = historyData[historyData.length - 1]?.revenue ?? 0;
-  const delta = last - first;
-  const pct = first > 0 ? ((delta / first) * 100).toFixed(1) : "0.0";
-  const isUp = delta >= 0;
+}: {
+  productId: string;
+  productName: string;
+  productTagline: string;
+  initials: string;
+  iconGradient: string;
+  makerName: string;
+  makerAvatar: string;
+  revenue: RevenueView;
+  /** « Vérifié il y a 2 h » — calculé côté serveur. */
+  lastSyncedLabel: string;
+  className?: string;
+}) {
+  const hidden = revenue.displayMode === "badge_only";
 
   return (
     <div
       className={cn(
-        "group flex flex-col bg-muted/30 hover:bg-muted/60 rounded-[10px] transition-all duration-300 overflow-hidden border border-transparent hover:border-border/40 hover:shadow-lg",
+        "group relative flex flex-col rounded-[10px] border border-border/40 bg-muted/30 p-6 transition-colors hover:bg-muted/60",
         className,
       )}
     >
-      {/* ── HEADER : App icon + provider badge ── */}
-      <div className="flex items-start justify-between gap-3 p-6 pb-4">
-        {/* App Squircle — same pattern as Ghost Cards */}
-        <div
+      {/* ── Icon + provider, rangé sur une seule ligne ── */}
+      <div className="flex items-center justify-between gap-3">
+        <span
           className={cn(
-            "w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-base bg-linear-to-br shadow-sm shrink-0 transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-2",
-            appIconGradient,
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br text-[15px] font-black text-white",
+            iconGradient,
           )}
         >
-          {appInitials}
-        </div>
-
-        {/* Provider badge — real logo + brand label */}
-        <div className="flex items-center gap-1.5 pt-0.5">
-          <Image
-            src={PROVIDER_LOGO[provider].src}
-            alt={PROVIDER_LOGO[provider].label}
-            width={64}
-            height={16}
-            className="h-4 w-auto object-contain"
-          />
-          <span
-            className="text-[9px] font-black uppercase tracking-widest"
-            style={{ color: PROVIDER_LOGO[provider].color }}
-          >
-            Vérifié
-          </span>
-          <span className="text-[9px] text-muted-foreground font-medium">· {lastSyncedText}</span>
-        </div>
-      </div>
-
-      {/* ── APP NAME + TAGLINE ── */}
-      <div className="flex flex-col gap-0.5 px-6">
-        <h3 className="text-lg font-extrabold tracking-tight text-foreground leading-none line-clamp-1">
-          {appName}
-        </h3>
-        <p className="text-[13px] text-muted-foreground font-medium line-clamp-1">{appTagline}</p>
-      </div>
-
-      {/* ── MRR HERO ── */}
-      <div className="flex items-end justify-between gap-2 px-6 pt-5">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-            MRR
-          </span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-4xl font-black tracking-tighter text-foreground tabular-nums leading-none">
-              {formatCompact(mrr)}
-            </span>
-            <span className="text-base font-bold text-muted-foreground">{currency}</span>
-          </div>
-        </div>
-
-        <span className={cn("text-sm font-black mb-1", isUp ? "text-emerald-600" : "text-red-500")}>
-          {isUp ? "▲" : "▼"} {pct}%
+          {initials}
         </span>
+        <RevenueBadge revenue={revenue} mode="texte" size="md" />
       </div>
 
-      {/* ── SECONDARY METRICS ── no boxes, only whitespace */}
-      <div className="flex items-center gap-6 px-6 pt-3 pb-2">
-        <div className="flex flex-col gap-0">
-          <span className="text-sm font-extrabold text-foreground tabular-nums">
-            {formatCompact(arr)} {currency}
+      {/* ── Nom + tagline ── */}
+      <div className="mt-4 flex flex-col gap-0.5">
+        <h3 className="truncate text-[15px] font-extrabold tracking-tight text-foreground">
+          {productName}
+        </h3>
+        <p className="truncate text-[12px] font-medium text-muted-foreground">{productTagline}</p>
+      </div>
+
+      {hidden ? (
+        /* ── Montant masqué : pas de chiffre, pas de courbe ── */
+        <div className="mt-5 flex flex-col gap-1">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+            Revenu mensuel
           </span>
-          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-            ARR
+          <span className="text-xl font-black tracking-tighter text-foreground">
+            Montant masqué
           </span>
+          <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+            Le maker publie la vérification sans le chiffre.
+          </p>
         </div>
-        <div className="w-px h-7 bg-border/50" />
-        <div className="flex flex-col gap-0">
-          <span className="text-sm font-extrabold text-foreground tabular-nums">
-            {activeSubscribers.toLocaleString("fr-FR")}
-          </span>
-          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-            Abonnés
-          </span>
-        </div>
-      </div>
+      ) : (
+        <>
+          {/* ── MRR ── */}
+          <div className="mt-5 flex items-end justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                Revenu mensuel
+              </span>
+              <span className="text-3xl font-black tabular-nums tracking-tighter text-emerald-600 dark:text-emerald-400 leading-none">
+                {formatMoney(revenue.mrrCents, "USD", { maximumFractionDigits: 0 })}
+              </span>
+            </div>
+            <span className="text-[11px] font-medium text-muted-foreground pb-1">
+              {lastSyncedLabel}
+            </span>
+          </div>
 
-      {/* ── SPARKLINE CHART ── */}
-      <div className="w-full h-28 mt-2 rounded-b-4xl">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={historyData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient
-                id={`grad-${appName.replace(/\s+/g, "-")}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="#10b981" stopOpacity={0.05} />
-              </linearGradient>
-            </defs>
-            <Tooltip
-              contentStyle={{
-                background: "hsl(var(--background))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "10px",
-                fontSize: "12px",
-                fontWeight: "700",
-                color: "hsl(var(--foreground))",
-              }}
-              itemStyle={{ color: "#10b981" }}
-              labelStyle={{
-                color: "hsl(var(--muted-foreground))",
-                fontSize: "10px",
-              }}
-              formatter={(v) =>
-                v !== undefined ? [`${formatCompact(Number(v))} ${currency}`, "MRR"] : ["—", "MRR"]
-              }
-            />
-            <Area
-              type="monotone"
-              dataKey="revenue"
-              stroke="#10b981"
-              strokeWidth={1.5}
-              fill={`url(#grad-${appName.replace(/\s+/g, "-")})`}
-              dot={false}
-              isAnimationActive
-              animationDuration={1000}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+          {/* ── Courbe 90 j ── */}
+          <div className="mt-4">
+            <RevenueSparkline points={revenue.history} height={56} />
+          </div>
 
-      {/* ── FOOTER : Maker + lock disclaimer ── */}
-      <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-border/20">
-        {/* Maker row — same pattern as Leaderboard & Ghost Cards */}
+          {/* ── Sous-métriques ── */}
+          <div className="mt-4 flex items-center gap-5 border-t border-border/20 pt-4">
+            <SubMetric
+              label="Run rate annuel"
+              value={formatMoney(revenue.arrCents, "USD", { compact: true })}
+            />
+            <span className="h-7 w-px bg-border/50" />
+            <SubMetric label="Abonnés" value={revenue.activeSubscribers.toLocaleString("fr-FR")} />
+          </div>
+        </>
+      )}
+
+      {/* ── Maker ── */}
+      <div className="mt-5 flex items-center gap-2 border-t border-border/20 pt-4">
+        <AvatarImage
+          src={makerAvatar}
+          name={makerName}
+          size={22}
+          className="grayscale group-hover:grayscale-0 transition-all"
+        />
+        <span className="truncate text-[12px] font-bold text-foreground">{makerName}</span>
         <Link
-          href={`/makers/${slugifyName(makerName)}`}
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity w-fit"
+          href={`/products/${productId}`}
+          className="ml-auto text-[11px] font-bold text-muted-foreground transition-colors hover:text-foreground"
         >
-          <AvatarImage
-            src={makerAvatar}
-            name={makerName}
-            size={24}
-            className="grayscale group-hover:grayscale-0 transition-all"
-          />
-          <span className="text-xs font-bold text-foreground">{makerName}</span>
-          {makerVerified && (
-            <SealCheckIcon weight="fill" className="w-3.5 h-3.5 text-blue-500 -ml-1" />
-          )}
+          Voir
         </Link>
-
-        {/* Infalsifiable micro-disclaimer */}
-        <div className="flex items-center gap-1 text-muted-foreground/50">
-          <LockSimpleIcon weight="fill" className="w-2.5 h-2.5 shrink-0" />
-          <span className="text-[9px] font-medium">Infalsifiable</span>
-        </div>
       </div>
     </div>
+  );
+}
+
+function SubMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="flex flex-col">
+      <span className="text-[13px] font-extrabold tabular-nums text-foreground">{value}</span>
+      <span className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </span>
+    </span>
   );
 }

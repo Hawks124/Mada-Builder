@@ -162,7 +162,7 @@ export function AppealDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/70 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-black/70 backdrop-blur-md animate-in fade-in duration-200"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !pending) onClose();
       }}
@@ -207,7 +207,7 @@ export function AppealDialog({
                 <span className="text-[11px] font-black uppercase tracking-wider text-red-600 dark:text-red-400">
                   Motif de la suspension
                 </span>
-                <p className="text-sm font-medium text-foreground leading-relaxed break-words">
+                <p className="text-sm font-medium text-foreground leading-relaxed wrap-break-word">
                   {banReason ?? "Aucun motif spécifié."}
                 </p>
               </div>

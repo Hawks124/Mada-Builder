@@ -63,6 +63,7 @@
 | `POST /appeals`             | Bearer (banni OK) | multipart `explanation` + `evidence` ×0–3                                                                          | `{ appealId, seq }` + message `Appel nºX envoyé.`                                                                           |
 | `GET /makers/[username]`    | non               | —                                                                                                                  | profil public (jamais email/motif ; `bannedAt` = badge Suspendu) ; 404 si inconnu                                           |
 | `GET /meta`                 | non               | —                                                                                                                  | référentiel : `occupations` (id/label/description), `defaultOccupation`, `providers`, `limits` — **lire, jamais hardcoder** |
+| `POST /urls/check`          | Bearer            | `{ url, force? }`                                                                                                  | `{ verdict, status, finalUrl, cached }` (toujours 200 ; `block`/`warn` via politique partagée)                              |
 
 Règles produit à réimplémenter à l'identique : nom ≥ 2 caractères ;
 occupation = `GET /meta` (vocabulaire fermé servi par le backend — jamais
