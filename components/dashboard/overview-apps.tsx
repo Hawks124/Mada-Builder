@@ -12,13 +12,12 @@ import {
   AppleLogoIcon,
   AndroidLogoIcon,
 } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SearchInput } from "@/components/ui/search-input";
 import { getLifecycleById } from "@/config/lifecycle";
 import {
   STATUS_META,
-  formatCompactAr,
   formatCompactCount,
   type AppStatus,
   type DashboardApp,
@@ -302,7 +301,7 @@ function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) 
               className="text-[13px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums"
               title={`Revenus vérifiés via ${app.revenue.provider}`}
             >
-              {formatCompactAr(app.revenue.mrrAr)}
+              {formatMoney(app.revenue.mrrCents, "USD", { compact: true })}
             </span>
           )}
         </div>

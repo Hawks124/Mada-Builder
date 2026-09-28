@@ -10,6 +10,7 @@ export interface ChecklistItem {
 }
 
 export interface BenefitItem {
+  title: string;
   text: string;
 }
 
@@ -51,21 +52,50 @@ export const LAUNCH_CHECKLIST: ChecklistItem[] = [
     title: "Un logo lisible",
     desc: "Gardez un logo aux lignes nettes sur un fond uni.",
   },
+  {
+    number: "5",
+    title: "Des liens qui fonctionnent",
+    desc: "Chaque lien est vérifié en direct pendant la saisie. Visez le vert partout — un lien non vérifié ralentit la revue.",
+  },
 ];
 
 // ── 2. WHY PUBLISH BENEFITS ──────────────────────────────────────────────────
 export const WHY_PUBLISH: BenefitItem[] = [
   {
-    text: "Visibilité gratuite auprès des créateurs et devs malgaches.",
+    // **Premier item, volontairement.** C'est l'argument le plus fort et le plus
+    // durable — une fiche indexée vaut mille-six-cents jours, un post de groupe
+    // en vaut un — et c'était le 8e sur 8, donc le moins lu. Le mot « SEO » a
+    // disparu au profit de la conséquence concrète, que tout le monde comprend.
+    title: "Une fiche qui reste en ligne",
+    text: "Chaque fiche est une page à son adresse : indexée par Google, partageable, et qui continue d'être trouvée des années après qu'un post a disparu. Et si vous reliez votre facturation, vos revenus lus en direct deviennent une preuve que personne ne peut inventer.",
   },
   {
-    text: "Boost SEO grâce aux pages indexables dédiées à votre produit.",
+    title: "Tes premiers utilisateurs sont ici",
+    text: "Pas sur Product Hunt : le marché international est saturé et la concurrence écrasante pour un lancement. Tes premiers utilisateurs sont toujours locaux — c'est eux que tu trouves ici, directement, sans budget marketing.",
   },
   {
-    text: "Prouvez vos revenus officiellement avec le badge MRR vérifié Stripe.",
+    title: "Gratuit, sans paperasse",
+    text: "Pas de déclaration sur l'honneur, pas de pièces justificatives, pas d'abonnement pour exister ou pour être vu. Tu publies, point — le reste, c'est ton produit qui parle.",
   },
   {
-    text: "Intégrez la communauté référence de la tech malgache.",
+    title: "Ouvert à tous",
+    text: "Makers comme simples curieux : aucune barrière à l'entrée, aucun gatekeeping, aucun diplôme requis. Si tu construis, tu as ta place ; si tu regardes, bienvenue aussi.",
+  },
+  {
+    title: "Un classement qui ne se vend pas",
+    text: "Ni abonnement « top », ni prime à l'ancienneté : seuls les votes et les commentaires font le rang — et une fiche publiée hier peut dépasser une fiche d'il y a un mois. Les nouveautés ne sont jamais écartées.",
+  },
+  {
+    title: "La vitrine du pays",
+    text: "Publier ici, c'est inscrire ton produit au patrimoine tech local : fierté, valorisation du fait local, support aux makers d'ici — et la possibilité pour chacun de choisir le local sans subir l'ailleurs.",
+  },
+  {
+    title: "Open source jusque dans le code",
+    text: "La plateforme elle-même se construit en public : code ouvert, décisions visibles, contributions bienvenues. La confiance ne se décrète pas, elle s'inspecte.",
+  },
+  {
+    title: "Modération qui donne confiance",
+    text: "Chaque fiche est lue par un humain — en général sous 24 h ouvrées. Cette exigence est ce qui rend l'annuaire crédible : une fiche listée ici a été vérifiée par quelqu'un.",
   },
 ];
 
@@ -102,6 +132,26 @@ export const FIELD_EXPLANATIONS: FieldExplanation[] = [
       "Uniquement pour les packages npm, pip, composer, etc. Laissez ce champ vide si votre produit est une app mobile ou web classique.",
   },
   {
+    field: "Type de produit",
+    explanation:
+      "Ce choix commande tout le formulaire : liens affichés, plateformes suggérées, orientation des captures. Un CLI ne voit pas l'App Store, un jeu voit itch.io — rien d'inutile, rien à deviner.",
+  },
+  {
+    field: "Tags libres",
+    explanation:
+      "Mots-clés qui affinent la découverte (mobile-money, offline-first). Ils nourrissent la recherche et les pages catégorie — pensez comme quelqu'un qui chercherait votre produit.",
+  },
+  {
+    field: "Vérification des liens en direct",
+    explanation:
+      "Chaque URL collée est testée instantanément (pastille verte, ambre ou rouge). Vert = joignable. Ambre = privé ou invérifiable — accepté, signalé à la revue. Rouge = cassé — à corriger avant envoi. Seul un point d'accès (site, store, registre ou démo) est exigé, jamais un champ précis.",
+  },
+  {
+    field: "Vidéo de présentation",
+    explanation:
+      "Bande-annonce ou démo filmée, affichée en grand sur la fiche. Pour un jeu, préférez la démo jouable : on ne liste pas un jeu sans y jouer.",
+  },
+  {
     field: "Clé API Revenus (Stripe / RevenueCat)",
     explanation:
       "Une clé à accès restreint en lecture seule — uniquement votre MRR agrégé. Elle ne peut pas initier de remboursements, de transferts ou de charges. Sur Stripe, créez une clé restreinte avec uniquement la permission 'Lire les charges, abonnements'. Nous la chiffrons avec AES-256 dès réception. Jamais loggée, jamais partagée. Seul vous pouvez la supprimer depuis votre dashboard.",
@@ -135,19 +185,38 @@ export const SECURITY_GUARANTEES: SecurityGuarantee[] = [
 // ── 4. FAQ ───────────────────────────────────────────────────────────────────
 export const FAQ_ITEMS: FaqItem[] = [
   {
+    question: "Pourquoi je ne vois pas les mêmes champs qu'un autre produit ?",
+    answer:
+      "Normal, c'est voulu : le formulaire s'adapte à votre type de produit. Une app mobile demande les stores, un package demande son registre, un jeu demande sa démo jouable. Rien n'est caché — chaque type a juste ses propres champs.",
+  },
+  {
+    // 2e position : c'est la deuxième grande crainte d'un maker, après « mon
+    // formulaire a-t-il l'air correct ». Elle n'était traitée nulle part. La
+    // dernière phrase referme sur le classement invendable, ce qui transforme
+    // une question technique en argument.
+    question: "Est-ce que ma fiche sera visible sur Google ?",
+    answer:
+      "Oui — c'est même l'intérêt principal. Chaque fiche est une page à son adresse propre, indexée par les moteurs, partageable, et qui reste en ligne. Un post dans un groupe disparaît en quelques heures ; une fiche indexée continue d'être trouvée des années après. C'est aussi pour ça qu'aucun abonnement ne vient acheter une meilleure place : le classement ne se vend pas, donc ce qui est bien fait finit par se voir.",
+  },
+  {
     question: "Combien de temps prend la modération ?",
     answer:
-      "Moins de 24h en semaine. Vous recevez un email à l'approbation ou au rejet avec la raison détaillée.",
+      "Chaque fiche est lue par un humain — en général sous 24 h ouvrées. Pas une file façon store : si c'est propre, ça passe vite ; si ça coince, on vous dit exactement quoi corriger. Cette exigence est ce qui rend l'annuaire crédible.",
   },
   {
     question: "Puis-je modifier ma fiche après publication ?",
     answer:
-      "Oui. Tous les champs sont éditables. Seuls le nom et les liens principaux repassent en revue rapide pour éviter les abus.",
+      "Textes et liens : oui, à tout moment (liens revérifiés automatiquement). Seul le nom repasse en revue humaine (anti-squat). Captures et logo : figés après publication en MVP.",
   },
   {
     question: "Que se passe-t-il si mon app est rejetée ?",
     answer:
-      "Vous recevez un email avec la raison précise. Vous pouvez corriger les points soulevés et resoumettre sans délai d'attente supplémentaire.",
+      "Vous recevez la raison précise par email. Corrigez à votre rythme et resoumettez quand c'est prêt — aucun délai imposé, aucun compteur.",
+  },
+  {
+    question: "Un de mes liens est signalé non vérifié, que faire ?",
+    answer:
+      "Vérifiez d'abord l'adresse (faute de frappe, page déplacée). Si le lien est privé (repo privé, site à accès restreint) ou protégé anti-robots, c'est normal : soumettez quand même, la revue humaine tranchera. Seuls les liens cassés (inexistants, timeout) bloquent l'envoi.",
   },
   {
     question: "Mon app doit-elle être malgache ?",

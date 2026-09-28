@@ -97,7 +97,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       <aside
         className={cn(
           "hidden lg:flex shrink-0 flex-col border-r border-border/40 sticky top-0 h-screen py-6 transition-all duration-300",
-          collapsed ? "w-[76px] px-3" : "w-64 px-4",
+          collapsed ? "w-19 px-3" : "w-64 px-4",
         )}
       >
         <AdminSidebarBody pathname={pathname} collapsed={collapsed} onToggle={toggle} />

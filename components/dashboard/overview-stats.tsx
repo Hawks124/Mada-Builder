@@ -4,12 +4,8 @@ import {
   StarIcon,
   SealCheckIcon,
 } from "@phosphor-icons/react/dist/ssr";
-import { cn } from "@/lib/utils";
-import {
-  formatCompactAr,
-  formatCompactCount,
-  type DashboardTotals,
-} from "@/components/dashboard/dashboard-mock";
+import { cn, formatMoney } from "@/lib/utils";
+import { formatCompactCount, type DashboardTotals } from "@/components/dashboard/dashboard-mock";
 
 type DeltaTone = "up" | "down" | "neutral";
 
@@ -66,7 +62,7 @@ export function OverviewStats({
           revenueDisplay === "full"
             ? {
                 label: "MRR vérifié",
-                value: formatCompactAr(totals.totalMrrAr),
+                value: formatMoney(totals.totalMrrCents, "USD", { compact: true }),
                 delta: "revenus prouvés",
                 tone: "up",
               }
@@ -126,7 +122,7 @@ export function OverviewStats({
           },
           {
             label: "MRR vérifié",
-            value: formatCompactAr(totals.totalMrrAr),
+            value: formatMoney(totals.totalMrrCents, "USD", { compact: true }),
             delta: "+8 % cette semaine",
             tone: "up",
           },

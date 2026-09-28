@@ -47,6 +47,20 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Pastille de vérification : apparition douce à chaque changement d'état. */
+  --animate-field-pop: field-pop 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes field-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 body {
@@ -92,6 +106,167 @@ html {
   background-color: var(--muted-foreground);
 }
 
+/* ── Isometric Constellation (Community CTA) ── */
+.iso-scene {
+  perspective: 1200px;
+  transform-style: preserve-3d;
+}
+
+.iso-container {
+  transform-style: preserve-3d;
+  transform: rotateX(58deg) rotateZ(-40deg);
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.group:hover .iso-container {
+  /* Subtle camera lift and zoom on hover */
+  transform: rotateX(54deg) rotateZ(-36deg) scale(1.03);
+}
+
+.iso-card-wrapper {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin-top: calc(var(--h) * -0.5);
+  margin-left: calc(var(--w) * -0.5);
+  width: var(--w);
+  height: var(--h);
+  transform: translate3d(var(--x, 0), var(--y, 0), var(--z, 0));
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* Base positions (X and Y offsets from center, Z for altitude) */
+.iso-wrapper-hub {
+  --x: 0px;
+  --y: 0px;
+  --z: 0px;
+}
+.iso-wrapper-top {
+  --x: -160px;
+  --y: -160px;
+  --z: 60px;
+}
+.iso-wrapper-bot {
+  --x: 160px;
+  --y: 160px;
+  --z: -40px;
+}
+.iso-wrapper-sat1 {
+  --x: 170px;
+  --y: -110px;
+  --z: 40px;
+}
+.iso-wrapper-sat2 {
+  --x: -120px;
+  --y: 140px;
+  --z: 80px;
+}
+
+/* Exploded spreading view on Hover */
+.group:hover .iso-wrapper-top {
+  --x: -210px;
+  --y: -210px;
+  --z: 80px;
+}
+.group:hover .iso-wrapper-bot {
+  --x: 210px;
+  --y: 210px;
+  --z: -60px;
+}
+.group:hover .iso-wrapper-sat1 {
+  --x: 220px;
+  --y: -130px;
+  --z: 50px;
+}
+.group:hover .iso-wrapper-sat2 {
+  --x: -160px;
+  --y: 180px;
+  --z: 110px;
+}
+
+/* Smooth Entrance Cascade */
+@keyframes iso-reveal {
+  0% {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.iso-enter {
+  animation: iso-reveal 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.iso-enter-hub {
+  animation-delay: 0.1s;
+}
+.iso-enter-sat1 {
+  animation-delay: 0.2s;
+}
+.iso-enter-top {
+  animation-delay: 0.3s;
+}
+.iso-enter-bot {
+  animation-delay: 0.4s;
+}
+.iso-enter-sat2 {
+  animation-delay: 0.5s;
+}
+
+/* Continuous floating animation */
+@keyframes iso-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(var(--float-y, -6px));
+  }
+}
+.iso-floater {
+  animation: iso-float var(--dur, 6s) ease-in-out infinite;
+  animation-direction: var(--float-dir, normal);
+  width: 100%;
+  height: 100%;
+}
+
+/* Base Shadow (Ambient Occlusion effect) */
+@keyframes shadow-ao {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translateZ(var(--shadow-z, -160px)) scale(1.1);
+    opacity: 0.15;
+  }
+  50% {
+    transform: translate(-50%, -50%) translateZ(var(--shadow-z, -160px)) scale(0.95);
+    opacity: 0.08;
+  }
+}
+.iso-shadow {
+  animation: shadow-ao 8s ease-in-out infinite;
+}
+
+/* Glass Specular Reflection */
+.glass-sheen {
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.4) 25%,
+    transparent 30%
+  );
+}
+.dark .glass-sheen {
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.06) 25%,
+    transparent 30%
+  );
+}
+
 /* ── Metal Scan Animation (Community CTA — Madagascar dot map) ── */
 @keyframes metal-sweep {
   0% {
@@ -99,5 +274,23 @@ html {
   }
   100% {
     transform: translateX(220%) translateY(100%) rotate(160deg);
+  }
+}
+
+/* ── Footer Destinations Marquee ── */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-25%);
+  }
+}
+@keyframes marquee-reverse {
+  0% {
+    transform: translateX(-25%);
+  }
+  100% {
+    transform: translateX(0);
   }
 }

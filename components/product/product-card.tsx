@@ -12,6 +12,8 @@ import { getCategoryById } from "@/config/categories";
 import { VoteButton } from "@/components/votes/vote-button";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { LifecyclePill } from "@/components/ui/lifecycle-pill";
+import { deriveRevenueView } from "@/components/revenue/revenue-derive";
+import { RevenueBadge } from "@/components/revenue/verified-revenue-badge";
 import Link from "next/link";
 
 // Extracted from NewestProducts to be used globally (NewestProducts, DiscoverGrid, etc.)
@@ -31,6 +33,10 @@ export type ProductCardProps = {
   classification: string;
   lifecycle?: string;
   comments?: number;
+  /** MRR vérifié en centimes — null/absent = pas de badge (jamais de faux chiffre). */
+  mrrCents?: number | null;
+  /** Date ISO de publication — sert au badge "Nouveau" du tri récent. */
+  publishedAt?: string | null;
 };
 
 export function ProductCard({ product }: { product: ProductCardProps }) {
@@ -117,6 +123,12 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
               <span className="text-[9px] font-black uppercase tracking-widest text-[#B58A43]">
                 Payant
               </span>
+            </>
+          )}
+          {product.mrrCents != null && product.mrrCents > 0 && (
+            <>
+              <div className="w-0.75 h-0.75 rounded-full bg-border" />
+              <RevenueBadge revenue={deriveRevenueView(product.id, product.mrrCents)} size="sm" />
             </>
           )}
         </div>

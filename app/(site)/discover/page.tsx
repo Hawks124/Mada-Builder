@@ -1,37 +1,32 @@
-"use client";
+import { DiscoverClient } from "@/components/discover/discover-client";
+import { parseDiscoverFilters } from "@/lib/discover-filters";
 
-import { useState } from "react";
-import { DiscoverToolbar } from "@/components/discover/discover-toolbar";
-import { DiscoverGrid } from "@/components/discover/discover-grid";
+type SearchParams = Record<string, string | string[] | undefined>;
 
-export default function DiscoverPage() {
-  const [searchQuery, setSearchQuery] = useState("");
+/**
+ * `/discover` — serveur : l'URL est lue ici et transformée en état de
+ * filtres (cf. lib/discover-filters). Le client ne fait que rendre et
+ * navigue au clic ; il n'existe donc pas deux états à synchroniser.
+ */
+export default async function DiscoverPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const sp = await searchParams;
+
+  // searchParams → URLSearchParams (params répétés pour les facettes multi).
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (Array.isArray(value)) value.forEach((v) => params.append(key, v));
+    else if (typeof value === "string") params.set(key, value);
+  }
 
   return (
-    <div className="flex flex-col w-full min-h-[calc(100vh-72px)] bg-background">
-      {/* ── HEADER & TOOLBAR ── */}
-      <div className="w-full border-b border-border/40 bg-background">
-        <div className="container px-4 md:px-8 max-w-7xl mx-auto py-8">
-          <div className="mb-6">
-            <h1 className="text-3xl md:text-[2.5rem] font-extrabold tracking-tighter text-foreground leading-none">
-              Explorer la tech malgache
-            </h1>
-            <p className="text-muted-foreground font-medium md:text-lg tracking-tight mt-2 max-w-2xl">
-              <span className="font-bold text-foreground"> +{`1 329`} </span> produits, apps, SaaS
-              et outils construits par des makers de Madagascar. Découvrez, votez, et soutenez la
-              scène locale.
-            </p>
-          </div>
-          <DiscoverToolbar onSearchChange={setSearchQuery} />
-        </div>
-      </div>
-
-      {/* ── MAIN GRID ── */}
-      <div className="w-full flex-1">
-        <div className="container px-4 md:px-8 max-w-7xl mx-auto py-10">
-          <DiscoverGrid searchQuery={searchQuery} />
-        </div>
-      </div>
-    </div>
+    <DiscoverClient
+      initialFilters={parseDiscoverFilters(params)}
+      initialQuery={typeof sp.q === "string" ? sp.q : ""}
+      initialPage={Math.max(1, Number.parseInt(params.get("page") ?? "1", 10) || 1)}
+    />
   );
 }

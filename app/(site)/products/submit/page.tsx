@@ -7,6 +7,7 @@ import { SubmitCategoriesSection } from "@/components/submit/submit-categories-s
 import { SubmitMetadataSection } from "@/components/submit/submit-metadata-section";
 import { SubmitMediaSection } from "@/components/submit/submit-media-section";
 import { SubmitLinksSection } from "@/components/submit/submit-links-section";
+import { SubmitLinksSummary } from "@/components/submit/submit-links-summary";
 import { SubmitFormProvider, useSubmitForm } from "@/components/submit/submit-form-context";
 import { ActionButton } from "@/components/ui/action-button";
 
@@ -48,6 +49,7 @@ function SubmitForm() {
             <SubmitMediaSection />
 
             {/* Bottom Actions */}
+            <SubmitLinksSummary />
             <div className="flex items-center justify-end gap-4 pt-8">
               <button className="px-6 h-12 bg-muted/30 text-foreground hover:bg-muted/60 rounded-full text-[15px] font-bold tracking-wide transition-colors cursor-pointer">
                 Enregistrer le brouillon

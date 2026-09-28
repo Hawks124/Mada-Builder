@@ -42,7 +42,7 @@ const ZERO_TOTALS: DashboardTotals = {
   totalListings: 0,
   totalViews: 0,
   pendingCount: 0,
-  totalMrrAr: 0,
+  totalMrrCents: 0,
   totalComments: 0,
   globalRating: 0,
 };
@@ -210,7 +210,7 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
                   aria-label={`${social.label} de ${profile.displayName} (nouvel onglet)`}
                   className="flex items-center justify-center h-10 w-10 rounded-full border border-border/40 text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-muted/50 transition-colors"
                 >
-                  <social.icon weight="fill" className="w-[18px] h-[18px]" />
+                  <social.icon weight="fill" className="w-4.5 h-4.5" />
                 </Link>
               ))}
             </div>

@@ -28,12 +28,6 @@ export type AdminUser = {
   joinedText: string;
 };
 
-export type ReviewLink = {
-  label: string;
-  href: string;
-  icon: "globe" | "apple" | "play" | "github" | "shield" | "file";
-};
-
 export type ReviewItem = {
   id: string;
   productName: string;
@@ -59,7 +53,16 @@ export type ReviewItem = {
   sharesData: boolean;
   lifecycle: "dev" | "beta" | "live";
   tags: string[];
-  links: ReviewLink[];
+  /** Liens soumis — field-id (matrice product-links) → URL. EXACTEMENT la
+      forme du submit (le backend branchera la DB sans toucher le cockpit). */
+  linkValues: Record<string, string>;
+  /** Vidéo de présentation (banner standalone côté fiche). */
+  videoUrl?: string;
+  /** Config requise + changelog — affichés quand présents (données
+      historiques/import : l'admin montre ce qui existe, le formulaire
+      restreint la saisie au game/desktop/os). */
+  requirements?: string;
+  changelogUrl?: string;
   iconGradient: string;
   initials: string;
   /** Captures fournies (0 = slot "Non fourni"). */
@@ -67,7 +70,7 @@ export type ReviewItem = {
   waitingText: string;
   /** Heures d'attente — SLA 24 h (→ published_at backend). */
   waitingHours: number;
-  revenue?: { provider: "stripe" | "revenuecat"; mrrAr: number };
+  revenue?: { provider: "stripe" | "revenuecat"; mrrCents: number };
 };
 
 export type ActivitySubject =
@@ -203,7 +206,7 @@ export type AdminProduct = {
   votes: number;
   views: number;
   rating: number;
-  revenue?: { provider: "stripe" | "revenuecat"; mrrAr: number };
+  revenue?: { provider: "stripe" | "revenuecat"; mrrCents: number };
   iconGradient: string;
   initials: string;
   maker: AdminProductMaker;
@@ -236,7 +239,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
     votes: 342,
     views: 12400,
     rating: 4.9,
-    revenue: { provider: "stripe", mrrAr: 1200000 },
+    revenue: { provider: "stripe", mrrCents: 25_000 },
     iconGradient: "from-zinc-800 to-zinc-950",
     initials: "AV",
     maker: {
@@ -311,7 +314,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
     votes: 96,
     views: 4100,
     rating: 4.8,
-    revenue: { provider: "revenuecat", mrrAr: 320000 },
+    revenue: { provider: "revenuecat", mrrCents: 9_400 },
     iconGradient: "from-blue-600 to-indigo-600",
     initials: "VA",
     maker: {
@@ -394,17 +397,22 @@ export const MOCK_REVIEW_QUEUE: ReviewItem[] = [
     sharesData: false,
     lifecycle: "live",
     tags: ["paie", "compliance", "b2b"],
-    links: [
-      { label: "Site web", href: "https://payemalagasy.com", icon: "globe" },
-      { label: "GitHub", href: "https://github.com/kaliana/paye", icon: "github" },
-      { label: "Confidentialité", href: "https://payemalagasy.com/privacy", icon: "shield" },
-    ],
+    linkValues: {
+      website: "https://payemalagasy.com",
+      source: "https://github.com/kaliana/paye",
+      docs: "https://docs.payemalagasy.com",
+      privacy: "https://payemalagasy.com/privacy",
+      demo: "https://demo.payemalagasy.com",
+    },
+    videoUrl: "https://www.youtube.com/watch?v=mock-paye-1234",
+    requirements: "Navigateur récent, connexion internet",
+    changelogUrl: "https://payemalagasy.com/changelog",
     iconGradient: "from-orange-500 to-amber-600",
     initials: "PM",
     screenshots: 3,
     waitingText: "En attente depuis 2 j",
     waitingHours: 48,
-    revenue: { provider: "stripe", mrrAr: 85000 },
+    revenue: { provider: "stripe", mrrCents: 4_200 },
   },
   {
     id: "tsenabora",
@@ -428,14 +436,10 @@ export const MOCK_REVIEW_QUEUE: ReviewItem[] = [
     sharesData: false,
     lifecycle: "live",
     tags: ["tourisme", "audio"],
-    links: [
-      { label: "Site web", href: "https://tsenabora.mg", icon: "globe" },
-      {
-        label: "Google Play",
-        href: "https://play.google.com/store/apps/details?id=tsenabora",
-        icon: "play",
-      },
-    ],
+    linkValues: {
+      website: "https://tsenabora.mg",
+      playstore: "https://play.google.com/store/apps/details?id=tsenabora",
+    },
     iconGradient: "from-cyan-500 to-sky-600",
     initials: "TS",
     screenshots: 2,
@@ -463,7 +467,11 @@ export const MOCK_REVIEW_QUEUE: ReviewItem[] = [
     sharesData: true,
     lifecycle: "beta",
     tags: ["notes"],
-    links: [{ label: "Site web", href: "https://moranotes.app", icon: "globe" }],
+    linkValues: {
+      website: "https://moranotes.app",
+      docs: "https://docs.moranotes.app",
+      privacy: "https://moranotes.app/privacy",
+    },
     iconGradient: "from-violet-500 to-purple-600",
     initials: "MN",
     screenshots: 0,

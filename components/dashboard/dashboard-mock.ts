@@ -6,7 +6,7 @@ export type AppStatus = "live" | "pending" | "rejected";
 
 export type DashboardRevenue = {
   provider: "stripe" | "revenuecat";
-  mrrAr: number;
+  mrrCents: number;
   /** §12 display_mode — badge_only masque le chiffre exact en public. */
   displayMode?: "full" | "badge_only";
 };
@@ -78,7 +78,7 @@ export const MOCK_APPS: DashboardApp[] = [
     rating: 4.9,
     ratingsCount: 120,
     status: "live",
-    revenue: { provider: "stripe", mrrAr: 1200000 },
+    revenue: { provider: "stripe", mrrCents: 25_000 },
     iconGradient: "from-zinc-800 to-zinc-950",
     initials: "AV",
   },
@@ -126,7 +126,7 @@ export const MOCK_APPS: DashboardApp[] = [
     status: "live",
     revenue: {
       provider: "revenuecat",
-      mrrAr: 320000,
+      mrrCents: 9_400,
       displayMode: "badge_only",
     },
     iconGradient: "from-blue-600 to-indigo-600",
@@ -209,7 +209,7 @@ export type DashboardTotals = {
   totalListings: number;
   totalViews: number;
   pendingCount: number;
-  totalMrrAr: number;
+  totalMrrCents: number;
   totalComments: number;
   globalRating: number;
 };
@@ -223,7 +223,7 @@ export function getDashboardTotals(apps: DashboardApp[]): DashboardTotals {
     totalListings: apps.length,
     totalViews: apps.reduce((acc, a) => acc + a.views, 0),
     pendingCount: apps.filter((a) => a.status === "pending").length,
-    totalMrrAr: apps.reduce((acc, a) => acc + (a.revenue?.mrrAr ?? 0), 0),
+    totalMrrCents: apps.reduce((acc, a) => acc + (a.revenue?.mrrCents ?? 0), 0),
     totalComments: apps.reduce((acc, a) => acc + a.comments, 0),
     globalRating: totalRatings > 0 ? Math.round((weightedSum / totalRatings) * 10) / 10 : 0,
   };
@@ -234,14 +234,4 @@ export function formatCompactCount(n: number): string {
     return `${(n / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} k`;
   }
   return `${n}`;
-}
-
-export function formatCompactAr(n: number): string {
-  if (n >= 1000000) {
-    return `${(n / 1000000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} M Ar`;
-  }
-  if (n >= 1000) {
-    return `${(n / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} k Ar`;
-  }
-  return `${n} Ar`;
 }

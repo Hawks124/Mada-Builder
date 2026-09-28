@@ -4,10 +4,10 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { KeyIcon, TrashIcon, ArrowClockwiseIcon, PlugsConnectedIcon } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SupportedProviders } from "@/components/dashboard/supported-providers";
-import { MOCK_APPS, formatCompactAr } from "@/components/dashboard/dashboard-mock";
+import { MOCK_APPS } from "@/components/dashboard/dashboard-mock";
 
 export type RevenueProvider = "stripe" | "revenuecat";
 
@@ -19,7 +19,7 @@ export type ApiConnection = {
   status: "active" | "failing";
   lastSyncedText: string;
   lastError?: string;
-  mrrAr: number;
+  mrrCents: number;
 };
 
 const PROVIDER_META: Record<
@@ -53,7 +53,7 @@ const MOCK_CONNECTIONS: ApiConnection[] = [
     productName: "Avotra HR",
     status: "active",
     lastSyncedText: "il y a 2 h",
-    mrrAr: 1200000,
+    mrrCents: 25_000,
   },
   {
     id: "conn-vatsy-rc",
@@ -63,7 +63,7 @@ const MOCK_CONNECTIONS: ApiConnection[] = [
     status: "failing",
     lastSyncedText: "il y a 3 j",
     lastError: "Clé révoquée côté RevenueCat",
-    mrrAr: 320000,
+    mrrCents: 9_400,
   },
 ];
 
@@ -140,7 +140,7 @@ export function ApiConnections() {
                   </Link>
                   <span
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-md border px-1.5 py-[3px] text-[9px] font-black uppercase tracking-[0.14em] leading-none shrink-0",
+                      "inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.75 text-[9px] font-black uppercase tracking-[0.14em] leading-none shrink-0",
                       conn.status === "active"
                         ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                         : "border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-400",
@@ -156,7 +156,7 @@ export function ApiConnections() {
                   className="hidden sm:block row-span-2 text-[15px] font-black tabular-nums text-emerald-600 dark:text-emerald-400 whitespace-nowrap"
                   title={`MRR synchronisé via ${meta.label}`}
                 >
-                  {formatCompactAr(conn.mrrAr)}
+                  {formatMoney(conn.mrrCents, "USD", { compact: true })}
                 </span>
 
                 {/* Provider + sync */}

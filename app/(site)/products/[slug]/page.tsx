@@ -9,6 +9,7 @@ import { ProductReviews } from "@/components/product/product-reviews";
 import { ProductComments } from "@/components/product/product-comments";
 import { RelatedProducts } from "@/components/product/related-products";
 import { ProductSidebar } from "@/components/product/product-sidebar";
+import { MOCK_TARSI_VIDEO, ProductVideoBanner } from "@/components/product/product-links";
 
 export default function ProductPage() {
   return (
@@ -31,8 +32,12 @@ export default function ProductPage() {
         <div className="lg:col-span-8 flex flex-col gap-10 md:gap-12">
           <ProductHeader />
           <ProductGallery />
-          <ProductAbout />
-          <ProductVerifiedRevenue />
+          <section className="flex flex-col gap-4" aria-label="Démo vidéo">
+            <h2 className="text-2xl font-extrabold tracking-tight text-foreground">Démo vidéo</h2>
+            <ProductVideoBanner videoUrl={MOCK_TARSI_VIDEO} />
+          </section>
+          <ProductAbout productId="p1" />
+          <ProductVerifiedRevenue productId="p1" />
           <RelatedProducts />
           <ProductReviews id="reviews" />
           <ProductComments />

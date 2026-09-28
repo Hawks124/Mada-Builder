@@ -137,6 +137,7 @@ export function SubmitGuidanceSidebar() {
                 className="w-5 h-5 text-emerald-600 dark:text-emerald-500 shrink-0 mt-0.5"
               />
               <p className="text-[13px] font-medium text-muted-foreground leading-relaxed">
+                <span className="text-foreground font-bold">{item.title}. </span>
                 {item.text}
               </p>
             </div>
