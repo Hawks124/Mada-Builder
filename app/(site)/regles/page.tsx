@@ -49,7 +49,19 @@ const RULES = [
   {
     id: "regles-votes-loyaux",
     title: "Des votes loyaux",
-    body: "Un vote par utilisateur et par produit. Les anneaux de vote, les bots et les faux comptes excluent du classement, voire du compte. Le classement ne se vend ni ne s'achète.",
+    body: (
+      <>
+        Un vote par utilisateur et par produit. Pour que personne ne truque le classement en créant
+        des comptes à la chaîne, les comptes de moins d&apos;une heure ne peuvent pas encore voter
+        et les votes des comptes de moins de 24 h s&apos;affichent sans peser au classement. Les
+        anneaux de vote, les bots et les faux comptes excluent du classement, voire du compte. Le
+        classement ne se vend ni ne s&apos;achète.{" "}
+        <Link href="/conditions" className="font-bold underline underline-offset-4">
+          Détail dans les conditions
+        </Link>
+        .
+      </>
+    ),
   },
   {
     id: "regles-respect",

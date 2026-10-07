@@ -12,9 +12,9 @@ import {
   encodeCursor,
   getAdminUsers,
   setUserRole,
+  syncRoleMirror,
   unbanUser,
 } from "@/services/users.service";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email";
 import {
   roleNotifyHtml,
@@ -31,6 +31,7 @@ import { closePendingAppealsForUser } from "@/services/appeals.service";
 import { captureError } from "@/lib/monitoring";
 import { appOrigin } from "@/app/actions/auth";
 import { logAdminAction } from "@/services/admin-audit.service";
+import { notify } from "@/services/notifications.service";
 
 export type AdminActionState = { ok: boolean; message: string | null };
 
@@ -40,6 +41,10 @@ export type StaffRole = "admin" | "moderateur";
 /**
  * Garde staff — DB = vérité (le layout/proxy lisent le miroir JWT,
  * les actions relisent le rôle table, cf. docs/auth.md §2-3).
+ * Messages DISTINCTS par cause (sinon "Réservé à l'équipe" masque tout :
+ * ligne manquante, rôle insuffisant, session d'un autre compte) + log
+ * serveur (id + rôle trouvé, jamais d'email) pour un diagnostic en
+ * 10 secondes au prochain incident.
  */
 export async function requireStaffId(): Promise<{ id: string; role: StaffRole }> {
   const user = await getSessionUser();
@@ -49,7 +54,22 @@ export async function requireStaffId(): Promise<{ id: string; role: StaffRole }>
     .from(users)
     .where(eq(users.id, user.id))
     .limit(1);
-  if (!row || (row.role !== "admin" && row.role !== "moderateur")) {
+  if (!row) {
+    captureError(new Error("staff-guard: session sans ligne users"), {
+      op: "admin.requireStaffId",
+      userId: user.id,
+    });
+    throw new ProfileError(
+      "FORBIDDEN",
+      "Compte introuvable — reconnectez-vous, ou contactez un admin.",
+    );
+  }
+  if (row.role !== "admin" && row.role !== "moderateur") {
+    captureError(new Error("staff-guard: rôle insuffisant"), {
+      op: "admin.requireStaffId",
+      userId: user.id,
+      role: row.role,
+    });
     throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
   }
   return { id: user.id, role: row.role };
@@ -98,11 +118,18 @@ export async function banUserAction(input: {
       action: "ban",
       note: reason,
     });
+    await notify({
+      userId: input.userId,
+      kind: "banned",
+      title: `Compte suspendu — ${reason}`,
+      actorId: id,
+    });
     try {
       const origin = await appOrigin();
       await sendEmail({
         to: email,
         subject: banNotifySubject(),
+        template: "ban-notify",
         html: banNotifyHtml({
           displayName,
           banReason: reason,
@@ -138,11 +165,18 @@ export async function unbanUserAction(input: { userId: string }): Promise<AdminA
       targetId: input.userId,
       action: "unban",
     });
+    await notify({
+      userId: input.userId,
+      kind: "unbanned",
+      title: "Compte rétabli — bienvenue !",
+      actorId: id,
+    });
     const closed = await closePendingAppealsForUser(input.userId).catch(() => 0);
     try {
       await sendEmail({
         to: email,
         subject: unbanNotifySubject(),
+        template: "unban-notify",
         html: unbanNotifyHtml({ displayName, origin: await appOrigin(), timeZone }),
         text: unbanNotifyText({ displayName, origin: await appOrigin(), timeZone }),
       });
@@ -218,6 +252,9 @@ const ACTION_LABELS: Record<string, string> = {
   demote: "Rétrogradé",
   appeal_upheld: "Appel maintenu",
   appeal_overturned: "Appel accepté",
+  product_published: "Produit publié",
+  product_rejected: "Produit rejeté",
+  product_removed: "Produit retiré",
 };
 
 export async function getUserHistoryAction(input: {
@@ -320,22 +357,22 @@ export async function setUserRoleAction(input: {
       targetId: input.userId,
       action: role === "moderateur" ? "promote" : "demote",
     });
+    await notify({
+      userId: input.userId,
+      kind: "role_changed",
+      title: role === "moderateur" ? "Vous êtes modérateur" : "Retour au rôle maker",
+      actorId: adminId,
+    });
 
-    // Miroir JWT : lu par proxy.ts + layout (zéro requête DB par hit).
+    // Miroir JWT : lu par proxy.ts (zéro requête DB par hit).
     // Merge avec l'existant — un écrasement effacerait d'autres clés.
     try {
-      const admin = createAdminClient();
-      const { data } = await admin.auth.admin.getUserById(input.userId);
-      const current = (data.user?.app_metadata ?? {}) as Record<string, unknown>;
-      const { error } = await admin.auth.admin.updateUserById(input.userId, {
-        app_metadata: { ...current, role },
-      });
-      if (error) throw error;
+      await syncRoleMirror(input.userId, role);
     } catch (e) {
-      captureError(e, { op: "admin.roleMirror" });
+      captureError(e instanceof Error ? e : new Error(String(e)), { op: "admin.roleMirror" });
       return {
         ok: false,
-        message: "Rôle table OK, miroir JWT en échec — réessayez.",
+        message: e instanceof Error ? e.message : "Rôle table OK, miroir JWT en échec — réessayez.",
       };
     }
 
@@ -345,6 +382,7 @@ export async function setUserRoleAction(input: {
       await sendEmail({
         to: email,
         subject: roleNotifySubject(promoted),
+        template: "role-notify",
         html: roleNotifyHtml({ displayName, promoted, origin, timeZone }),
         text: roleNotifyText({ displayName, promoted, origin, timeZone }),
       });

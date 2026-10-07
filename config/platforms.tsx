@@ -5,6 +5,7 @@ import {
   Monitor,
   Terminal,
   WindowsLogo,
+  LinuxLogo,
 } from "@phosphor-icons/react/dist/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -62,6 +63,7 @@ export const PLATFORMS: Platform[] = [
     icon: Terminal,
   },
   { id: "windows", label: "Windows", description: "PC Windows", count: 31, icon: WindowsLogo },
+  { id: "linux", label: "Linux", description: "Distributions Linux", count: 12, icon: LinuxLogo },
 ];
 
 export function getPlatformById(id: string): Platform | undefined {
@@ -77,9 +79,9 @@ export const PLATFORMS_BY_TYPE: Record<string, string[]> = {
   app_mobile: ["ios", "android"],
   app_web: ["web"],
   saas: ["web"],
-  app_desktop: ["windows", "macos", "desktop"],
+  app_desktop: ["windows", "macos", "linux", "desktop"],
   cli: ["cli"],
   api: ["cli"],
   bot: ["web"],
-  game: ["android", "ios", "web", "windows"],
+  game: ["android", "ios", "web", "windows", "linux"],
 };

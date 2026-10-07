@@ -2,44 +2,51 @@
 
 import { SearchInput } from "@/components/ui/search-input";
 import { SortAscendingIcon, CaretDownIcon, FadersIcon } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useFilters, type DiscoverSortId } from "./sidebar-filter";
+import { buildDiscoverHref } from "@/lib/discover-filters";
 
+// Sorts réels uniquement : comments (V1.5) et MRR reviendront avec leurs
+// phases — jamais d'option qui trie sur du vent.
 const SORT_OPTIONS: { id: DiscoverSortId; label: string }[] = [
   { id: "votes", label: "Les + Votés" },
-  { id: "comments", label: "Les + Commentés" },
   { id: "newest", label: "Les + Récents" },
-  { id: "revenue", label: "Revenus MRR" },
 ];
 
-interface DiscoverToolbarProps {
-  onSearchChange: (val: string) => void;
-  /** Valeur contrôlée (ex. ?q= depuis la nav). Non-contrôlé si absent. */
-  searchValue?: string;
-}
-
-function useOptionalFilters() {
-  try {
-    return useFilters();
-  } catch {
-    return null;
-  }
-}
-
-export function DiscoverToolbar({ onSearchChange, searchValue }: DiscoverToolbarProps) {
+export function DiscoverToolbar() {
   const [isSortOpen, setIsSortOpen] = useState(false);
-  const [localSortId, setLocalSortId] = useState<DiscoverSortId>("votes");
-  const filters = useOptionalFilters();
-  // Tri : état UI partagé via le contexte (toolbar → grille → kicker des
-  // cartes). Hors URL car c'est un réglage d'affichage, pas une intention
-  // de navigation partageable. Le repli local sert hors FilterProvider.
-  const sortId = filters?.sortId ?? localSortId;
-  const setSortId = filters?.setSortId ?? setLocalSortId;
-  const sidebarOpen = filters?.sidebarOpen ?? true;
-  const toggleSidebar = filters?.toggleSidebar ?? (() => {});
-  const activeCount = filters?.activeCount ?? 0;
+  const {
+    filters,
+    sortId,
+    setSortId,
+    query,
+    setQuery,
+    sidebarOpen,
+    toggleSidebar,
+    activeCount,
+    navigate,
+  } = useFilters();
   const sortLabel = SORT_OPTIONS.find((o) => o.id === sortId)?.label ?? "Trier";
+
+  // Recherche → URL en debounce 500 ms (le serveur cherche ; frappe fluide,
+  // pas de navigation par touche). Garde anti-navigation-fantôme : si le
+  // href reconstruit égale l'URL courante (montage StrictMode, timer périmé
+  // après un filtre), on skip — jamais de GET redondant ni de voile gratuit.
+  const navState = useRef({ filters, sortId, query });
+  useEffect(() => {
+    navState.current = { filters, sortId, query };
+  });
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const s = navState.current;
+      const href = buildDiscoverHref(s.filters, 1, s.sortId, s.query);
+      if (window.location.pathname + window.location.search !== href) {
+        navigate(href);
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [query, navigate]);
 
   // Échap ferme le dropdown de tri.
   useEffect(() => {
@@ -53,15 +60,15 @@ export function DiscoverToolbar({ onSearchChange, searchValue }: DiscoverToolbar
 
   return (
     <div className="flex flex-row items-center gap-2 w-full">
-      {/* Search — contrôlé à vie (jamais undefined), cible prioritaire du Alt+K global */}
+      {/* Search — état contexte (URL debounced), cible prioritaire du Alt+K global */}
       <SearchInput
         variant="page"
         placeholder="Rechercher par nom, maker ou mot-clé..."
         data-search-primary="true"
         showKbd
         kbdLabel="Alt K"
-        value={searchValue ?? ""}
-        onChange={(e) => onSearchChange(e.target.value)}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
         className="flex-1 min-w-0"
       />
 

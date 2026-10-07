@@ -5,6 +5,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { SearchInput } from "@/components/ui/search-input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Spinner } from "@/components/ui/spinner";
 import { UserRow, type AdminUserRow } from "@/components/admin/user-row";
 import { AppealsPanel, type AppealRow } from "@/components/admin/appeals-panel";
@@ -324,11 +325,15 @@ export function UsersTable({
       {status === "appeals" ? (
         <AppealsPanel initial={appeals} />
       ) : filtered.length === 0 ? (
-        <p className="text-[14px] font-medium text-muted-foreground py-8 text-center">
-          {normalizedQuery !== "" || q !== ""
-            ? `Aucun résultat pour « ${(query || q).trim()} ».`
-            : EMPTY_COPY[status]}
-        </p>
+        <EmptyState
+          illustration="none"
+          size="sm"
+          title={
+            normalizedQuery !== "" || q !== ""
+              ? `Aucun résultat pour « ${(query || q).trim()} ».`
+              : EMPTY_COPY[status]
+          }
+        />
       ) : (
         <div className="flex flex-col">
           {filtered.map((user) => (

@@ -3,11 +3,11 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { KeyIcon, TrashIcon, ArrowClockwiseIcon, PlugsConnectedIcon } from "@phosphor-icons/react";
+import { TrashIcon, ArrowClockwiseIcon, PlugsConnectedIcon } from "@phosphor-icons/react";
 import { cn, formatMoney } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SupportedProviders } from "@/components/dashboard/supported-providers";
-import { MOCK_APPS } from "@/components/dashboard/dashboard-mock";
 
 export type RevenueProvider = "stripe" | "revenuecat";
 
@@ -35,7 +35,7 @@ const PROVIDER_META: Record<
   stripe: {
     label: "Stripe",
     logo: "/logos/stripe.svg",
-    inlineClass: "w-7",
+    inlineClass: "w-7 h-auto",
     darkClass: "dark:brightness-0 dark:invert",
   },
   revenuecat: {
@@ -45,45 +45,11 @@ const PROVIDER_META: Record<
   },
 };
 
-const MOCK_CONNECTIONS: ApiConnection[] = [
-  {
-    id: "conn-avotra-stripe",
-    provider: "stripe",
-    productId: "avotra-hr",
-    productName: "Avotra HR",
-    status: "active",
-    lastSyncedText: "il y a 2 h",
-    mrrCents: 25_000,
-  },
-  {
-    id: "conn-vatsy-rc",
-    provider: "revenuecat",
-    productId: "vatsy",
-    productName: "Vatsy",
-    status: "failing",
-    lastSyncedText: "il y a 3 j",
-    lastError: "Clé révoquée côté RevenueCat",
-    mrrCents: 9_400,
-  },
-];
-
-/** Icône produit via jointure mock (→ join products backend). */
-function getProductVisual(productId: string): {
-  initials: string;
-  iconGradient: string;
-} {
-  const found = MOCK_APPS.find((a) => a.id === productId);
-  return {
-    initials: found?.initials ?? "••",
-    iconGradient: found?.iconGradient ?? "from-zinc-500 to-zinc-700",
-  };
-}
-
 // Stored keys — surveiller et révoquer (les secrets ne sont jamais
-// ré-affichés). Delete via le shared dialog, mock local en attendant la
-// server action.
-export function ApiConnections() {
-  const [connections, setConnections] = React.useState<ApiConnection[]>(MOCK_CONNECTIONS);
+// ré-affichés). Vide honnête : aucune connexion sans le lot revenus
+// (milestone revenue — ni table ni sync pour l'instant, jamais de mock).
+export function ApiConnections({ initial = [] }: { initial?: ApiConnection[] }) {
+  const [connections, setConnections] = React.useState<ApiConnection[]>(initial);
   const [deleteTarget, setDeleteTarget] = React.useState<ApiConnection | null>(null);
 
   const confirmDelete = () => {
@@ -95,25 +61,20 @@ export function ApiConnections() {
   return (
     <div className="flex flex-col gap-12">
       {connections.length === 0 ? (
-        <div className="flex flex-col items-center gap-4 rounded-4xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
-          <div className="h-14 w-14 rounded-3xl bg-muted/60 flex items-center justify-center">
-            <KeyIcon weight="duotone" className="h-7 w-7 text-muted-foreground" />
-          </div>
-          <div className="flex flex-col gap-2 max-w-md">
-            <h2 className="text-xl font-extrabold tracking-tight text-foreground">
-              Aucune clé connectée
-            </h2>
-            <p className="text-[14px] font-medium text-muted-foreground leading-relaxed">
-              Connectez une clé en lecture seule depuis la fiche de votre produit pour afficher vos
-              revenus vérifiés.
-            </p>
-          </div>
-        </div>
+        <EmptyState
+          title="Aucune clé connectée"
+          description="Connectez une clé en lecture seule depuis la fiche de votre produit pour afficher vos revenus vérifiés."
+        />
       ) : (
         <div className="flex flex-col">
           {connections.map((conn) => {
             const meta = PROVIDER_META[conn.provider];
-            const visual = getProductVisual(conn.productId);
+            const initials = conn.productName
+              .split(/[\s_.-]+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((w) => w[0]!.toUpperCase())
+              .join("");
             return (
               <div
                 key={conn.id}
@@ -123,11 +84,10 @@ export function ApiConnections() {
                 <Link
                   href={`/products/${conn.productId}`}
                   className={cn(
-                    "row-span-2 h-11 w-11 rounded-2xl shrink-0 flex items-center justify-center text-white font-black text-[15px] bg-linear-to-br shadow-sm",
-                    visual.iconGradient,
+                    "row-span-2 h-11 w-11 rounded-2xl shrink-0 flex items-center justify-center text-white font-black text-[15px] bg-linear-to-br from-zinc-500 to-zinc-700 shadow-sm",
                   )}
                 >
-                  {visual.initials}
+                  {initials}
                 </Link>
 
                 {/* Product + status */}

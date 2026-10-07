@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { startTransition } from "react";
 import Link from "next/link";
 import {
   CaretUpIcon,
   EyeIcon,
+  CursorClickIcon,
   PencilSimpleIcon,
   TrashIcon,
   HourglassIcon,
@@ -14,7 +16,9 @@ import {
 } from "@phosphor-icons/react";
 import { cn, formatMoney } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
+import { deleteMyProductAction } from "@/app/actions/products";
 import { getLifecycleById } from "@/config/lifecycle";
 import {
   STATUS_META,
@@ -34,11 +38,27 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "rejected", label: "Rejetées" },
 ];
 
-const EMPTY_COPY: Record<Filter, string> = {
-  all: "Aucune application pour le moment.",
-  live: "Aucune application en ligne pour le moment.",
-  pending: "Rien en file de revue.",
-  rejected: "Aucun rejet — bon travail.",
+const EMPTY_COPY: Record<Filter, { title: string; description: string; cta: boolean }> = {
+  all: {
+    title: "Aucune application pour le moment.",
+    description: "Soumettez votre premier produit et suivez-le ici.",
+    cta: true,
+  },
+  live: {
+    title: "Aucune application en ligne pour le moment.",
+    description: "Vos produits publiés apparaîtront ici.",
+    cta: true,
+  },
+  pending: {
+    title: "Rien en file de revue.",
+    description: "Les soumissions en attente de revue apparaîtront ici.",
+    cta: false,
+  },
+  rejected: {
+    title: "Aucun rejet — bon travail.",
+    description: "Les produits refusés (avec leur motif) apparaîtront ici.",
+    cta: false,
+  },
 };
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
@@ -50,13 +70,15 @@ const PLATFORM_ICONS: Record<string, React.ReactNode> = {
 // Maker apps — leaderboard-style rows, no cards.
 // Per-status rows: live = metrics, pending = elapsed time, rejected = reason.
 // Progressive pagination ("Afficher plus"), page size maps 1:1 to LIMIT/OFFSET.
-// Delete is local mock state; a server action takes over with the backend.
+// Delete = Server Action RGPD (irréversible, confirmée) + refresh local.
 export function OverviewApps({ apps: initialApps }: { apps: DashboardApp[] }) {
   const [apps, setApps] = React.useState(initialApps);
   const [filter, setFilter] = React.useState<Filter>("all");
   const [query, setQuery] = React.useState("");
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
   const [deleteTarget, setDeleteTarget] = React.useState<DashboardApp | null>(null);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filtered = apps.filter((a) => {
@@ -84,9 +106,19 @@ export function OverviewApps({ apps: initialApps }: { apps: DashboardApp[] }) {
   };
 
   const confirmDelete = () => {
-    if (!deleteTarget) return;
-    setApps((prev) => prev.filter((a) => a.id !== deleteTarget.id));
-    setDeleteTarget(null);
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    startTransition(async () => {
+      const res = await deleteMyProductAction({ productId: deleteTarget.id });
+      if (res.ok) {
+        setApps((prev) => prev.filter((a) => a.id !== deleteTarget.id));
+        setDeleteTarget(null);
+      } else {
+        setDeleteError(res.message ?? "Suppression impossible pour le moment.");
+      }
+      setDeleting(false);
+    });
   };
 
   return (
@@ -149,9 +181,27 @@ export function OverviewApps({ apps: initialApps }: { apps: DashboardApp[] }) {
 
       {/* Rows */}
       {visible.length === 0 ? (
-        <p className="text-[14px] font-medium text-muted-foreground py-8 text-center">
-          {normalizedQuery !== "" ? `Aucun résultat pour « ${query.trim()} ».` : EMPTY_COPY[filter]}
-        </p>
+        normalizedQuery !== "" ? (
+          <EmptyState
+            title={`Aucun résultat pour « ${query.trim()} ».`}
+            description="Essayez un autre terme."
+          />
+        ) : (
+          <EmptyState
+            title={EMPTY_COPY[filter].title}
+            description={EMPTY_COPY[filter].description}
+            action={
+              EMPTY_COPY[filter].cta ? (
+                <Link
+                  href="/products/submit"
+                  className="rounded-full bg-foreground px-6 py-2.5 text-[13px] font-bold text-background hover:opacity-90 transition-opacity"
+                >
+                  Soumettre un produit
+                </Link>
+              ) : undefined
+            }
+          />
+        )
       ) : (
         <div className="flex flex-col">
           {visible.map((app) => (
@@ -181,10 +231,24 @@ export function OverviewApps({ apps: initialApps }: { apps: DashboardApp[] }) {
         open={deleteTarget !== null}
         tone="danger"
         title={`Supprimer ${deleteTarget?.name ?? ""} ?`}
-        description="Cette application, ses votes et ses statistiques seront définitivement perdus. Cette action est irréversible."
+        description={
+          <>
+            Cette application, ses votes et ses statistiques seront définitivement perdus. Cette
+            action est irréversible.
+            {deleteError !== null && (
+              <span role="alert" className="block mt-2 font-bold text-red-600 dark:text-red-400">
+                {deleteError}
+              </span>
+            )}
+          </>
+        }
         confirmLabel="Supprimer"
+        confirmPending={deleting}
         onConfirm={confirmDelete}
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={() => {
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
       />
     </div>
   );
@@ -236,20 +300,55 @@ function DeleteButton({ appName, onDelete }: { appName: string; onDelete: () => 
   );
 }
 
+/**
+ * Icône produit : logo R2 si fourni (avec repli si l'image casse),
+ * sinon tuile gradient + initiales (design historique inchangé).
+ */
+function AppIcon({
+  iconUrl,
+  initials,
+  gradient,
+}: {
+  iconUrl?: string | null;
+  initials: string;
+  gradient: string;
+}) {
+  const [failed, setFailed] = React.useState(false);
+  if (iconUrl && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={iconUrl}
+        alt=""
+        onError={() => setFailed(true)}
+        className="h-full w-full object-cover"
+      />
+    );
+  }
+  return (
+    <span
+      className={cn(
+        "flex h-full w-full items-center justify-center text-white font-black text-[15px] bg-linear-to-br",
+        gradient,
+      )}
+    >
+      {initials}
+    </span>
+  );
+}
+
 function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) {
   const status = STATUS_META[app.status];
 
   return (
     <div className="flex items-center gap-4 py-4 px-3 rounded-2xl hover:bg-muted/40 transition-colors">
-      {/* Icon */}
+      {/* Icon : logo réel si fourni, sinon tuile initiales (design inchangé) */}
       <Link
         href={`/products/${app.id}`}
-        className={cn(
-          "w-11 h-11 rounded-2xl shrink-0 flex items-center justify-center text-white font-black text-[15px] bg-linear-to-br shadow-sm",
-          app.iconGradient,
-        )}
+        className="w-11 h-11 rounded-2xl shrink-0 overflow-hidden shadow-sm"
+        aria-label={`Voir ${app.name}`}
       >
-        {app.initials}
+        <AppIcon iconUrl={app.iconUrl} initials={app.initials} gradient={app.iconGradient} />
       </Link>
 
       {/* Name + tagline + platform/type + status extras */}
@@ -296,6 +395,29 @@ function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) 
             <EyeIcon weight="bold" className="w-4 h-4 text-muted-foreground" />
             {formatCompactCount(app.views)}
           </span>
+          <span
+            className="flex items-center gap-1 text-[13px] font-bold text-foreground tabular-nums"
+            title="Clics sortants"
+          >
+            <CursorClickIcon weight="bold" className="w-4 h-4 text-muted-foreground" />
+            {formatCompactCount(app.clicks)}
+          </span>
+          {app.views > 0 && (
+            <span
+              className="text-[11px] font-bold text-muted-foreground tabular-nums"
+              title="Taux de clic (clics / vues)"
+            >
+              {Math.round((app.clicks / app.views) * 100)} %
+            </span>
+          )}
+          {app.topRank !== undefined && (
+            <span
+              className="flex items-center gap-1 text-[13px] font-black text-amber-600 dark:text-amber-400 tabular-nums"
+              title="Position au classement tout le temps"
+            >
+              #{app.topRank}
+            </span>
+          )}
           {app.revenue && (
             <span
               className="text-[13px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums"
@@ -313,6 +435,22 @@ function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) 
             <HourglassIcon weight="fill" className="w-4 h-4" />
             {app.waitingText ?? "En revue"}
           </span>
+          {app.notifStatus && (
+            <span
+              className={
+                app.notifStatus === "ok"
+                  ? "text-[11px] font-bold text-muted-foreground"
+                  : "text-[11px] font-bold text-red-600 dark:text-red-400"
+              }
+              title={
+                app.notifStatus === "ok"
+                  ? "Email de statut envoyé"
+                  : "Email de statut en échec — contactez la revue"
+              }
+            >
+              {app.notifStatus === "ok" ? "Notifié par email" : "Échec notif email"}
+            </span>
+          )}
           <button
             type="button"
             className="text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:underline underline-offset-4 transition-colors cursor-pointer"

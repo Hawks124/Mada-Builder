@@ -14,7 +14,10 @@ import * as schema from "./schema";
  * en Promise.all = file d'attente + reconnect à chaque drop pooler).
  * `max: 10` absorbe les rendus parallèles ; `connect_timeout: 10` refuse
  * les hangs DNS/pooler silencieux (fail fast → fallback mock) ;
- * `idle_timeout: 30` recycle les connexions tuées par Supavisor.
+ * `idle_timeout: 10` + `max_lifetime: 300` recyclent les connexions
+ * (Supavisor tue les idle sans RST : sans ça, le pool garde des sockets
+ * morts et les requêtes attendent INDÉFINIMENT — page /admin figée sur
+ * son skeleton, empirant à chaque reload. Vu en prod dev, logs [diag]).
  */
 function createClient(): PostgresJsDatabase<typeof schema> {
   const url = process.env.DATABASE_URL;
@@ -27,7 +30,8 @@ function createClient(): PostgresJsDatabase<typeof schema> {
     prepare: false,
     max: 10,
     connect_timeout: 10,
-    idle_timeout: 30,
+    idle_timeout: 10,
+    max_lifetime: 300,
   });
   return drizzle(client, { schema });
 }

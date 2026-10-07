@@ -256,6 +256,7 @@ export async function requestEmailCodeAction(input: {
     await sendEmail({
       to: email,
       subject: otpEmailSubject(),
+      template: "otp",
       html: otpEmailHtml({
         code,
         validityMinutes: OTP_TTL_MIN,

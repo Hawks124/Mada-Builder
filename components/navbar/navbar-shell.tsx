@@ -128,7 +128,9 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
             }}
           />
 
-          <div className="hidden sm:flex items-center gap-3">
+          {/* Desktop : même breakpoint que la nav (`md`) — en dessous,
+              seul le bloc mobile (toggle + avatar + burger) s'affiche. */}
+          <div className="hidden md:flex items-center gap-3">
             <ThemeToggle />
             {user ? (
               <UserMenu size="lg" user={user} submitHref="/products/submit" />

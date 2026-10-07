@@ -1,0 +1,1 @@
+ALTER TYPE "public"."admin_action" ADD VALUE 'product_nudged' BEFORE 'review_removed';

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
   GlobeIcon,
   AppleLogoIcon,
@@ -10,7 +10,6 @@ import {
   HourglassIcon,
   CheckIcon,
   MinusIcon,
-  ImageSquareIcon,
   ArrowSquareOutIcon,
   SealCheckIcon,
   MonitorIcon,
@@ -28,7 +27,9 @@ import { AgeBadge } from "@/components/ui/age-badge";
 import { TagPill } from "@/components/ui/tag-pill";
 import { ReviewVerdict } from "@/components/admin/review-verdict";
 import { ReviewLinks } from "@/components/admin/review-links";
-import { MOCK_REVIEW_QUEUE } from "@/components/admin/admin-mock";
+import { Prose } from "@/components/ui/prose";
+import { getReviewItemById, isProductDecided } from "@/app/actions/products";
+import { toReviewItem } from "@/services/products.service";
 import { formatMoney } from "@/lib/utils";
 
 // noindex strict — jamais indexé, même au backend.
@@ -37,20 +38,31 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+// Toujours dynamique (dossier staff — cf. file).
+export const dynamic = "force-dynamic";
+
 const SLA_HOURS = 24;
 
 // Cockpit de verdict (§9) — SEUL endroit où l'approbation existe.
 // Preuves à gauche, checklist auto + verdict sticky à droite.
-// Gate staff au layout (admin). Reste (milestone listings) :
-// approveProduct/rejectProduct + email.
+// Gate staff au layout (admin). Dossier DB : déjà tranché → redirect file
+// (reload post-verdict, bookmark) ; vraiment inconnu → 404 honnête.
 export default async function AdminReviewDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const item = MOCK_REVIEW_QUEUE.find((q) => q.id === id);
-  if (!item) notFound();
+  const dossier = await getReviewItemById(id);
+  if (!dossier) {
+    if (await isProductDecided(id)) redirect("/admin/review");
+    notFound();
+  }
+  const item = toReviewItem(dossier, {
+    shotCount: dossier.shots.length,
+    makerLive: dossier.makerLiveCount,
+    makerBans: dossier.makerBans,
+  });
 
   const categories = item.categoryIds
     .map((id) => getCategoryById(id))
@@ -233,9 +245,9 @@ export default async function AdminReviewDetailPage({
             <p className="text-[15px] font-medium text-foreground leading-relaxed">
               {item.tagline}
             </p>
-            <p className="text-[14px] font-medium text-muted-foreground leading-relaxed">
-              {item.description}
-            </p>
+            {/* Description markdown — même renderer que la fiche publique
+                (le brut `#`/`**`/`-` vu en QA ne doit jamais s'afficher). */}
+            <Prose>{item.description}</Prose>
             <div className="flex items-center gap-1.5 flex-wrap">
               {item.tags.map((t) => (
                 <TagPill key={t} label={t} />
@@ -304,16 +316,21 @@ export default async function AdminReviewDetailPage({
           )}
 
           <ProofSection title="Médias">
-            {item.screenshots > 0 ? (
+            {dossier.shots.length > 0 ? (
               <div className="grid grid-cols-3 gap-3">
-                {Array.from({ length: item.screenshots }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="aspect-video rounded-2xl bg-muted/40 border border-border/40 flex flex-col items-center justify-center gap-1.5 text-muted-foreground"
-                  >
-                    <ImageSquareIcon weight="duotone" className="w-6 h-6" aria-hidden="true" />
-                    <span className="text-[11px] font-bold">Capture {i + 1}</span>
-                  </div>
+                {dossier.shots.map((s, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={s.url}
+                    src={s.url}
+                    alt={`Capture ${i + 1}`}
+                    loading="lazy"
+                    className={
+                      s.orientation === "portrait"
+                        ? "aspect-9/16 w-full rounded-2xl border border-border/40 bg-muted/40 object-contain"
+                        : "aspect-video w-full rounded-2xl border border-border/40 bg-muted/40 object-contain"
+                    }
+                  />
                 ))}
               </div>
             ) : (
@@ -431,7 +448,7 @@ export default async function AdminReviewDetailPage({
 
           <div className="w-full h-px bg-border/40" />
 
-          <ReviewVerdict productName={item.productName} />
+          <ReviewVerdict productId={dossier.id} productName={item.productName} />
 
           <Link
             href="/admin/review"

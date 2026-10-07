@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "curated" boolean DEFAULT false NOT NULL;

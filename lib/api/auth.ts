@@ -3,15 +3,18 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ApiError } from "@/lib/api/response";
+import { errors as joseErrors, jwtVerify } from "jose";
 
 /**
  * Auth Bearer de l'API v1 — AUCUN import `next/*` (testable tsx pur).
  *
  * Contrat : `Authorization: Bearer <access_token>` (émis par Supabase
- * Auth — packages natifs Flutter, jamais par nous). Vérification via
- * `auth.getUser(token)` côté serveur à chaque appel (v1 : simplicité
- * et révocation immédiate ; la vérif locale JWKS est la piste d'optim
- * documentée, pas implémentée).
+ * Auth — packages natifs Flutter, jamais par nous). Vérification LOCALE
+ * (signature HS256, `SUPABASE_JWT_SECRET`, zéro roundtrip) puis repli
+ * distant `auth.getUser` si le secret manque ou en cas d'incident vérif
+ * (jamais de refus sur un hoquet infra). Révocation : le JWT local reste
+ * valide jusqu'à `exp` (fenêtre courte côté Supabase) ; la ligne users
+ * tranche (supprimé → 401, banni → 403).
  *
  * Edge cases :
  * - header absent/malformé → 401 UNAUTHORIZED (jamais de redirect HTML :
@@ -45,27 +48,56 @@ export async function requireApiUser(
     throw new ApiError("UNAUTHORIZED", 401, "Authentification requise.");
   }
 
-  let authId: string;
+  let authId: string | undefined;
   let authEmail: string | undefined;
-  try {
-    const admin = createAdminClient();
-    const { data, error } = await admin.auth.getUser(token);
-    if (error || !data.user) throw error ?? new Error("no-user");
-    authId = data.user.id;
-    authEmail = data.user.email;
-  } catch (e) {
-    // Invité vs incident (même règle que le proxy) : 400/401/403/404 =
-    // token invalide → 401 (le client rafraîchit ou se reconnecte) ;
-    // panne réseau/timeout/5xx = incident → 503 (le client RETRY en
-    // gardant sa session — jamais de logout sur un hoquet infra).
-    const status = (e as { status?: unknown })?.status;
-    if (
-      typeof status === "number" &&
-      (status === 400 || status === 401 || status === 403 || status === 404)
-    ) {
-      throw new ApiError("UNAUTHORIZED", 401, "Session invalide ou expirée.");
+  // Vérif locale d'abord (zéro roundtrip Auth) ; repli distant si le
+  // secret manque ou si la vérif échoue de façon inattendue (incident —
+  // jamais de refus sur un hoquet infra). Expiré/signature invalide =
+  // 401 direct, sans repli (un forgé ne devient pas valide à distance).
+  const secret = process.env.SUPABASE_JWT_SECRET;
+  if (secret) {
+    try {
+      const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
+        audience: "authenticated",
+      });
+      if (typeof payload.sub !== "string" || payload.sub === "") {
+        throw new ApiError("UNAUTHORIZED", 401, "Session invalide ou expirée.");
+      }
+      authId = payload.sub;
+      authEmail = typeof payload.email === "string" ? payload.email : undefined;
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      if (
+        e instanceof joseErrors.JWTExpired ||
+        e instanceof joseErrors.JWTClaimValidationFailed ||
+        e instanceof joseErrors.JWTInvalid
+      ) {
+        throw new ApiError("UNAUTHORIZED", 401, "Session invalide ou expirée.");
+      }
+      // Incident vérif (secret malformé, etc.) : repli distant ci-dessous.
     }
-    throw new ApiError("INTERNAL", 503, "Service d'authentification momentanément indisponible.");
+  }
+  if (authId === undefined) {
+    try {
+      const admin = createAdminClient();
+      const { data, error } = await admin.auth.getUser(token);
+      if (error || !data.user) throw error ?? new Error("no-user");
+      authId = data.user.id;
+      authEmail = data.user.email;
+    } catch (e) {
+      // Invité vs incident (même règle que le proxy) : 400/401/403/404 =
+      // token invalide → 401 (le client rafraîchit ou se reconnecte) ;
+      // panne réseau/timeout/5xx = incident → 503 (le client RETRY en
+      // gardant sa session — jamais de logout sur un hoquet infra).
+      const status = (e as { status?: unknown })?.status;
+      if (
+        typeof status === "number" &&
+        (status === 400 || status === 401 || status === 403 || status === 404)
+      ) {
+        throw new ApiError("UNAUTHORIZED", 401, "Session invalide ou expirée.");
+      }
+      throw new ApiError("INTERNAL", 503, "Service d'authentification momentanément indisponible.");
+    }
   }
 
   const [row] = await db

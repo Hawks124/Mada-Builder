@@ -2,8 +2,11 @@
 
 import { useState, useRef } from "react";
 import { Link, ListBullets, Code } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
 import { InputField } from "@/components/ui/input-field";
+import { Prose } from "@/components/ui/prose";
+import { ReadmeImporter } from "@/components/submit/readme-importer";
 import { FieldBadge } from "@/components/ui/field-badge";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { AGE_RATINGS } from "@/config/ratings";
@@ -28,10 +31,23 @@ const AUDIENCE_RATINGS = AGE_RATINGS.map((r) => ({
 }));
 
 export function SubmitBasicsSection() {
-  const { productType, setProductType, audience, setAudience, lifecycle, setLifecycle, editApp } =
-    useSubmitForm();
-  const [desc, setDesc] = useState("");
+  const {
+    productType,
+    setProductType,
+    audience,
+    setAudience,
+    lifecycle,
+    setLifecycle,
+    editApp,
+    errors,
+    clearError,
+    draft,
+  } = useSubmitForm();
+  const [desc, setDesc] = useState(draft?.description ?? editApp?.description ?? "");
+  const [preview, setPreview] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const descError = errors["description"];
 
   const insertMarkdown = (prefix: string, suffix: string = "") => {
     if (!textareaRef.current) return;
@@ -41,14 +57,24 @@ export function SubmitBasicsSection() {
     const before = text.substring(0, start);
     const selected = text.substring(start, end);
     const after = text.substring(end);
+    // Trim la sélection : `**dolor **` (espace traînante) ne parse pas
+    // en gras (spec CommonMark) — les espaces restent hors balises.
+    const leading = selected.match(/^\s*/)?.[0] ?? "";
+    const trailing = selected.match(/\s*$/)?.[0] ?? "";
+    const core = selected.slice(leading.length, selected.length - trailing.length);
 
-    setDesc(before + prefix + selected + suffix + after);
+    setDesc(before + leading + prefix + core + suffix + trailing + after);
 
     // Reset focus and cursor position after react state update
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
-        textareaRef.current.setSelectionRange(start + prefix.length, end + prefix.length);
+        // Sans sélection : curseur entre les balises (frappe directe).
+        const pos =
+          core === ""
+            ? start + leading.length + prefix.length
+            : start + leading.length + prefix.length + core.length + suffix.length;
+        textareaRef.current.setSelectionRange(pos, pos);
       }
     }, 0);
   };
@@ -68,18 +94,25 @@ export function SubmitBasicsSection() {
           label="Nom du produit"
           subtitle="Le nom officiel de votre produit."
           placeholder="ex: Bantay Budget"
-          defaultValue={editApp?.name ?? ""}
+          defaultValue={draft?.name ?? editApp?.name ?? ""}
           isRequired={true}
+          name="name"
+          maxLength={80}
+          showCount
+          errorKey="name"
         />
 
         {/* Tagline */}
         <InputField
           label="Tagline"
-          subtitle="Une ligne accrocheuse — jusqu'à 100 caractères."
+          subtitle="Une ligne accrocheuse — jusqu'à 220 caractères."
           placeholder="Envoyez de l'argent, payez vos factures et épargnez dans une seule application."
-          maxLength={100}
-          defaultValue={editApp?.tagline ?? ""}
+          maxLength={220}
+          defaultValue={draft?.tagline ?? editApp?.tagline ?? ""}
           isRequired={true}
+          name="tagline"
+          showCount
+          errorKey="tagline"
         />
 
         {/* Product Type & Lifecycle — z décroissant : chaque menu ouvert recouvre ce qui suit */}
@@ -116,16 +149,8 @@ export function SubmitBasicsSection() {
               <FieldBadge variant="required" />
             </label>
             <Select value={audience} onChange={setAudience} options={AUDIENCE_RATINGS} />
-            {audience === "kids" && (
-              <div className="mt-2">
-                <InputField
-                  label="Lien vers la politique de sécurité enfants"
-                  subtitle="Store compliance: Les apps ciblant les enfants (-13) nécessitent une politique de confidentialité claire."
-                  placeholder="URL Politique de sécurité enfants"
-                  isRequired={true}
-                />
-              </div>
-            )}
+            {/* Pas d'input kids ici : les liens privacy/kidsafety vivent dans
+                la section Liens (Légal et Confiance), seule source envoyée. */}
           </div>
         </div>
 
@@ -136,14 +161,63 @@ export function SubmitBasicsSection() {
               Description détaillée
               <FieldBadge variant="required" />
             </span>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest border border-border/40 bg-muted/5 rounded px-2 py-1">
-              Markdown supporté
+            <span className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "text-[11px] font-bold tabular-nums",
+                  desc.trim().length > 0 && desc.trim().length < 20
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-muted-foreground/70",
+                )}
+              >
+                {desc.trim().length} / 20000 · min 20
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowImport((v) => !v)}
+                aria-pressed={showImport}
+                className={cn(
+                  "text-[10px] font-bold uppercase tracking-widest border rounded px-2 py-1 transition-colors cursor-pointer",
+                  showImport
+                    ? "border-foreground/40 bg-muted text-foreground"
+                    : "border-border/40 bg-muted/5 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Importer
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreview((p) => !p)}
+                aria-pressed={preview}
+                className={cn(
+                  "text-[10px] font-bold uppercase tracking-widest border rounded px-2 py-1 transition-colors cursor-pointer",
+                  preview
+                    ? "border-foreground/40 bg-muted text-foreground"
+                    : "border-border/40 bg-muted/5 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {preview ? "Éditer" : "Aperçu"}
+              </button>
             </span>
           </label>
           <span className="text-[12px] font-medium text-muted-foreground">
-            Expliquez la valeur de votre produit. Structurez avec le Markdown.
+            Expliquez la valeur de votre produit. Structurez avec le Markdown — le gras exige{" "}
+            <span className="font-mono">**texte**</span> sans espace intérieure.
           </span>
-          <div className="w-full bg-background rounded-2xl border border-border/60 overflow-hidden focus-within:border-foreground/30 hover:border-foreground/20 transition-colors mt-0.5 flex flex-col group">
+          {showImport && (
+            <ReadmeImporter
+              onImport={(text) => {
+                setDesc(text);
+                clearError("description");
+              }}
+            />
+          )}
+          <div
+            className={cn(
+              "w-full bg-background rounded-2xl border overflow-hidden focus-within:border-foreground/30 hover:border-foreground/20 transition-colors mt-0.5 flex flex-col group",
+              descError ? "border-red-500/60" : "border-border/60",
+            )}
+          >
             <div className="flex items-center gap-2 px-3 py-2 bg-background border-b border-border/40">
               <button
                 onClick={() => insertMarkdown("**", "**")}
@@ -185,13 +259,31 @@ export function SubmitBasicsSection() {
             </div>
             <textarea
               ref={textareaRef}
+              name="description"
               value={desc}
-              onChange={(e) => setDesc(e.target.value)}
+              onChange={(e) => {
+                setDesc(e.target.value);
+                clearError("description");
+              }}
               placeholder="Décrivez votre produit. Quel problème résout-il ? Pourquoi l'avez-vous construit ?&#10;&#10;Vous pouvez utiliser du Markdown pour formater le texte (gras, listes, etc)."
               rows={8}
+              aria-invalid={descError ? true : undefined}
               className="w-full bg-transparent border-none px-6 py-5 text-[15px] font-medium placeholder:text-muted-foreground/30 text-foreground outline-none resize-none leading-relaxed"
             />
           </div>
+          {preview && desc.trim() !== "" && (
+            <div className="rounded-2xl border border-border/40 bg-muted/20 px-6 py-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">
+                Aperçu — rendu identique à la fiche
+              </p>
+              <Prose>{desc}</Prose>
+            </div>
+          )}
+          {descError && (
+            <span role="alert" className="text-[12px] font-bold text-red-600 dark:text-red-400">
+              {descError}
+            </span>
+          )}
         </div>
       </div>
     </div>

@@ -15,6 +15,7 @@ import {
   submitAppeal,
 } from "@/services/appeals.service";
 import { adminRecipients, sendEmail } from "@/lib/email";
+import { notify } from "@/services/notifications.service";
 import {
   appealDecisionHtml,
   appealDecisionSubject,
@@ -122,6 +123,7 @@ export async function submitAppealAction(
           await sendEmail({
             to: recipients,
             subject: appealNotifySubject(row.username),
+            template: "appeal-notify",
             html: appealNotifyHtml({
               username: row.username,
               displayName: row.displayName,
@@ -170,11 +172,18 @@ export async function reviewAppealAction(input: {
       targetId: userId,
       action: overturned ? "appeal_overturned" : "appeal_upheld",
     });
+    await notify({
+      userId,
+      kind: "appeal_decided",
+      title: overturned ? "Appel accepté — compte rétabli" : "Appel examiné — sanction maintenue",
+      actorId: id,
+    });
     try {
       const origin = await appOrigin();
       await sendEmail({
         to: email,
         subject: appealDecisionSubject(overturned),
+        template: "appeal-decision",
         html: appealDecisionHtml({ displayName, overturned, origin, timeZone }),
         text: appealDecisionText({ displayName, overturned, origin, timeZone }),
       });

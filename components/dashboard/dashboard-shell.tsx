@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   SquaresFourIcon,
+  PackageIcon,
   UserCircleIcon,
   GearIcon,
   KeyIcon,
@@ -22,6 +23,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SignOutConfirm } from "@/components/auth/signout-confirm";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { useBanWatcher } from "@/lib/supabase/use-ban-watcher";
+import { useNotificationsWatcher } from "@/lib/supabase/use-notifications-watcher";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LogoMark } from "@/components/ui/logo";
 import { hasUnsavedChanges } from "@/lib/unsaved-guard";
@@ -31,8 +33,13 @@ const NAV_ITEMS = [
     href: "/dashboard",
     label: "Vue d'ensemble",
     icon: SquaresFourIcon,
-    match: (pathname: string) =>
-      pathname === "/dashboard" || pathname.startsWith("/dashboard/products"),
+    match: (pathname: string) => pathname === "/dashboard",
+  },
+  {
+    href: "/dashboard/products",
+    label: "Mes produits",
+    icon: PackageIcon,
+    match: (pathname: string) => pathname.startsWith("/dashboard/products"),
   },
   {
     href: "/dashboard/profile",
@@ -97,6 +104,7 @@ export default function DashboardShell({
 
   // Temps réel : ban/déban sans refresh manuel (toast + refresh ciblé).
   useBanWatcher(userId);
+  useNotificationsWatcher(userId);
 
   // Restore persisted state without SSR mismatch (localStorage is an
   // external system — reading it post-mount is the correct pattern here).

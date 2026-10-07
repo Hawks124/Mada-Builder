@@ -5,6 +5,7 @@ import { FileArrowDownIcon } from "@phosphor-icons/react";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { StaffIdentity } from "@/components/admin/user-identity";
 import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "@/components/ui/toast";
 import { reviewAppealAction } from "@/app/actions/appeals";
 
@@ -60,9 +61,7 @@ export function AppealsPanel({ initial }: { initial: AppealRow[] }) {
 
   if (pending.length === 0) {
     return (
-      <p className="text-[14px] font-medium text-muted-foreground py-8 text-center">
-        Aucun appel en attente — bon travail.
-      </p>
+      <EmptyState illustration="none" size="sm" title="Aucun appel en attente — bon travail." />
     );
   }
 

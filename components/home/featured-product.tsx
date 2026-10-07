@@ -30,8 +30,7 @@ interface FeaturedProductProps {
  */
 export function FeaturedProduct({ product = getFeatured(), dense = false }: FeaturedProductProps) {
   const category = getCategoryById(product.categoryId);
-  const makerSlug = slugifyName(product.maker);
-
+  const makerSlug = product.makerUsername ?? slugifyName(product.maker);
   return (
     <section className="container px-4 md:px-8 max-w-7xl mx-auto w-full">
       <div
@@ -108,9 +107,10 @@ export function FeaturedProduct({ product = getFeatured(), dense = false }: Feat
           <div className="flex items-start justify-center gap-6 w-full md:w-auto">
             {/* Upvote */}
             <VoteButton
-              productId={product.id}
+              productId={product.productUuid ?? product.id}
               productName={product.name}
               votes={product.votes}
+              initialVoted={product.initialVoted ?? false}
               variant="hero"
             />
 
@@ -259,29 +259,31 @@ export function FeaturedProduct({ product = getFeatured(), dense = false }: Feat
           </div>
         </div>
 
-        {/* 6. Avis */}
-        <div className="flex flex-col gap-2">
-          <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">
-            Avis ({product.reviewsCount})
-          </span>
-          <Link
-            href={`/products/${product.id}#reviews`}
-            className="flex flex-col gap-1 pl-1 group cursor-pointer"
-          >
-            <div className="flex items-center gap-0.5">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <StarIcon
-                  key={i}
-                  weight="fill"
-                  className="text-yellow-400 dark:text-yellow-500 w-4 h-4 group-hover:scale-110 transition-transform"
-                />
-              ))}
-            </div>
-            <span className="text-[13px] font-bold text-foreground group-hover:underline">
-              {product.rating} sur 5
+        {/* 6. Avis — masqué sans avis (V1.5, jamais de faux "sur 5"). */}
+        {product.reviewsCount > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">
+              Avis ({product.reviewsCount})
             </span>
-          </Link>
-        </div>
+            <Link
+              href={`/products/${product.id}#reviews`}
+              className="flex flex-col gap-1 pl-1 group cursor-pointer"
+            >
+              <div className="flex items-center gap-0.5">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <StarIcon
+                    key={i}
+                    weight="fill"
+                    className="text-yellow-400 dark:text-yellow-500 w-4 h-4 group-hover:scale-110 transition-transform"
+                  />
+                ))}
+              </div>
+              <span className="text-[13px] font-bold text-foreground group-hover:underline">
+                {product.rating} sur 5
+              </span>
+            </Link>
+          </div>
+        )}
       </div>
     </section>
   );

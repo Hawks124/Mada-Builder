@@ -1,33 +1,52 @@
 import Link from "next/link";
 import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
-import { HERO_CATEGORIES, PRODUCT_CATEGORIES, TOTAL_PRODUCT_COUNT } from "@/config/categories";
+import { HERO_CATEGORIES, PRODUCT_CATEGORIES } from "@/config/categories";
 import { getMakersCount } from "@/services/users.service";
+import { getProductsCount, getPublishedCountByCategory } from "@/services/stats.service";
 
 /**
  * Hero right column — continuous Vercel-style spinning border animation.
  * Features: floating stats bar globally aligned, flowing card list underneath.
  */
 export async function HeroCategories() {
-  const visible = HERO_CATEGORIES.slice(0, 7);
-
-  // Vrai total makers quand le backend répond ; fallback démo sinon
-  // (même pattern que hero-makers — pas de faux "400+" avec backend).
+  // Vrais totaux quand le backend répond ; fallback démo sinon
+  // (même pattern que hero-makers — JAMAIS de faux chiffres avec backend).
+  // Hero DYNAMIQUE : dès qu'au moins une catégorie a un produit réel, les
+  // 7 slots affichent le top par counts réels (pas la sélection figée) ;
+  // tout à 0 → ordre éditorial actuel (pré-lancement).
   let makersValue = "400+";
+  let productsValue = "2 900+";
+  let countsByCat = new Map<string, number>();
+  let live = false;
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     try {
-      const count = await getMakersCount();
-      if (count > 0) makersValue = count.toLocaleString("fr-FR");
+      const [makers, published, byCat] = await Promise.all([
+        getMakersCount(),
+        getProductsCount("published"),
+        getPublishedCountByCategory(),
+      ]);
+      if (makers > 0) makersValue = makers.toLocaleString("fr-FR");
+      productsValue = published.toLocaleString("fr-FR");
+      countsByCat = byCat;
+      live = true;
     } catch {
       // Backend indisponible : fallback ci-dessus.
     }
   }
 
+  const anyLive = live && [...countsByCat.values()].some((v) => v > 0);
+  const visible = anyLive
+    ? [...HERO_CATEGORIES]
+        .sort((a, b) => (countsByCat.get(b.id) ?? 0) - (countsByCat.get(a.id) ?? 0))
+        .slice(0, 7)
+    : HERO_CATEGORIES.slice(0, 7);
+
   return (
     <div className="relative w-full flex flex-col gap-6">
       {/* ─── Stats Bar ─── */}
       <div className="flex items-center gap-2 pl-2">
-        <StatPill value={TOTAL_PRODUCT_COUNT.toLocaleString("fr")} label="produits" />
+        <StatPill value={productsValue} label="produits" />
         <div className="h-3.5 w-px bg-border/60 mx-1.5" />
         <StatPill value={makersValue} label="makers" />
         <div className="h-3.5 w-px bg-border/60 mx-1.5" />
@@ -128,14 +147,14 @@ export async function HeroCategories() {
                       </span>
                     </span>
 
-                    {/* Count gets colored on hover too */}
+                    {/* Count réel (0 pré-lancement — jamais de mock avec backend) */}
                     <span
                       className={cn(
                         "ml-auto shrink-0 text-[13px] font-bold tabular-nums text-muted-foreground transition-colors",
                         cat.hoverColor,
                       )}
                     >
-                      {cat.count}
+                      {live ? (countsByCat.get(cat.id) ?? 0) : cat.count}
                     </span>
                   </Link>
 

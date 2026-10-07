@@ -10,6 +10,8 @@ type ConfirmDialogTone = "danger" | "default";
 /**
  * Shared confirm dialog — Ergonomie renforcée, 0 scroll mobile,
  * hiérarchie visuelle stricte et gestion sémantique du tone.
+ * `hideCancel` : mode informatif à bouton unique (le bouton confirm
+ * fait office de "J'ai compris", `onConfirm` = fermeture).
  */
 export function ConfirmDialog({
   open,
@@ -19,6 +21,7 @@ export function ConfirmDialog({
   requireConfirmText,
   confirmLabel = "Confirmer",
   cancelLabel = "Annuler",
+  hideCancel = false,
   tone = "default",
   confirmPending = false,
   onConfirm,
@@ -31,6 +34,7 @@ export function ConfirmDialog({
   requireConfirmText?: { expected: string; placeholder?: string };
   confirmLabel?: string;
   cancelLabel?: string;
+  hideCancel?: boolean;
   tone?: ConfirmDialogTone;
   confirmPending?: boolean;
   onConfirm: () => void;
@@ -161,14 +165,16 @@ export function ConfirmDialog({
 
         {/* Actions : Responsive (empilés sur mobile, alignés à droite sur desktop) */}
         <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-2.5 pt-1">
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={confirmPending}
-            className="rounded-xl border border-border/80 px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-muted/60 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {cancelLabel}
-          </button>
+          {!hideCancel && (
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={confirmPending}
+              className="rounded-xl border border-border/80 px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-muted/60 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {cancelLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleConfirm}

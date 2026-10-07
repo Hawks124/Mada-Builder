@@ -1,4 +1,11 @@
-import { ApiError, apiCatch, apiOk, corsPreflight, methodNotAllowed } from "@/lib/api/response";
+import {
+  ApiError,
+  apiCatch,
+  apiOk,
+  corsPreflight,
+  methodNotAllowed,
+  assertContentLength,
+} from "@/lib/api/response";
 import { requireApiUser } from "@/lib/api/auth";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
 import {
@@ -29,6 +36,8 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const user = await requireApiUser(req, { allowBanned: true });
     await apiLimit("api:appeals:submit", user.id, API_WINDOWS.file);
+    // Pièces 0-3 × 10 Mo + texte : 35 Mo couvrent, jamais de buffering aveugle.
+    assertContentLength(req, 35 * 1024 * 1024);
     let form: FormData;
     try {
       form = await req.formData();

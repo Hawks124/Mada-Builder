@@ -9,6 +9,9 @@ export interface ActionButtonProps extends React.AnchorHTMLAttributes<HTMLAnchor
   /** Transmis au <button> quand sans href (ex. submit de formulaire). */
   actionType?: "submit" | "button";
   disabled?: boolean;
+  /** Nom/valeur du bouton (ex. intent draft/publish dans un formulaire). */
+  name?: string;
+  value?: string;
 }
 
 export function ActionButton({

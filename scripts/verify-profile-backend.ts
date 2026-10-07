@@ -40,6 +40,17 @@ async function main() {
   const createdIds: string[] = [];
   const testTag = `verify-${Date.now()}`;
 
+  // 0. Résidus d'un run précédent crashé (emails timestampés, sinon
+  // irrattrapables — des comptes factices ont déjà pollué la DB comme ça).
+  {
+    const stale = await db.select({ id: users.id }).from(users).where(likeEmail("@mail.com"));
+    for (const s of stale) {
+      await admin.auth.admin.deleteUser(s.id).catch(() => {});
+      await db.delete(users).where(eqId(s.id));
+    }
+    if (stale.length > 0) console.log(`résidus purge: ${stale.length} compte(s)`);
+  }
+
   // 1. Trigger : création via Auth Admin API → ligne public.users + slug.
   const email1 = `${testTag}-1@mail.com`;
   const { data: u1, error: e1 } = await admin.auth.admin.createUser({

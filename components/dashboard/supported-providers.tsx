@@ -28,7 +28,7 @@ const PROVIDERS: SupportedProvider[] = [
       src: "/logos/stripe.svg",
       width: 64,
       height: 30,
-      className: "w-8",
+      className: "w-8 h-auto",
       darkClass: "dark:brightness-0 dark:invert",
     },
     status: "connected",

@@ -1,4 +1,12 @@
-import { apiCatch, apiOk, corsPreflight, methodNotAllowed, readJson } from "@/lib/api/response";
+import {
+  apiCatch,
+  apiOk,
+  corsPreflight,
+  methodNotAllowed,
+  readJson,
+  withCache,
+  CACHE_PRIVATE,
+} from "@/lib/api/response";
 import { requireApiUser } from "@/lib/api/auth";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
 import {
@@ -30,20 +38,23 @@ export async function GET(req: Request): Promise<Response> {
       getOnboardingStatus(user.id),
       getOnboardingFormData(user.id),
     ]);
-    return apiOk({
-      done: status.done,
-      missing: status.missing,
-      form: form
-        ? {
-            email: form.email,
-            displayName: form.displayName,
-            occupation: form.occupation,
-            provider: form.provider,
-            username: form.username,
-            avatarUrl: form.avatarUrl,
-          }
-        : null,
-    });
+    return withCache(
+      apiOk({
+        done: status.done,
+        missing: status.missing,
+        form: form
+          ? {
+              email: form.email,
+              displayName: form.displayName,
+              occupation: form.occupation,
+              provider: form.provider,
+              username: form.username,
+              avatarUrl: form.avatarUrl,
+            }
+          : null,
+      }),
+      CACHE_PRIVATE,
+    );
   } catch (e) {
     return apiCatch(e, "api.onboarding.get");
   }
@@ -62,7 +73,10 @@ export async function POST(req: Request): Promise<Response> {
     const body = await readJson(req);
     const { username } = await completeProfile(user.id, user.id, body);
     const status = await getOnboardingStatus(user.id);
-    return apiOk({ username, done: status.done, missing: status.missing });
+    return withCache(
+      apiOk({ username, done: status.done, missing: status.missing }),
+      CACHE_PRIVATE,
+    );
   } catch (e) {
     return apiCatch(e, "api.onboarding.post");
   }

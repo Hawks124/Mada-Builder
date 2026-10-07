@@ -4,15 +4,14 @@ import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { ChatCircleTextIcon, SealCheckIcon, StarIcon, TrendUpIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { deriveRevenueView } from "@/components/revenue/revenue-derive";
-import { RevenueBadge } from "@/components/revenue/verified-revenue-badge";
 import { getCategoryById } from "@/config/categories";
 import { getPlatformById } from "@/config/platforms";
 import { getLifecycleById } from "@/config/lifecycle";
+import { getRatingById } from "@/config/ratings";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { VoteButton } from "@/components/votes/vote-button";
 import { useFilters, type DiscoverSortId } from "./sidebar-filter";
-import type { CatalogProduct } from "@/services/catalog-mock.service";
+import type { DiscoverItem } from "@/services/discover.service";
 
 function useOptionalSort(): DiscoverSortId {
   try {
@@ -26,20 +25,25 @@ function useOptionalSort(): DiscoverSortId {
  * Carte catalogue — format dense : l'icône est alignée sur le nom (pas de
  * bloc centré qui repousse le titre vers le bas) et le contenu tient en
  * trois zones. Conteneur `div` + lien overlay : un `<a>` ne contient pas
- * de `<button>`.
+ * de `<button>`. Données réelles (jamais de chiffres inventés : commentaires
+ * et notes à 0/masqués en V1, MRR au lot dédié).
  */
 export function DiscoverRowCard({
   product,
   rank,
+  voted = false,
 }: {
-  product: CatalogProduct;
+  product: DiscoverItem;
   /** Rang dans la liste affichée — utilisé par le kicker du tri « votes ». */
   rank?: number;
+  /** Vote initial de l'auteur (badges, 1 requête en page). */
+  voted?: boolean;
 }) {
   const category = getCategoryById(product.categoryId);
   const sortId = useOptionalSort();
   const isNew = product.lifecycle !== "live";
   const lifecycle = getLifecycleById(product.lifecycle);
+  const rating = getRatingById(product.audienceId);
 
   // Médailles 1-3 (mêmes tokens que le leaderboard), 4+ neutre.
   const rankColor =
@@ -52,19 +56,11 @@ export function DiscoverRowCard({
           : "text-foreground";
 
   // Kicker : uniquement s'il porte une information que le nom ne dit pas.
-  // Le badge MRR a son propre slot — il ne doit pas hériter de l'uppercase
-  // ni du tracking du kicker, qui sont typographiques.
   let kicker: React.ReactNode = null;
   if (sortId === "votes" && rank != null) {
     kicker = (
       <>
         <span className={cn(rankColor)}>#{rank}</span> · Les + votés
-      </>
-    );
-  } else if (sortId === "comments") {
-    kicker = (
-      <>
-        <span className="text-foreground">{product.comments}</span> · Les + commentés
       </>
     );
   } else if (sortId === "newest" && isNew) {
@@ -95,12 +91,17 @@ export function DiscoverRowCard({
               {kicker}
             </span>
           )}
-          {sortId === "revenue" && product.mrrCents != null && (
-            <RevenueBadge revenue={deriveRevenueView(product.id, product.mrrCents)} size="sm" />
-          )}
           <h3 className="text-lg font-extrabold tracking-tight text-foreground truncate transition-colors group-hover:text-primary">
             {product.name}
           </h3>
+          {product.curated && (
+            <span
+              title="Veille internationale : pas un produit de la scène locale"
+              className="self-start rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-sky-600 dark:text-sky-400"
+            >
+              Veille
+            </span>
+          )}
           <p className="text-[13px] leading-snug font-medium text-muted-foreground line-clamp-2">
             {product.tagline}
           </p>
@@ -109,31 +110,29 @@ export function DiscoverRowCard({
         <div className="flex items-center gap-1.5 shrink-0 relative z-20">
           <span
             className="flex items-center gap-1 text-muted-foreground"
-            aria-label={`${product.comments} commentaires`}
-            title={`${product.comments} commentaires`}
+            aria-label={`${product.commentsCount} commentaires`}
+            title="Commentaires"
           >
             <ChatCircleTextIcon weight="fill" className="w-[14px] h-[14px]" />
             <span className="text-[12px] font-bold leading-none tabular-nums">
-              {product.comments}
+              {product.commentsCount}
             </span>
           </span>
           <VoteButton
             productId={product.id}
             productName={product.name}
             votes={product.votes}
+            initialVoted={voted}
             variant="pill"
+            disabledReason={
+              product.curated ? "Produit en veille : hors classement, votes désactivés." : undefined
+            }
           />
         </div>
       </div>
 
       {/* Métadonnées */}
       <div className="flex items-center gap-2.5 flex-wrap mt-4">
-        <div className="flex items-center gap-1 text-[11px] font-bold text-foreground">
-          <StarIcon weight="fill" className="w-3.5 h-3.5 text-yellow-500" />
-          {product.rating}
-        </div>
-        <div className="w-0.75 h-0.75 rounded-full bg-border" aria-hidden="true" />
-
         <div className="flex items-center gap-1.5 text-muted-foreground">
           {product.platforms.map((id) => {
             const p = getPlatformById(id);
@@ -144,13 +143,26 @@ export function DiscoverRowCard({
         </div>
         <div className="w-0.75 h-0.75 rounded-full bg-border" aria-hidden="true" />
 
-        <AgeBadge value={product.classification} size="xs" />
+        <AgeBadge value={rating.badge} size="xs" />
 
-        {product.pricing !== "free" && (
+        {product.ratingsCount > 0 && (
+          <>
+            <div className="w-0.75 h-0.75 rounded-full bg-border" aria-hidden="true" />
+            <span
+              className="flex items-center gap-1 text-[11px] font-bold text-foreground tabular-nums"
+              title={`${product.ratingsCount} avis`}
+            >
+              <StarIcon weight="fill" className="w-3 h-3 text-amber-500" />
+              {product.ratingAvg.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}
+            </span>
+          </>
+        )}
+
+        {product.pricingId !== "free" && (
           <>
             <div className="w-0.75 h-0.75 rounded-full bg-border" aria-hidden="true" />
             <span className="text-[9px] font-black uppercase tracking-widest text-[#B58A43]">
-              Payant
+              {product.pricingId === "paid" ? "Payant" : "Freemium"}
             </span>
           </>
         )}
@@ -186,19 +198,19 @@ export function DiscoverRowCard({
 
         <div className="flex items-center gap-1.5 shrink-0 relative z-10">
           <AvatarImage
-            src={product.makerAvatar}
-            name={product.maker}
+            src={product.makerAvatarUrl}
+            name={product.makerDisplayName}
             size={20}
             className="grayscale group-hover:grayscale-0 transition-opacity"
           />
-          <span className="text-[11px] font-bold text-foreground">{product.maker}</span>
+          <span className="text-[11px] font-bold text-foreground">{product.makerDisplayName}</span>
           <SealCheckIcon weight="fill" className="w-3.5 h-3.5 text-blue-500" />
         </div>
       </div>
 
       {/* Lien overlay : la carte entière est cliquable sans imbriquer d'interactifs */}
       <Link
-        href={`/products/${product.id}`}
+        href={`/products/${product.slug}`}
         className="absolute inset-0 z-0"
         aria-label={`Voir ${product.name}`}
       />

@@ -16,7 +16,6 @@ import {
 import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { MOCK_REVIEW_QUEUE } from "@/components/admin/admin-mock";
 
 const NAV_ITEMS = [
   {
@@ -42,7 +41,14 @@ const NAV_ITEMS = [
     label: "En revue",
     icon: HourglassIcon,
     match: (pathname: string) => pathname === "/admin/review",
-    badgeCount: MOCK_REVIEW_QUEUE.length,
+    badgeKey: "pending" as const,
+  },
+  {
+    href: "/admin/rejected",
+    label: "Rejetés",
+    icon: XIcon,
+    match: (pathname: string) => pathname.startsWith("/admin/rejected"),
+    badgeKey: "rejected" as const,
   },
 ];
 
@@ -51,7 +57,17 @@ const STORAGE_KEY = "admin-sidebar-collapsed";
 // Shell présentationnel (client). Garde session+rôle dans
 // app/(admin)/layout.tsx (server) — défense en profondeur avec le middleware.
 // + table admin_actions (audit trail) à la migration.
-export default function AdminShell({ children }: { children: React.ReactNode }) {
+export default function AdminShell({
+  children,
+  pendingCount,
+  rejectedCount,
+}: {
+  children: React.ReactNode;
+  /** File de revue réelle (layout serveur, jamais de mock). */
+  pendingCount: number;
+  /** Rejetés en attente de correction (layout serveur). */
+  rejectedCount?: number;
+}) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -100,7 +116,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           collapsed ? "w-19 px-3" : "w-64 px-4",
         )}
       >
-        <AdminSidebarBody pathname={pathname} collapsed={collapsed} onToggle={toggle} />
+        <AdminSidebarBody
+          pathname={pathname}
+          collapsed={collapsed}
+          onToggle={toggle}
+          pendingCount={pendingCount}
+          rejectedCount={rejectedCount}
+        />
       </aside>
 
       {/* Mobile drawer */}
@@ -117,6 +139,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               collapsed={false}
               onClose={() => setMobileOpen(false)}
               onNavigate={() => setMobileOpen(false)}
+              pendingCount={pendingCount}
+              rejectedCount={rejectedCount}
             />
           </div>
         </div>
@@ -151,12 +175,16 @@ function AdminSidebarBody({
   onToggle,
   onClose,
   onNavigate,
+  pendingCount,
+  rejectedCount,
 }: {
   pathname: string;
   collapsed: boolean;
   onToggle?: () => void;
   onClose?: () => void;
   onNavigate?: () => void;
+  pendingCount: number;
+  rejectedCount?: number;
 }) {
   return (
     <>
@@ -222,7 +250,12 @@ function AdminSidebarBody({
         {NAV_ITEMS.map((item) => {
           const isActive = item.match(pathname);
           const Icon = item.icon;
-          const badge = "badgeCount" in item ? (item.badgeCount as number) : 0;
+          const badge =
+            "badgeKey" in item
+              ? item.badgeKey === "pending"
+                ? pendingCount
+                : (rejectedCount ?? 0)
+              : 0;
           return (
             <Link
               key={item.href}

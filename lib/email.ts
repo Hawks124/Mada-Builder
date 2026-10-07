@@ -1,5 +1,8 @@
+import { createHash } from "node:crypto";
 import { Resend } from "resend";
 import { captureError } from "@/lib/monitoring";
+import { db } from "@/db";
+import { emailLogs } from "@/db/schema";
 
 /**
  * Façade email (Resend) — premier usage réel : OTP custom d'auth.
@@ -45,7 +48,36 @@ export async function sendEmail(input: {
   subject: string;
   html: string;
   text: string;
+  /** Template (logs + stats admin) — ex. "product-approved", "otp". */
+  template?: string;
+  /** Liaisons (logs + état notif maker) — jamais obligatoires. */
+  userId?: string;
+  productId?: string;
 }): Promise<void> {
+  const template = input.template ?? "unknown";
+  const recipients = Array.isArray(input.to) ? input.to : [input.to];
+  const recipientHash = createHash("sha256")
+    .update(
+      recipients
+        .map((r) => r.trim().toLowerCase())
+        .sort()
+        .join(","),
+    )
+    .digest("hex");
+  const log = async (status: "sent" | "failed", resendId: string | null): Promise<void> => {
+    try {
+      await db.insert(emailLogs).values({
+        template,
+        userId: input.userId ?? null,
+        productId: input.productId ?? null,
+        recipientHash,
+        resendId,
+        status,
+      });
+    } catch {
+      // Journal best-effort : jamais bloquant pour l'envoi.
+    }
+  };
   const { data, error } = await client().emails.send({
     from: emailFrom(),
     to: input.to,
@@ -58,10 +90,13 @@ export async function sendEmail(input: {
     captureError(new Error(`Resend: ${error.name} — ${error.message}`), {
       op: "email.send",
     });
+    await log("failed", null);
     throw new Error("Envoi de l'email impossible pour le moment.");
   }
   if (!data?.id) {
     captureError(new Error("Resend: réponse sans id"), { op: "email.send" });
+    await log("failed", null);
     throw new Error("Envoi de l'email impossible pour le moment.");
   }
+  await log("sent", data.id);
 }

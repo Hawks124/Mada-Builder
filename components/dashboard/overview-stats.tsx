@@ -78,8 +78,8 @@ export function OverviewStats({
           {
             label: "Total upvotes",
             value: formatCompactCount(totals.totalUpvotes),
-            delta: "+18 cette semaine",
-            tone: "up",
+            delta: "votes reçus, tous produits",
+            tone: "neutral",
           },
           {
             label: "Apps live",
@@ -96,21 +96,30 @@ export function OverviewStats({
           {
             label: "Vues fiches",
             value: formatCompactCount(totals.totalViews),
-            delta: "+1,2 k cette semaine",
-            tone: "up",
+            delta:
+              totals.totalViews7d > 0
+                ? `+${formatCompactCount(totals.totalViews7d)} (7 j)`
+                : "total cumulé",
+            tone: totals.totalViews7d > 0 ? "up" : "neutral",
+          },
+          {
+            label: "Clics sortants",
+            value: formatCompactCount(totals.totalClicks),
+            delta: "vers vos liens, total cumulé",
+            tone: "neutral",
           },
           {
             label: "Commentaires",
             value: formatCompactCount(totals.totalComments),
-            delta: "+6 cette semaine",
-            tone: "up",
+            delta: "total",
+            tone: "neutral",
           },
           {
             label: "Note globale",
             value: totals.globalRating.toLocaleString("fr-FR", {
               maximumFractionDigits: 1,
             }),
-            delta: "tous produits",
+            delta: "avis en V1.5",
             tone: "neutral",
             star: true,
           },
@@ -123,8 +132,8 @@ export function OverviewStats({
           {
             label: "MRR vérifié",
             value: formatMoney(totals.totalMrrCents, "USD", { compact: true }),
-            delta: "+8 % cette semaine",
-            tone: "up",
+            delta: totals.totalMrrCents > 0 ? "revenus prouvés" : "connectez une facturation",
+            tone: totals.totalMrrCents > 0 ? "up" : "neutral",
           },
         ];
 

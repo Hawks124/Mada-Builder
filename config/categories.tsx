@@ -30,6 +30,7 @@ import {
   FlaskIcon,
   NewspaperIcon,
   FactoryIcon,
+  BasketballIcon,
   LightningIcon,
   RobotIcon,
   ChurchIcon,
@@ -484,6 +485,18 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
     chipClass: "text-amber-700 border-amber-700/20 bg-amber-700/10",
   },
   {
+    id: "sport",
+    name: "Sport",
+    subtitle: "Sport & fitness",
+    count: 0,
+    icon: BasketballIcon,
+    hoverColor: "group-hover:text-orange-600",
+    hoverBg: "group-hover:bg-orange-600/10 group-hover:border-orange-600/20",
+    hoverClass: "hover:text-orange-600 hover:bg-orange-600/10 hover:border-orange-600/20",
+    selectedClass: "border-orange-600 bg-orange-600 text-background",
+    chipClass: "text-orange-600 border-orange-600/20 bg-orange-600/10",
+  },
+  {
     id: "other",
     name: "Autre",
     subtitle: "Tout ce qui reste",
@@ -757,6 +770,18 @@ export const HERO_CATEGORIES: ProductCategory[] = [
     hoverBg: "group-hover:bg-neutral-600/10 group-hover:border-neutral-600/20",
   },
   {
+    id: "sport",
+    name: "Sport",
+    subtitle: "Sport & fitness",
+    count: 4,
+    icon: BasketballIcon,
+    hoverColor: "group-hover:text-orange-600",
+    hoverBg: "group-hover:bg-orange-600/10 group-hover:border-orange-600/20",
+    hoverClass: "hover:text-orange-600 hover:bg-orange-600/10 hover:border-orange-600/20",
+    selectedClass: "border-orange-600 bg-orange-600 text-background",
+    chipClass: "text-orange-600 border-orange-600/20 bg-orange-600/10",
+  },
+  {
     id: "other",
     name: "Autre",
     subtitle: "Tout le reste",
@@ -767,16 +792,13 @@ export const HERO_CATEGORIES: ProductCategory[] = [
   },
 ];
 
-/** Total product count across all categories (hero stats bar). */
-export const TOTAL_PRODUCT_COUNT = PRODUCT_CATEGORIES.reduce((acc, c) => acc + c.count, 0);
-
 /** Résout une catégorie atomique depuis son id, avec fallback neutre (`other`). */
 export function getCategoryById(id: string): ProductCategory | undefined {
   return PRODUCT_CATEGORIES.find((c) => c.id === id);
 }
 
 /**
- * Familles éditoriales — regroupement des 35 catégories atomiques en 9
+ * Familles éditoriales — regroupement des 36 catégories atomiques en 9
  * domaines. Rôle strictement éditorial : sert à l'index `/categories`
  * (lisibilité) — PAS une taxonomie de_second niveau, donc pas de
  * route `/categories/[famille]` (évite des pages quasi vides, PRD §18).
@@ -826,7 +848,7 @@ export const CATEGORY_FAMILIES: CategoryFamily[] = [
   {
     id: "life",
     label: "Quotidien",
-    categoryIds: ["lifestyle", "food", "transport", "travel"],
+    categoryIds: ["lifestyle", "food", "transport", "travel", "sport"],
   },
   {
     id: "industry",

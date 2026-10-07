@@ -269,6 +269,14 @@ export const PRODUCT_LINK_FIELDS: Record<string, LinkFieldDef> = {
     required: "kids",
     icon: "privacy",
   },
+  changelog: {
+    id: "changelog",
+    label: "Journal des modifications",
+    placeholder: "https://…/CHANGELOG",
+    hint: "Saisi via les métadonnées (game/desktop/os) — jamais dans la section liens.",
+    required: "never",
+    icon: "file",
+  },
   tos: {
     id: "tos",
     label: "Conditions d'utilisation",

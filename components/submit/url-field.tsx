@@ -23,7 +23,8 @@ export function UrlField({
   field: LinkFieldDef;
   badge: "required" | "recommended" | "optional";
 }) {
-  const { linkValues, setLinkValue, setLinkPolicy } = useSubmitForm();
+  const { linkValues, setLinkValue, setLinkPolicy, errors, clearError } = useSubmitForm();
+  const fieldError = errors[field.id];
   const [value, setValue] = React.useState(linkValues[field.id] ?? "");
   // Forme store immédiate (sans réseau) quand le champ est non vide.
   const shapeError =
@@ -65,14 +66,26 @@ export function UrlField({
           type="url"
           placeholder={field.placeholder}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            clearError(field.id);
+          }}
+          aria-invalid={fieldError ? true : undefined}
           className="w-full bg-muted/30 border-none rounded-2xl pl-12 pr-5 py-4 text-[15px] font-medium placeholder:text-muted-foreground/40 text-foreground outline-none ring-1 ring-inset ring-border/50 focus:ring-2 focus:ring-foreground transition-shadow"
         />
       </div>
       {field.hint && value.trim() === "" && (
         <p className="text-[12px] font-medium text-muted-foreground/70">{field.hint}</p>
       )}
-      {shapeError !== null ? (
+      {fieldError ? (
+        <p
+          role="alert"
+          className="flex items-center gap-1.5 text-[12px] font-bold text-red-600 dark:text-red-400 motion-safe:animate-field-pop"
+        >
+          <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current shrink-0" />
+          {fieldError}
+        </p>
+      ) : shapeError !== null ? (
         <p
           key="shape-error"
           className="flex items-center gap-1.5 text-[12px] font-bold text-red-600 dark:text-red-400 motion-safe:animate-field-pop"

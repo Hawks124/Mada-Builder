@@ -79,6 +79,8 @@ export const users = pgTable("users", {
   banReason: text("ban_reason"),
   bannedAt: timestamp("banned_at", { withTimezone: true }),
   appealsCount: integer("appeals_count").notNull().default(0),
+  // Digest hebdo : opt-out explicite (pas de spam sans sortie).
+  digestOptOut: boolean("digest_opt_out").notNull().default(false),
 
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })

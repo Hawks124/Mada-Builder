@@ -1,11 +1,13 @@
 import { z } from "zod";
 import { and, count, desc, eq, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { cache } from "react";
-import sharp from "sharp";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { OCCUPATIONS } from "@/config/occupations";
 import { slugifyName } from "@/lib/utils";
+import { ImageRejectedError, processImage } from "@/lib/images";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { captureError } from "@/lib/monitoring";
 import {
   avatarPath,
   avatarPathFromUrl,
@@ -26,9 +28,13 @@ import {
 // ── Erreurs typées ───────────────────────────────────────────────────────────
 export class ProfileError extends Error {
   code: "FORBIDDEN" | "NOT_FOUND" | "VALIDATION" | "CONFLICT" | "FILE_REJECTED";
-  constructor(code: ProfileError["code"], message: string) {
+  /** Détail machine-readable (ex. `{ reason: "account_too_young" }`) :
+   * jamais affiché brut — web et mobile matchent le code, pas le texte. */
+  details?: unknown;
+  constructor(code: ProfileError["code"], message: string, details?: unknown) {
     super(message);
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -106,6 +112,8 @@ export const updateProfileSchema = z.object({
       }
     }, "Fuseau inconnu")
     .optional(),
+  // Digest hebdo : opt-out explicite (checkbox profil).
+  digestOptOut: z.boolean().optional(),
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
@@ -138,6 +146,7 @@ export async function fetchOwnProfile(userId: string) {
       banReason: users.banReason,
       appealsCount: users.appealsCount,
       onboardingCompleted: users.onboardingCompleted,
+      digestOptOut: users.digestOptOut,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -228,6 +237,7 @@ export async function updateProfile(viewerId: string, targetId: string, rawInput
       country: data.country ?? null,
       socialLinks: data.socialLinks ?? {},
       ...(data.timeZone !== undefined ? { timeZone: data.timeZone } : {}),
+      ...(data.digestOptOut !== undefined ? { digestOptOut: data.digestOptOut } : {}),
       updatedAt: new Date(),
     })
     .where(eq(users.id, targetId));
@@ -236,32 +246,33 @@ export async function updateProfile(viewerId: string, targetId: string, rawInput
   return { ok: true as const, username: row.username };
 }
 
-// ── Avatar : pipeline déterministe (validation → sharp → storage) ────────────
+/**
+ * Préférence récap hebdo (settings + mobile) : update ciblé, jamais le
+ * profil complet. `optOut=true` = ne plus recevoir le récap (l'in-app
+ * reste toujours actif). Retourne la valeur stockée.
+ */
+export async function setDigestOptOut(
+  viewerId: string,
+  optOut: boolean,
+): Promise<{ digestOptOut: boolean }> {
+  await assertNotBanned(viewerId);
+  const [row] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, viewerId))
+    .limit(1);
+  if (!row) throw new ProfileError("NOT_FOUND", "Compte introuvable.");
+  await db
+    .update(users)
+    .set({ digestOptOut: optOut, updatedAt: new Date() })
+    .where(eq(users.id, viewerId));
+  return { digestOptOut: optOut };
+}
+
+// ── Avatar : pipeline partagée (lib/images) + storage ───────────────────────
 export const AVATAR_MAX_INPUT_BYTES = 10 * 1024 * 1024; // garde anti-bombe de décompression
 const AVATAR_MIN_PX = 128;
 const AVATAR_OUT_PX = 512;
-
-type ImageKind = "png" | "jpeg" | "webp";
-
-function detectImageKind(buffer: Buffer): ImageKind | null {
-  if (
-    buffer.length > 4 &&
-    buffer[0] === 0x89 &&
-    buffer[1] === 0x50 &&
-    buffer[2] === 0x4e &&
-    buffer[3] === 0x47
-  )
-    return "png";
-  if (buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff)
-    return "jpeg";
-  if (
-    buffer.length > 12 &&
-    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
-    buffer.subarray(8, 12).toString("ascii") === "WEBP"
-  )
-    return "webp";
-  return null; // SVG/GIF/autres : refusés (XSS, animation)
-}
 
 export async function updateAvatar(
   supabase: SupabaseClientLike,
@@ -277,28 +288,18 @@ export async function updateAvatar(
     throw new ProfileError("FILE_REJECTED", "Fichier trop lourd (10 Mo max avant compression).");
   }
   const buffer = Buffer.from(await file.arrayBuffer());
-  const kind = detectImageKind(buffer);
-  if (!kind) {
-    throw new ProfileError(
-      "FILE_REJECTED",
-      "Format non supporté — PNG, JPG ou WebP uniquement (SVG interdit).",
-    );
-  }
-
-  const pipeline = sharp(buffer).rotate(); // EXIF auto (photos téléphone)
-  const meta = await pipeline.metadata();
-  if (!meta.width || !meta.height || Math.min(meta.width, meta.height) < AVATAR_MIN_PX) {
-    throw new ProfileError("FILE_REJECTED", "Image trop petite — 128 px minimum.");
-  }
-  const out = await pipeline
-    .resize(AVATAR_OUT_PX, AVATAR_OUT_PX, { fit: "cover" })
-    .webp({ quality: 82 })
-    .toBuffer();
-  if (out.length > 2 * 1024 * 1024) {
-    throw new ProfileError(
-      "FILE_REJECTED",
-      "Image incompressible — essayez un visuel plus simple.",
-    );
+  let out: Buffer;
+  try {
+    out = await processImage(buffer, {
+      maxInputBytes: AVATAR_MAX_INPUT_BYTES,
+      minPx: AVATAR_MIN_PX,
+      outPx: AVATAR_OUT_PX,
+      outQuality: 82,
+      maxOutBytes: 2 * 1024 * 1024,
+    });
+  } catch (e) {
+    if (e instanceof ImageRejectedError) throw new ProfileError("FILE_REJECTED", e.message);
+    throw e;
   }
 
   const [current] = await db
@@ -780,6 +781,31 @@ async function freshUsername(displayName: string, email: string): Promise<string
 // ── Rôles (matrice docs/auth.md §2 : admin fondateur, modérateur
 // opérationnel, user). La voie SQL reste possible pour le grade admin.
 export type StaffRole = "admin" | "moderateur";
+
+/**
+ * Sync du miroir JWT (`app_metadata.role`, lu par le proxy et — avant
+ * oct. 2026 — par le layout). OBLIGATOIRE après chaque écriture de rôle
+ * en DB : sans elle, un demoted garde son accès panel via son vieux JWT
+ * (faille réelle : open-sources demoted par script, JWT stale moderateur).
+ * Merge avec l'existant, jamais d'écrasement. Best-effort (loggé).
+ */
+export async function syncRoleMirror(
+  userId: string,
+  role: "admin" | "moderateur" | "user",
+): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { data } = await admin.auth.admin.getUserById(userId);
+    const current = (data.user?.app_metadata ?? {}) as Record<string, unknown>;
+    const { error } = await admin.auth.admin.updateUserById(userId, {
+      app_metadata: { ...current, role },
+    });
+    if (error) throw error;
+  } catch (e) {
+    captureError(e instanceof Error ? e : new Error(String(e)), { op: "users.roleMirror" });
+    throw new Error("Rôle table OK, miroir JWT en échec — réessayez.");
+  }
+}
 
 export async function setUserRole(
   actorId: string,

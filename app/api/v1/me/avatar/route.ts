@@ -5,6 +5,8 @@ import {
   corsPreflight,
   methodNotAllowed,
   requireFile,
+  assertContentLength,
+  MAX_AVATAR_UPLOAD_BYTES,
 } from "@/lib/api/response";
 import { requireApiUser } from "@/lib/api/auth";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
@@ -34,6 +36,7 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const user = await requireApiUser(req);
     await apiLimit("api:me:avatar", user.id, API_WINDOWS.file);
+    assertContentLength(req, MAX_AVATAR_UPLOAD_BYTES);
     let form: FormData;
     try {
       form = await req.formData();

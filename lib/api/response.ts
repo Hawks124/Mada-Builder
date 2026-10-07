@@ -48,6 +48,32 @@ export function apiOk<T>(data: T, status = 200): Response {
   return corsJson({ ok: true, data }, status);
 }
 
+/**
+ * Garde taille déclarée AVANT buffering multipart (Phase 6) : un client
+ * annonçant 60 Mo ne doit jamais faire allouer 60 Mo — 413 franc sur le
+ * `Content-Length` (absent = on laisse passer, le service valide après).
+ */
+export function assertContentLength(req: Request, maxBytes: number): void {
+  const raw = req.headers.get("content-length");
+  if (raw === null) return;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new ApiError("INVALID_BODY", 400, "Taille de requête illisible.");
+  }
+  if (n > maxBytes) {
+    throw new ApiError(
+      "VALIDATION",
+      413,
+      `Requête trop volumineuse (${Math.round(maxBytes / 1024 / 1024)} Mo maximum).`,
+    );
+  }
+}
+
+/** Budget multipart : logo 10 Mo + 6 captures 10 Mo + marge formulaire. */
+export const MAX_PRODUCT_UPLOAD_BYTES = 72 * 1024 * 1024;
+/** Avatar : 10 Mo + marge. */
+export const MAX_AVATAR_UPLOAD_BYTES = 12 * 1024 * 1024;
+
 export function apiError(
   code: ApiErrorCode,
   message: string,
@@ -60,16 +86,31 @@ export function apiError(
 }
 
 /**
+ * Détail machine-readable d'une erreur (ex. `{ reason: "account_too_young" }`) :
+ * objet simple uniquement, jamais de PII, jamais de stack. Le client matche
+ * le code, pas le texte (textes FR modifiables sans casser le mobile).
+ */
+function toErrorData(details: unknown): Record<string, unknown> | undefined {
+  if (details === null || details === undefined) return undefined;
+  if (typeof details !== "object" || Array.isArray(details)) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(details as Record<string, unknown>)) {
+    if (typeof k !== "string" || k === "") continue;
+    if (v === null || ["string", "number", "boolean"].includes(typeof v)) out[k] = v;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
  * Traduit une erreur service/action en réponse. ProfileError → code +
  * statut stables ; ApiError → tel quel ; inconnu → INTERNAL générique
  * (détail loggé Sentry, jamais renvoyé — §16).
- */
-export function apiCatch(e: unknown, op: string): Response {
+ */ export function apiCatch(e: unknown, op: string): Response {
   if (e instanceof ApiError) {
     return apiError(e.code, e.message, e.status, e.data);
   }
   if (e instanceof ProfileError) {
-    return apiError(e.code, e.message, PROFILE_STATUS[e.code]);
+    return apiError(e.code, e.message, PROFILE_STATUS[e.code], toErrorData(e.details));
   }
   captureError(e instanceof Error ? e : new Error(String(e)), { op });
   return apiError("INTERNAL", "Erreur interne. Réessayez dans un instant.", 500);
@@ -124,6 +165,22 @@ function corsJson(body: unknown, status: number): Response {
 /** Pré-réponse preflight — `export const OPTIONS` de chaque route v1. */
 export function corsPreflight(): Response {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
+/**
+ * Cache HTTP lectures (Phase 6) : public partagé (CDN) vs privé.
+ * - `PUBLIC_SHORT` (leaderboard-like, makers, fiches) : 60 s partagé + SWR.
+ * - `PUBLIC_LONG` (référentiels quasi-statiques : meta) : 1 h + SWR jour.
+ * - `PRIVATE` (me, dashboard, appels) : `no-store` EXPLICITE — jamais de
+ *   donnée personnelle en cache partagé, même par accident.
+ */
+export const CACHE_PUBLIC_SHORT = "public, s-maxage=60, stale-while-revalidate=300";
+export const CACHE_PUBLIC_LONG = "public, s-maxage=3600, stale-while-revalidate=86400";
+export const CACHE_PRIVATE = "private, no-store";
+
+export function withCache(res: Response, directive: string): Response {
+  res.headers.set("Cache-Control", directive);
+  return res;
 }
 
 /**

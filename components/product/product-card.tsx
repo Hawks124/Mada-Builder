@@ -1,3 +1,5 @@
+"use client";
+
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
   SealCheckIcon,
@@ -7,8 +9,9 @@ import {
   AndroidLogoIcon,
   ChatCircleTextIcon,
 } from "@phosphor-icons/react";
-import { cn, slugifyName } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
+import { getRatingById } from "@/config/ratings";
 import { VoteButton } from "@/components/votes/vote-button";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { LifecyclePill } from "@/components/ui/lifecycle-pill";
@@ -18,29 +21,40 @@ import Link from "next/link";
 
 // Extracted from NewestProducts to be used globally (NewestProducts, DiscoverGrid, etc.)
 export type ProductCardProps = {
+  /** UUID (votes) — les liens utilisent `slug`, jamais l'id. */
   id: string;
+  slug: string;
   name: string;
   tagline: string;
   categoryId: string;
   maker: string;
-  makerAvatar: string;
+  makerUsername: string;
+  makerAvatar: string | null;
   votes: number;
+  initialVoted?: boolean;
   iconGradient: string;
   initials: string;
-  pricing: string; // 'free' | 'freemium' | 'paid' etc.
-  rating: string;
+  /** Id pricing (free|freemium|…) — label affiché : Freemium si non-free. */
+  pricing: string;
+  /** Note moyenne — vide = bloc masqué (avis en V1.5, jamais de faux chiffre). */
+  rating?: string;
+  /** Ids plateformes (web|ios|android|…) — labels jamais comparés. */
   platforms: string[];
-  classification: string;
+  /** Id audience (all|kids|…) — badge via config/ratings. */
+  audienceId: string;
   lifecycle?: string;
   comments?: number;
   /** MRR vérifié en centimes — null/absent = pas de badge (jamais de faux chiffre). */
   mrrCents?: number | null;
   /** Date ISO de publication — sert au badge "Nouveau" du tri récent. */
   publishedAt?: string | null;
+  /** Veille internationale : badge + vote désactivé (hors jeu). */
+  curated?: boolean;
 };
 
 export function ProductCard({ product }: { product: ProductCardProps }) {
   const category = getCategoryById(product.categoryId);
+  const rating = getRatingById(product.audienceId);
 
   return (
     <div className="group flex flex-col p-6 rounded-[10px] bg-muted/40 hover:bg-muted/70 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:hover:shadow-black/50 border border-transparent hover:border-border/50 h-full relative">
@@ -57,57 +71,71 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
         <div className="flex items-center gap-2">
           {/* Comment Count Pill */}
           <Link
-            href={`/products/${product.id}#comments`}
+            href={`/products/${product.slug}#comments`}
             className="flex items-center gap-1.5  text-muted-foreground transition-colors z-10"
             onClick={(e) => e.stopPropagation()}
           >
             <ChatCircleTextIcon weight="fill" className="w-[14px] h-[14px]" />
-            <span className="text-[12px] font-bold leading-none">
-              {product.comments ?? Math.floor((product.votes || 0) / 4) + 1}
-            </span>
+            <span className="text-[12px] font-bold leading-none">{product.comments ?? 0}</span>
           </Link>
 
           <VoteButton
             productId={product.id}
             productName={product.name}
             votes={product.votes}
+            initialVoted={product.initialVoted ?? false}
             variant="pill"
+            disabledReason={
+              product.curated ? "Produit en veille : hors classement, votes désactivés." : undefined
+            }
           />
         </div>
       </div>
 
       {/* CARD BODY: Content */}
       <div className="flex flex-col gap-1 mb-4 flex-1">
-        <Link href={`/products/${product.id}`} className="w-fit">
-          <h3 className="text-xl font-extrabold tracking-tight text-foreground line-clamp-1 group-hover:text-primary transition-colors">
-            {product.name}
-          </h3>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href={`/products/${product.slug}`} className="w-fit min-w-0">
+            <h3 className="text-xl font-extrabold tracking-tight text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+              {product.name}
+            </h3>
+          </Link>
+          {product.curated && (
+            <span
+              title="Veille internationale : pas un produit de la scène locale"
+              className="shrink-0 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-sky-600 dark:text-sky-400"
+            >
+              Veille
+            </span>
+          )}
+        </div>
         <p className="text-[14px] leading-snug font-medium text-muted-foreground line-clamp-2 h-11">
           {product.tagline}
         </p>
 
         {/* Meta Line: Rating, Platforms, Classification, Pricing */}
         <div className="flex items-center gap-2.5 mt-3 flex-wrap">
-          <div className="flex items-center gap-1 text-[11px] font-bold text-foreground">
-            <StarIcon weight="fill" className="w-3.5 h-3.5 text-yellow-500" />
-            {product.rating}
-          </div>
+          {product.rating != null && product.rating !== "" && (
+            <div className="flex items-center gap-1 text-[11px] font-bold text-foreground">
+              <StarIcon weight="fill" className="w-3.5 h-3.5 text-yellow-500" />
+              {product.rating}
+            </div>
+          )}
           <div className="w-0.75 h-0.75 rounded-full bg-border" />
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            {product.platforms?.includes("Web") && (
+            {product.platforms?.includes("web") && (
               <GlobeIcon
                 weight="fill"
                 className="w-3.5 h-3.5 hover:text-foreground transition-colors"
               />
             )}
-            {product.platforms?.includes("iOS") && (
+            {product.platforms?.includes("ios") && (
               <AppleLogoIcon
                 weight="fill"
                 className="w-3.5 h-3.5 hover:text-foreground transition-colors"
               />
             )}
-            {product.platforms?.includes("Android") && (
+            {product.platforms?.includes("android") && (
               <AndroidLogoIcon
                 weight="fill"
                 className="w-3.5 h-3.5 hover:text-foreground transition-colors"
@@ -115,13 +143,13 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
             )}
           </div>
           <div className="w-0.75 h-0.75 rounded-full bg-border" />
-          <AgeBadge value={product.classification} size="xs" />
+          <AgeBadge value={rating.badge} size="xs" />
 
           {product.pricing !== "free" && (
             <>
               <div className="w-0.75 h-0.75 rounded-full bg-border" />
               <span className="text-[9px] font-black uppercase tracking-widest text-[#B58A43]">
-                Payant
+                {product.pricing === "paid" ? "Payant" : "Freemium"}
               </span>
             </>
           )}
@@ -155,7 +183,7 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
         </div>
 
         <Link
-          href={`/makers/${slugifyName(product.maker)}`}
+          href={`/makers/${product.makerUsername}`}
           className="flex items-center gap-1.5 hover:opacity-80 transition-opacity relative z-10"
         >
           <AvatarImage
@@ -171,7 +199,7 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
 
       {/* Entire card is clickable background link for better UX */}
       <Link
-        href={`/products/${product.id}`}
+        href={`/products/${product.slug}`}
         className="absolute inset-0 z-0"
         aria-label={`View ${product.name}`}
       />

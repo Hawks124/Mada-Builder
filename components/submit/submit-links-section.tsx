@@ -41,8 +41,17 @@ export function SubmitLinksSection() {
 
   const hasAccess = hasAccessPoint(linkValues);
 
+  // Miroirs des valeurs hors-champ (changement de type) : sans eux, les
+  // liens du type précédent seraient silencieusement supprimés au submit
+  // (inputs démontés = absents du FormData = effacés côté serveur).
+  const visibleIds = new Set(visible.map((f) => f.id));
+  const hiddenEntries = Object.entries(linkValues).filter(([id]) => !visibleIds.has(id));
+
   return (
     <div className="flex flex-col gap-10">
+      {hiddenEntries.map(([id, value]) => (
+        <input key={`hidden:${id}`} type="hidden" name={id} value={value} />
+      ))}
       <div className="flex flex-col gap-1">
         <h2 className="text-2xl font-black tracking-tight">Liens & Plateformes</h2>
         <p className="text-[14px] font-medium text-muted-foreground">

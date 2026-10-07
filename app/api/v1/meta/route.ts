@@ -1,4 +1,12 @@
-import { apiCatch, apiOk, corsPreflight, methodNotAllowed } from "@/lib/api/response";
+import {
+  apiCatch,
+  apiOk,
+  corsPreflight,
+  methodNotAllowed,
+  withCache,
+  CACHE_PUBLIC_LONG,
+  MAX_PRODUCT_UPLOAD_BYTES,
+} from "@/lib/api/response";
 import { apiLimit } from "@/lib/api/ratelimit";
 import {
   APPEAL_COOLDOWN_MS,
@@ -33,23 +41,30 @@ export async function GET(req: Request): Promise<Response> {
     if (ip) {
       await apiLimit("api:meta:read", ip, { window: "60 s", max: 300 });
     }
-    return apiOk({
-      occupations: OCCUPATIONS.map((o) => ({
-        id: o.id,
-        label: o.label,
-        description: o.description,
-      })),
-      defaultOccupation: DEFAULT_OCCUPATION_ID,
-      providers: ["github", "google", "email"],
-      limits: {
-        avatarMaxBytes: AVATAR_MAX_INPUT_BYTES,
-        appealMaxFiles: APPEAL_MAX_FILES,
-        appealMaxBytes: APPEAL_MAX_BYTES,
-        appealExplanationMin: EXPLANATION_MIN,
-        appealExplanationMax: EXPLANATION_MAX,
-        appealCooldownHours: APPEAL_COOLDOWN_MS / 3_600_000,
-      },
-    });
+    return withCache(
+      apiOk({
+        occupations: OCCUPATIONS.map((o) => ({
+          id: o.id,
+          label: o.label,
+          description: o.description,
+        })),
+        defaultOccupation: DEFAULT_OCCUPATION_ID,
+        providers: ["github", "google", "email"],
+        limits: {
+          avatarMaxBytes: AVATAR_MAX_INPUT_BYTES,
+          appealMaxFiles: APPEAL_MAX_FILES,
+          appealMaxBytes: APPEAL_MAX_BYTES,
+          appealExplanationMin: EXPLANATION_MIN,
+          appealExplanationMax: EXPLANATION_MAX,
+          appealCooldownHours: APPEAL_COOLDOWN_MS / 3_600_000,
+          // Produits (Phase 6) : budgets + idempotence, lus jamais hardcodés.
+          productMaxBytes: MAX_PRODUCT_UPLOAD_BYTES,
+          productMaxShots: 6,
+          idempotencyKeyHeader: "Idempotency-Key",
+        },
+      }),
+      CACHE_PUBLIC_LONG,
+    );
   } catch (e) {
     return apiCatch(e, "api.meta.get");
   }

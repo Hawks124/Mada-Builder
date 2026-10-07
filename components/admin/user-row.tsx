@@ -5,6 +5,7 @@ import { AvatarImage } from "@/components/ui/avatar-image";
 import { GavelIcon, CaretDownIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StaffIdentity } from "@/components/admin/user-identity";
 import { RowMenu } from "@/components/admin/row-menu";
 import type { UserHistory } from "@/app/actions/admin";
@@ -347,9 +348,12 @@ function HistoryBody({ user, history }: { user: AdminUserRow; history: UserHisto
             Actions antérieures au suivi non détaillées.
           </p>
         ) : (
-          <p className="text-[13px] font-medium text-muted-foreground">
-            Aucune sanction — bon travail.
-          </p>
+          <EmptyState
+            illustration="none"
+            size="sm"
+            className="gap-1 px-0 py-2"
+            title="Aucune sanction — bon travail."
+          />
         )
       ) : (
         <ul className="flex flex-col divide-y divide-border/40">

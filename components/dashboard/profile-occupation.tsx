@@ -7,12 +7,21 @@ import { DEFAULT_OCCUPATION_ID, OCCUPATIONS } from "@/config/occupations";
 
 // Occupation partagée — vocabulaire fermé (users.occupation backend).
 // Pilotée par `defaultValue` + champ caché `occupation` (submit natif).
+// Le Select custom ne bubble AUCUN événement natif : sans `onChange`, le
+// form parent ne voit jamais la modification (bouton save inerte).
 export function ProfileOccupation({
   defaultValue = DEFAULT_OCCUPATION_ID,
+  onChange,
 }: {
   defaultValue?: string;
+  onChange?: (id: string) => void;
 }) {
   const [value, setValue] = React.useState(defaultValue);
+
+  const select = (id: string) => {
+    setValue(id);
+    onChange?.(id);
+  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -22,7 +31,7 @@ export function ProfileOccupation({
       </label>
       <Select
         value={value}
-        onChange={setValue}
+        onChange={select}
         options={OCCUPATIONS.map((o) => ({
           id: o.id,
           label: o.label,

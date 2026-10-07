@@ -35,7 +35,7 @@ export type ReviewItem = {
   description: string;
   makerName: string;
   makerUsername: string;
-  makerAvatar: string;
+  makerAvatar: string | null;
   makerLiveCount: number;
   makerBans: number;
   /** Toutes les catégories choisies (1-3) — [0] = principale. */
@@ -65,6 +65,13 @@ export type ReviewItem = {
   changelogUrl?: string;
   iconGradient: string;
   initials: string;
+  /** Logo réel (R2) — absent = tuile initiales. */
+  iconUrl?: string | null;
+  /** Rappel maker (variante rejetés) : texte dernier rappel + verrou cooldown. */
+  nudgeText?: string;
+  nudgeDisabled?: boolean;
+  /** Motif du refus (variante rejetés) — l'admin relit avant de rappeler. */
+  rejectionReason?: string;
   /** Captures fournies (0 = slot "Non fourni"). */
   screenshots: number;
   waitingText: string;
@@ -74,7 +81,13 @@ export type ReviewItem = {
 };
 
 export type ActivitySubject =
-  | { type: "product"; productId: string }
+  | {
+      type: "product";
+      productId: string;
+      initials?: string;
+      iconGradient?: string;
+      iconUrl?: string;
+    }
   | { type: "provider"; provider: "stripe" | "revenuecat" }
   | { type: "users"; avatars: string[]; extra: number };
 
@@ -190,6 +203,10 @@ export type AdminProductMaker = {
 
 export type AdminProduct = {
   id: string;
+  /** Slug fiche (les liens utilisent le slug, jamais l'id). */
+  slug: string;
+  /** Veille internationale (hors jeu, toggle admin). */
+  curated?: boolean;
   name: string;
   tagline: string;
   categoryId: string;
@@ -224,6 +241,7 @@ export const PRICING_ORDER: Record<string, number> = {
 export const ADMIN_PRODUCTS: AdminProduct[] = [
   {
     id: "avotra-hr",
+    slug: "avotra-hr",
     name: "Avotra HR",
     tagline: "SIRH et paie automatisée, 100% droit malgache.",
     categoryId: "employment",
@@ -250,6 +268,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
   },
   {
     id: "tarsi",
+    slug: "tarsi",
     name: "Tarsi",
     tagline: "Your Personal Finance Companion.",
     categoryId: "finance",
@@ -275,6 +294,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
   },
   {
     id: "tsena-connect",
+    slug: "tsena-connect",
     name: "TsenaConnect",
     tagline: "Le marché artisanal malgache en ligne.",
     categoryId: "ecommerce",
@@ -299,6 +319,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
   },
   {
     id: "vatsy",
+    slug: "vatsy",
     name: "Vatsy",
     tagline: "Épargne mobile-money sans friction.",
     categoryId: "fintech",
@@ -325,6 +346,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
   },
   {
     id: "anong-ulam",
+    slug: "anong-ulam",
     name: "Anong Ulam?",
     tagline: "AI-powered food generator.",
     categoryId: "lifestyle",
@@ -349,6 +371,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
   },
   {
     id: "sakafo-mada",
+    slug: "sakafo-mada",
     name: "Sakafo Mada",
     tagline: "Recettes malgaches, mode hors-ligne.",
     categoryId: "food",
