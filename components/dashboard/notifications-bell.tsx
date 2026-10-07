@@ -1,56 +1,36 @@
 "use client";
 
 import * as React from "react";
-import { BellIcon, SealCheckIcon, CaretUpIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import Link from "next/link";
+import { BellIcon, SealCheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 
-type NotificationTone = "success" | "milestone" | "alert";
-
-type DashboardNotification = {
+export type BellNotification = {
   id: string;
-  tone: NotificationTone;
   title: string;
   time: string;
-  unread: boolean;
+  tone: "success" | "alert";
+  /** Visuel réel (logo produit > avatar acteur) — sinon icône de tone. */
+  image?: string | null;
 };
 
-const MOCK_NOTIFICATIONS: DashboardNotification[] = [
-  {
-    id: "n1",
-    tone: "success",
-    title: "Avotra HR a été approuvé",
-    time: "il y a 2 h",
-    unread: true,
-  },
-  {
-    id: "n2",
-    tone: "milestone",
-    title: "TsenaConnect a dépassé 100 votes",
-    time: "hier",
-    unread: true,
-  },
-  {
-    id: "n3",
-    tone: "alert",
-    title: "Sync RevenueCat échouée pour Vatsy",
-    time: "il y a 3 j",
-    unread: false,
-  },
-];
-
-const TONE_ICON: Record<NotificationTone, React.ReactNode> = {
+const TONE_ICON: Record<BellNotification["tone"], React.ReactNode> = {
   success: <SealCheckIcon weight="fill" className="h-5 w-5 text-emerald-500 shrink-0" />,
-  milestone: <CaretUpIcon weight="fill" className="h-5 w-5 text-amber-500 shrink-0" />,
   alert: <WarningCircleIcon weight="fill" className="h-5 w-5 text-red-500 shrink-0" />,
 };
 
-// Circular bell + unread dot, next to the submit CTA.
-// Same open/close pattern as ui/select.tsx.
-export function NotificationsBell() {
+// Cloche maker — notifications RÉELLES (emails liés à ses produits +
+// paliers). Pastille = non-lues réelles (colonne read_at). Jamais de mock.
+export function NotificationsBell({
+  initial,
+  unreadCount,
+}: {
+  initial: BellNotification[];
+  unreadCount: number;
+}) {
   const [isOpen, setIsOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
-
-  const unreadCount = MOCK_NOTIFICATIONS.filter((n) => n.unread).length;
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -91,7 +71,7 @@ export function NotificationsBell() {
             className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-600 text-white text-[10px] font-black tabular-nums leading-none flex items-center justify-center shadow-sm"
             aria-hidden="true"
           >
-            {unreadCount}
+            {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
@@ -104,35 +84,49 @@ export function NotificationsBell() {
           <p className="px-3 pt-2 pb-1 text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">
             Notifications
           </p>
-          {MOCK_NOTIFICATIONS.map((notif) => (
-            <div
-              key={notif.id}
-              className="flex items-start gap-3 rounded-xl px-3 py-2.5 hover:bg-muted/60 transition-colors"
-            >
-              {TONE_ICON[notif.tone]}
-              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                <span
-                  className={cn(
-                    "text-[14px] leading-snug",
-                    notif.unread
-                      ? "font-bold text-foreground"
-                      : "font-medium text-muted-foreground",
-                  )}
-                >
-                  {notif.title}
-                </span>
-                <span className="text-[12px] font-medium text-muted-foreground/70">
-                  {notif.time}
-                </span>
+          {initial.length === 0 ? (
+            <EmptyState
+              illustration="none"
+              size="sm"
+              title="Aucune notification."
+              description="Les décisions de la revue apparaîtront ici."
+            />
+          ) : (
+            initial.map((notif) => (
+              <div
+                key={notif.id}
+                className="flex items-start gap-3 rounded-xl px-3 py-2.5 hover:bg-muted/60 transition-colors"
+              >
+                {notif.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={notif.image}
+                    alt=""
+                    loading="lazy"
+                    className="h-5 w-5 rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  TONE_ICON[notif.tone]
+                )}
+                <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                  <span className="text-[14px] leading-snug font-medium text-foreground">
+                    {notif.title}
+                  </span>
+                  <span className="text-[12px] font-medium text-muted-foreground/70">
+                    {notif.time}
+                  </span>
+                </div>
               </div>
-              {notif.unread && (
-                <span
-                  className="mt-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"
-                  aria-hidden="true"
-                />
-              )}
-            </div>
-          ))}
+            ))
+          )}
+          {initial.length > 0 && (
+            <Link
+              href="/dashboard/notifications"
+              className="mx-1 mt-1 rounded-xl px-3 py-2.5 text-center text-[13px] font-bold text-foreground hover:bg-muted/60 transition-colors"
+            >
+              Tout voir
+            </Link>
+          )}
         </div>
       )}
     </div>

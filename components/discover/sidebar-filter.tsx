@@ -6,8 +6,8 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
+  useTransition,
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -28,7 +28,7 @@ import { PLATFORMS, type Platform } from "@/config/platforms";
 import { PRICING_MODELS, type PricingModel } from "@/config/pricing";
 import { ActionButton } from "@/components/ui/action-button";
 
-export type DiscoverSortId = "votes" | "comments" | "newest" | "revenue";
+export type DiscoverSortId = "votes" | "newest";
 
 interface FilterContextValue {
   /** État filtrant — seedé par l'URL (cf. lib/discover-filters). */
@@ -40,18 +40,29 @@ interface FilterContextValue {
   /** Préférence UI pure, hors URL : sidebar pliée (localStorage). */
   sidebarOpen: boolean;
   toggleSidebar: () => void;
-  /** Préférence UI pure, hors URL : tri de la grille. */
+  /** Tri — dans l'URL comme les filtres (le serveur trie). */
   sortId: DiscoverSortId;
   setSortId: (v: DiscoverSortId) => void;
+  /** Recherche — dans l'URL (debounced côté toolbar, le serveur cherche). */
+  query: string;
+  setQuery: (v: string) => void;
+  /** Navigation en cours (transition) — voile des listes. */
+  isNavigating: boolean;
+  /** Navigue avec voile (transition — jamais de push nu). */
+  navigate: (href: string) => void;
 }
 
 const FilterContext = createContext<FilterContextValue | null>(null);
 
 export function FilterProvider({
   initialFilters,
+  initialSortId,
+  initialQuery,
   children,
 }: {
   initialFilters: DiscoverFilterState;
+  initialSortId: DiscoverSortId;
+  initialQuery: string;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -83,36 +94,61 @@ export function FilterProvider({
     });
   }, []);
 
-  const [sortId, setSortId] = useState<DiscoverSortId>("votes");
+  const [sortId, setSortIdState] = useState<DiscoverSortId>(initialSortId);
+  // Recherche seedée par l'URL (?q= navbar) : dérivation au rendu (pattern
+  // officiel "store previous value" — pas d'effect, pas de boucle).
+  const [query, setQueryState] = useState(initialQuery);
+  const [prevQuery, setPrevQuery] = useState(initialQuery);
+  if (initialQuery !== prevQuery) {
+    setPrevQuery(initialQuery);
+    setQueryState(initialQuery);
+  }
 
-  /**
-   * Miroir de `filters` pour la navigation.
-   *
-   * `router.push` **ne doit pas** être appelé dans l'updater de `setFilters` :
-   * React exécute cet updater pendant sa phase de render, donc la navigation
-   * était déclenchée *pendant le rendu* — d'où l'erreur console « Cannot
-   * update a component (`Router`) while rendering a different component
-   * (`FilterProvider`) », et d'où le saut en haut de page (la navigation
-   * dispatchée au mauvais moment n'a jamais préservé le scroll). On calcule
-   * donc `next` hors du render via ce ref, puis on pose l'état et on navigue.
-   */
-  const filtersRef = useRef<DiscoverFilterState>(initialFilters);
+  const setQuery = useCallback((v: string) => {
+    setQueryState(v);
+  }, []);
 
-  const applyFilters = useCallback(
-    (patch: Partial<DiscoverFilterState>) => {
-      const next = { ...filtersRef.current, ...patch };
-      filtersRef.current = next;
-      setFilters(next);
-      router.push(buildDiscoverHref(next), { scroll: false });
+  // Navigation avec voile : `startTransition` expose `isPending` pendant
+  // le rendu serveur (c'est la fenêtre exacte du voile). Jamais de push
+  // nu — toute navigation liste passe par ici.
+  const [isNavigating, startTransition] = useTransition();
+
+  const navigate = useCallback(
+    (href: string) => {
+      startTransition(() => {
+        router.push(href, { scroll: false });
+      });
     },
     [router],
   );
 
+  const setSortId = useCallback(
+    (v: DiscoverSortId) => {
+      setSortIdState(v);
+      // Changement de tri = retour page 1 (nouvel ordre, pas de page fantôme).
+      // Navigation dans le handler (jamais dans l'updater setState : React
+      // peut l'exécuter pendant le render — d'où scroll perdu + erreur
+      // « Cannot update a component while rendering » historiquement).
+      navigate(buildDiscoverHref(filters, 1, v, query));
+    },
+    [navigate, filters, query],
+  );
+
+  const applyFilters = useCallback(
+    (patch: Partial<DiscoverFilterState>) => {
+      const next = { ...filters, ...patch };
+      setFilters(next);
+      navigate(buildDiscoverHref(next, 1, sortId, query));
+    },
+    [navigate, filters, sortId, query],
+  );
+
   const reset = useCallback(() => {
-    filtersRef.current = EMPTY_DISCOVER_FILTERS;
     setFilters(EMPTY_DISCOVER_FILTERS);
-    router.push(buildDiscoverHref(EMPTY_DISCOVER_FILTERS), { scroll: false });
-  }, [router]);
+    setSortIdState("votes");
+    setQueryState("");
+    navigate(buildDiscoverHref(EMPTY_DISCOVER_FILTERS));
+  }, [navigate]);
 
   const activeCount = countActiveFilters(filters);
 
@@ -126,8 +162,25 @@ export function FilterProvider({
       toggleSidebar,
       sortId,
       setSortId,
+      query,
+      setQuery,
+      isNavigating,
+      navigate,
     }),
-    [filters, applyFilters, reset, activeCount, sidebarOpen, toggleSidebar, sortId],
+    [
+      filters,
+      applyFilters,
+      reset,
+      activeCount,
+      sidebarOpen,
+      toggleSidebar,
+      sortId,
+      setSortId,
+      query,
+      setQuery,
+      isNavigating,
+      navigate,
+    ],
   );
 
   return <FilterContext.Provider value={value}>{children}</FilterContext.Provider>;
@@ -170,7 +223,9 @@ function FilterChip({
       title={title}
       className={cn(
         "relative border text-left px-3 py-2 rounded-full flex items-center gap-2 transition-all duration-200 cursor-pointer text-[13px] font-bold whitespace-nowrap shrink-0",
-        isSelected ? selectedClass : cn("border-border/40 bg-muted/20 text-foreground", hoverClass),
+        // Cadre visible identique pour tous les groupes (âge compris) :
+        // border/40 sur fond clair devenait invisible — border/60 minimum.
+        isSelected ? selectedClass : cn("border-border/60 bg-muted/20 text-foreground", hoverClass),
         className,
       )}
     >

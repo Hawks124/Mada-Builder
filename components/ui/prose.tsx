@@ -1,6 +1,7 @@
 import Link from "next/link";
 import * as React from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { slugifyHeading } from "@/lib/slug";
 import { cn } from "@/lib/utils";
 
@@ -22,9 +23,9 @@ import { cn } from "@/lib/utils";
  * pourquoi. `REMAPPED` ci-dessous est la liste de contrôle : tout ce que
  * `react-markdown` sait émettre est couvert.
  *
- * `remark-gfm` n'est **pas** installé : ni tableau, ni strike, ni liste de
- * tâches, ni autolink dans le markdown. Les tableaux dont la politique a
- * besoin sont des composants React (`components/legal/legal-blocks.tsx`).
+ * `remark-gfm` est branché (tableaux, strike, task-lists, autolinks) :
+ * le mapping couvre déjà ces éléments (table, input, del) — aucun
+ * style nu possible.
  *
  * **Sécurité.** `rehype-raw` absent : le HTML brut des documents reste
  * échappé, donc pas de vecteur XSS via le contenu. `react-markdown` applique
@@ -221,12 +222,19 @@ export function Prose({
     img: ({ src, alt, ...rest }) => (
       // `alt` reste obligatoire : une image sans alternative est invisible
       // pour un lecteur d'écran, et une `<img>` sans `alt` n'est pas valide.
+      // `no-referrer` : pas de fuite de provenance vers l'hôte (hotlinks
+      // README) + contourne les protections anti-hotlink. `onError` : une
+      // image morte se masque (jamais d'icône brisée sur la fiche).
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
         alt={alt ?? ""}
         loading="lazy"
         decoding="async"
+        referrerPolicy="no-referrer"
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = "none";
+        }}
         {...rest}
         className="my-6 max-w-full rounded-2xl border border-border/60"
       />
@@ -299,7 +307,7 @@ export function Prose({
         {children}
       </sub>
     ),
-    // Listes de tâches (task lists). Pas de GFM ici, mais le cas est couvert.
+    // Listes de tâches (task lists, GFM).
     input: ({ className, ...rest }) => (
       <input
         {...rest}
@@ -312,7 +320,9 @@ export function Prose({
 
   return (
     <div className={cn("max-w-[68ch] text-foreground", className)}>
-      <ReactMarkdown components={components}>{children}</ReactMarkdown>
+      <ReactMarkdown components={components} remarkPlugins={[remarkGfm]}>
+        {children}
+      </ReactMarkdown>
     </div>
   );
 }

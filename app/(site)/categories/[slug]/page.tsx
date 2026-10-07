@@ -7,13 +7,17 @@ import { GridBackground } from "@/components/ui/grid-background";
 import { DiscoverGrid } from "@/components/discover/discover-grid";
 import { FilterProvider } from "@/components/discover/sidebar-filter";
 import { parseDiscoverFilters } from "@/lib/discover-filters";
-import { PRODUCT_CATEGORIES, getCategoryById } from "@/config/categories";
+import { getCategoryById } from "@/config/categories";
+import { getSessionUser } from "@/lib/supabase/server";
+import { getUserVotedIds } from "@/services/votes.service";
+import { itemListLd } from "@/lib/seo";
+import { searchProducts } from "@/services/discover.service";
 
 type Params = { slug: string };
 
-export function generateStaticParams(): Params[] {
-  return PRODUCT_CATEGORIES.map((c) => ({ slug: c.id }));
-}
+// Toujours dynamique : grille vivante (jamais de snapshot baké, jamais
+// de crash prerender sans clés). Le SEO est préservé (SSR par requête).
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { slug } = await params;
@@ -31,8 +35,26 @@ export default async function CategoryPage({ params }: { params: Promise<Params>
   if (!category) notFound();
   const Icon = category.icon;
 
+  const filters = parseDiscoverFilters(new URLSearchParams([["cat", category.id]]));
+  const [result, sessionUser] = await Promise.all([
+    searchProducts({ cat: category.id, sort: "votes", page: 1 }),
+    getSessionUser(),
+  ]);
+  const votedIds = await getUserVotedIds(
+    sessionUser?.id ?? null,
+    result.items.map((i) => i.id),
+  );
+
   return (
     <div className="flex flex-col w-full min-h-[calc(100vh-72px)]">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            itemListLd(result.items, `${category.name} — produits tech malgaches`),
+          ),
+        }}
+      />
       {/* ── HEADER ── */}
       <div className="relative w-full border-b border-border/40">
         <GridBackground variant="css" showBottomFade={false} glowPlacement="centered" />
@@ -64,21 +86,25 @@ export default async function CategoryPage({ params }: { params: Promise<Params>
             </div>
           </div>
           <p className="text-[13px] font-bold tabular-nums mt-4">
-            <span className="text-foreground">{category.count}</span>{" "}
+            <span className="text-foreground">{result.total}</span>{" "}
             <span className="text-muted-foreground font-medium">
-              {category.count === 1 ? "produit" : "produits"}
+              {result.total === 1 ? "produit" : "produits"}
             </span>
           </p>
         </div>
       </div>
 
-      {/* ── GRILLE — même moteur que /discover, catégorie pré-filtrée ── */}
+      {/* ── GRILLE ── même moteur que /discover, catégorie pré-filtrée ── */}
       <div className="w-full flex-1">
         <div className="container px-4 md:px-8 max-w-7xl mx-auto py-10">
-          <FilterProvider
-            initialFilters={parseDiscoverFilters(new URLSearchParams([["cat", category.id]]))}
-          >
-            <DiscoverGrid searchQuery="" page={1} />
+          <FilterProvider initialFilters={filters} initialSortId="votes" initialQuery="">
+            <DiscoverGrid
+              items={result.items}
+              total={result.total}
+              page={1}
+              searchQuery=""
+              votedIds={[...votedIds]}
+            />
           </FilterProvider>
         </div>
       </div>

@@ -1,4 +1,11 @@
-import { apiCatch, apiOk, corsPreflight, methodNotAllowed } from "@/lib/api/response";
+import {
+  apiCatch,
+  apiOk,
+  corsPreflight,
+  methodNotAllowed,
+  withCache,
+  CACHE_PRIVATE,
+} from "@/lib/api/response";
 import { requireApiUser } from "@/lib/api/auth";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
 import { getAppealEligibility } from "@/services/appeals.service";
@@ -22,10 +29,13 @@ export async function GET(req: Request): Promise<Response> {
     const user = await requireApiUser(req, { allowBanned: true });
     await apiLimit("api:appeals:read", user.id, API_WINDOWS.read);
     const eligibility = await getAppealEligibility(user.id);
-    return apiOk(
-      eligibility.ok
-        ? { eligible: true as const, message: null as string | null }
-        : { eligible: false as const, message: eligibility.message },
+    return withCache(
+      apiOk(
+        eligibility.ok
+          ? { eligible: true as const, message: null as string | null }
+          : { eligible: false as const, message: eligibility.message },
+      ),
+      CACHE_PRIVATE,
     );
   } catch (e) {
     return apiCatch(e, "api.appeals.mine");

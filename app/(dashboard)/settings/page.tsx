@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { InputField } from "@/components/ui/input-field";
 import { DangerZone } from "@/components/dashboard/danger-zone";
 import { ProvidersCard, type ProviderId } from "@/components/dashboard/providers-card";
+import { SettingsNotifications } from "@/components/dashboard/settings-notifications";
 import { getSessionUser, createClient } from "@/lib/supabase/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -31,6 +32,7 @@ export default async function SettingsPage() {
   let githubHandle: string | null = "kaliana";
   // Username DB pour la confirmation de suppression (slug court > email).
   let username: string | null = null;
+  let digestOptOut = false;
   try {
     const user = await getSessionUser();
     if (user) {
@@ -43,11 +45,14 @@ export default async function SettingsPage() {
       email = user.email ?? null;
       try {
         const [row] = await db
-          .select({ username: users.username })
+          .select({ username: users.username, digestOptOut: users.digestOptOut })
           .from(users)
           .where(eq(users.id, user.id))
           .limit(1);
-        if (row) username = row.username;
+        if (row) {
+          username = row.username;
+          digestOptOut = row.digestOptOut;
+        }
       } catch {
         // Ligne absente : la confirmation retombera sur l'email.
       }
@@ -61,7 +66,7 @@ export default async function SettingsPage() {
     <div className="w-full px-6 lg:px-12 pt-10 lg:pt-14 pb-24 flex flex-col gap-10">
       <PageHeader
         title="Paramètres du compte"
-        subtitle="Email de connexion, fournisseurs d'authentification et suppression."
+        subtitle="Email de connexion, fournisseurs d'authentification, notifications et suppression."
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-12 items-start">
@@ -83,6 +88,10 @@ export default async function SettingsPage() {
           <div className="w-full h-px bg-border/40" />
 
           <ProvidersCard connected={connected} githubHandle={githubHandle} />
+
+          <div className="w-full h-px bg-border/40" />
+
+          <SettingsNotifications initialOptOut={digestOptOut} />
 
           <div className="w-full h-px bg-border/40" />
 

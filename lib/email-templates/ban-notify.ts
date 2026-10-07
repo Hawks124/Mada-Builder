@@ -81,7 +81,8 @@ export function banNotifyHtml(input: {
     .reason-block { border-left: 2px solid #ef4444; padding-left: 16px; margin: 0 0 40px 0; }
     .reason-text { font-size: 18px; font-weight: 600; color: #09090b; margin: 0; }
     
-    .cta { display: inline-block; background-color: #09090b; color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none; padding: 18px 36px; border-radius: 999px; letter-spacing: -0.01em; }
+    .cta { display: inline-block; background-color: #09090b; text-decoration: none; padding: 18px 36px; border-radius: 999px; letter-spacing: -0.01em; }
+    .cta span { font-size: 15px; font-weight: 600; color: #ffffff !important; }
     .divider { border: none; border-top: 2px solid #e4e4e7; width: 32px; margin: 64px 0 32px 0; margin-left: 0; }
     .footer { font-size: 13px; color: #a1a1aa; line-height: 1.5; }
     ${BRAND_CSS_BASE}
@@ -91,7 +92,8 @@ export function banNotifyHtml(input: {
       .brand-text, .greeting, .reason-text { color: #ffffff !important; }
       .text { color: #a1a1aa !important; }
       .divider { border-top-color: #27272a !important; }
-      .cta { background-color: #ffffff !important; color: #000000 !important; }
+      .cta { background-color: #ffffff !important; }
+      .cta span { color: #000000 !important; }
       ${BRAND_CSS_DARK}
     }
   </style>
@@ -115,7 +117,7 @@ export function banNotifyHtml(input: {
     </p>
 
     <div>
-      <a href="${escapeHtml(input.dashboardUrl)}" class="cta">Faire appel</a>
+      <a href="${escapeHtml(input.dashboardUrl)}" class="cta"><span>Faire appel</span></a>
     </div>
 
     <hr class="divider" />

@@ -16,6 +16,14 @@ export const RANKING_WINDOWS: { id: RankingWindow; label: string }[] = [
   { id: "all", label: "Toujours" },
 ];
 
+/**
+ * Fenêtres valides (garde URL) — vit ici, module SANS "use client" :
+ * l'importer depuis un composant client dans une page serveur donne un
+ * stub vide (crash `.includes is not a function` constaté sur
+ * /leaderboard). Jamais de valeur partagée via un module client.
+ */
+export const VALID_WINDOWS: RankingWindow[] = ["today", "week", "month", "all"];
+
 export function getWindowLabel(window: RankingWindow): string {
   return RANKING_WINDOWS.find((w) => w.id === window)?.label ?? "Aujourd'hui";
 }
@@ -44,7 +52,12 @@ export type FeaturedProductData = {
   tagline: string;
   categoryId: string;
   maker: string;
+  /** Username maker (lien /makers/…) — défaut historique slugifié. */
+  makerUsername?: string;
   makerAvatar: string;
+  /** UUID produit (votes) — `id` reste le slug pour les liens. */
+  productUuid?: string;
+  initialVoted?: boolean;
   votes: number;
   comments: number;
   initials: string;

@@ -2,20 +2,26 @@
 
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { ChatCircleTextIcon, SealCheckIcon, StarIcon, TrendUpIcon } from "@phosphor-icons/react";
-import { cn, slugifyName } from "@/lib/utils";
+import { ChatCircleTextIcon, SealCheckIcon, TrendUpIcon } from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { VoteButton } from "@/components/votes/vote-button";
-import type { RankedProduct } from "@/services/home.service";
+import { EmptyState } from "@/components/ui/empty-state";
+import type { LeaderboardItem } from "@/services/ranking.service";
 
 interface LeaderboardListProps {
-  products: RankedProduct[];
-  /** Rang de la première ligne (offset pagination : page 2 → 21). */
+  products: LeaderboardItem[];
+  /** UUIDs votés par l'auteur (badges initiaux, 1 requête en page). */
+  votedIds?: string[];
+  /** Rang de la première ligne (offset pagination : page 2 → 16). */
   startRank?: number;
   /** Contexte du tri pour le kicker (ex. "Les + votés · Ce mois"). */
   kickerLabel?: string;
-  /** Actions de l'empty state (l parent's → l'UI reste dumb). */
+  /** Actions de l'empty state (le parent's → l'UI reste dumb). */
   emptyAction?: React.ReactNode;
+  /** Empty state contextuel (fenêtre/filtre) — défauts génériques. */
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
 /** Médailles 1-3 (mêmes tokens que partout), 4+ neutre. */
@@ -36,23 +42,15 @@ function rankColor(rank: number): string {
  */
 export function LeaderboardList({
   products,
+  votedIds = [],
   startRank = 1,
   kickerLabel = "Les + votés",
   emptyAction,
+  emptyTitle = "Aucun produit ici pour le moment",
+  emptyDescription = "Cette sélection est encore vide — les prochains votes la rempliront.",
 }: LeaderboardListProps) {
   if (products.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-        <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
-          <TrendUpIcon weight="duotone" className="w-6 h-6 text-muted-foreground" />
-        </div>
-        <h3 className="text-xl font-bold text-foreground mb-1">Aucun produit ici pour le moment</h3>
-        <p className="text-muted-foreground text-sm max-w-sm mb-6">
-          Cette sélection est encore vide — les prochains votes la rempliront.
-        </p>
-        {emptyAction}
-      </div>
-    );
+    return <EmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} />;
   }
 
   return (
@@ -60,6 +58,7 @@ export function LeaderboardList({
       {products.map((product, i) => {
         const rank = startRank + i;
         const category = getCategoryById(product.categoryId);
+        const voted = votedIds.includes(product.id);
         return (
           <div
             key={product.id}
@@ -79,7 +78,7 @@ export function LeaderboardList({
 
             {/* ICON */}
             <Link
-              href={`/products/${product.id}`}
+              href={`/products/${product.slug}`}
               className={cn(
                 "w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-2xl flex items-center justify-center text-white font-black text-lg bg-linear-to-br shadow-sm transition-all duration-300 group-hover:scale-105 group-hover:-rotate-3 group-hover:shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:group-hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]",
                 product.iconGradient,
@@ -98,7 +97,7 @@ export function LeaderboardList({
                 </span>
               )}
 
-              <Link href={`/products/${product.id}`} className="group/title w-fit max-w-full">
+              <Link href={`/products/${product.slug}`} className="group/title w-fit max-w-full">
                 <h4 className="text-lg md:text-xl font-extrabold tracking-tight text-foreground group-hover/title:text-primary transition-colors truncate">
                   {product.name}
                 </h4>
@@ -122,28 +121,23 @@ export function LeaderboardList({
                   </Link>
                 )}
 
-                {product.pricing !== "free" && (
+                {product.pricingId !== "free" && (
                   <span className="text-[10px] font-black uppercase tracking-widest text-[#B58A43]">
-                    {product.pricing === "paid" ? "Payant" : "Freemium"}
+                    {product.pricingId === "paid" ? "Payant" : "Freemium"}
                   </span>
                 )}
 
-                <div className="hidden md:flex items-center gap-1 text-[11px] font-bold text-foreground">
-                  <StarIcon weight="fill" className="w-3.5 h-3.5 text-yellow-500" />
-                  {product.rating}
-                </div>
-
                 <Link
-                  href={`/makers/${slugifyName(product.maker)}`}
+                  href={`/makers/${product.makerUsername}`}
                   className="hidden md:flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <AvatarImage
-                    src={product.makerAvatar}
-                    name={product.maker}
+                    src={product.makerAvatarUrl}
+                    name={product.makerDisplayName}
                     size={16}
                     className="grayscale group-hover:grayscale-0 transition-all"
                   />
-                  {product.maker}
+                  {product.makerDisplayName}
                   <SealCheckIcon weight="fill" className="w-3.5 h-3.5 text-blue-500" />
                 </Link>
               </div>
@@ -151,16 +145,10 @@ export function LeaderboardList({
 
             {/* ACTIONS */}
             <div className="flex items-center gap-4 md:gap-6 shrink-0">
-              <Link
-                href={`/products/${product.id}#comments`}
-                aria-label={`${product.comments} commentaires`}
-                className="hidden md:flex flex-col items-center gap-0.5 text-muted-foreground hover:text-foreground transition-colors"
-              >
+              <div className="hidden md:flex flex-col items-center gap-0.5 text-muted-foreground">
                 <ChatCircleTextIcon weight="fill" className="w-5 h-5" />
-                <span className="text-[11px] font-bold leading-none tabular-nums">
-                  {product.comments}
-                </span>
-              </Link>
+                <span className="text-[11px] font-bold leading-none tabular-nums">0</span>
+              </div>
 
               <div className="flex items-center gap-3 shrink-0">
                 {/* Vélocité : signal le plus « vendeur » pour un maker, donc
@@ -179,6 +167,7 @@ export function LeaderboardList({
                     productId={product.id}
                     productName={product.name}
                     votes={product.votes}
+                    initialVoted={voted}
                     variant="row"
                   />
                 </div>
@@ -187,6 +176,7 @@ export function LeaderboardList({
                     productId={product.id}
                     productName={product.name}
                     votes={product.votes}
+                    initialVoted={voted}
                     variant="pill"
                   />
                 </div>

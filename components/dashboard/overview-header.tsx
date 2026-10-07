@@ -1,19 +1,30 @@
 import { PlusIcon } from "@phosphor-icons/react/dist/ssr";
 import { ActionButton } from "@/components/ui/action-button";
-import { NotificationsBell } from "@/components/dashboard/notifications-bell";
+import {
+  NotificationsBell,
+  type BellNotification,
+} from "@/components/dashboard/notifications-bell";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DaypartGreeting } from "@/components/ui/daypart-greeting";
 
 // Greeting variant of the shared dashboard header — salutation à l'heure
 // réelle du navigateur (DaypartGreeting client, jamais de fuseau en dur).
-export function OverviewHeader({ userName }: { userName: string }) {
+export function OverviewHeader({
+  userName,
+  notifications,
+  unreadCount,
+}: {
+  userName: string;
+  notifications: BellNotification[];
+  unreadCount: number;
+}) {
   return (
     <PageHeader
       title={<DaypartGreeting name={userName} />}
       subtitle="Voici l'activité de vos produits."
       actions={
         <>
-          <NotificationsBell />
+          <NotificationsBell initial={notifications} unreadCount={unreadCount} />
           <ActionButton
             href="/products/submit"
             variant="primary"

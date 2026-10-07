@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   ShieldCheckIcon,
   LightbulbIcon,
@@ -13,6 +14,21 @@ import {
   BookOpenIcon,
   ArrowSquareOutIcon,
 } from "@phosphor-icons/react";
+
+const DID_YOU_KNOW = [
+  {
+    title: "Le classement ne s'achète pas",
+    text: "Ni boost payant, ni sponsor déguisé : seules les voix de la communauté font monter un produit.",
+  },
+  {
+    title: "Les votes sont protégés des faux comptes",
+    text: "Les comptes tout neufs votent après une petite heure, et leurs votes pèsent au classement après 24 h — pour un jeu équitable.",
+  },
+  {
+    title: "Chaque fiche est relue par un humain",
+    text: "Sous 24 h ouvrées, avec un motif en cas de refus. Jamais de couperet automatique.",
+  },
+];
 
 const STORE_GUIDES = [
   {
@@ -93,9 +109,12 @@ export function SubmitGuidanceSidebar() {
           Les applications doivent être légales, éthiques et représentées honnêtement. Aucun spam ou
           produit dupliqué.
         </p>
-        <button className="self-start text-[12px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 hover:opacity-70 transition-opacity border-b-2 border-emerald-600/30 pb-0.5 cursor-pointer">
+        <Link
+          href="/regles"
+          className="self-start text-[12px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 hover:opacity-70 transition-opacity border-b-2 border-emerald-600/30 pb-0.5 cursor-pointer"
+        >
           LIRE LES RÈGLES
-        </button>
+        </Link>
       </div>
 
       <Divider />
@@ -218,6 +237,27 @@ export function SubmitGuidanceSidebar() {
       <div className="flex flex-col gap-5">
         <SectionHeading icon={QuestionIcon} label="Questions fréquentes" />
         <SidebarAccordion items={FAQ_ITEMS} />
+      </div>
+
+      <Divider />
+
+      {/* ── 8. Le saviez-vous ? ── */}
+      <div className="flex flex-col gap-4 bg-emerald-500/[0.06] p-6 rounded-[28px] border border-emerald-500/20">
+        <SectionHeading icon={LightbulbIcon} label="Le saviez-vous ?" />
+        <div className="flex flex-col gap-3">
+          {DID_YOU_KNOW.map((item, i) => (
+            <p key={i} className="text-[13px] font-medium text-muted-foreground leading-relaxed">
+              <span className="text-foreground font-bold">{item.title}. </span>
+              {item.text}
+            </p>
+          ))}
+        </div>
+        <Link
+          href="/regles"
+          className="text-[13px] font-bold text-emerald-600 dark:text-emerald-500 hover:underline w-fit"
+        >
+          Voir les règles du jeu &rarr;
+        </Link>
       </div>
 
       <Divider />

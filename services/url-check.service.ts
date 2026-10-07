@@ -350,3 +350,93 @@ export async function getLinkVerdicts(
   );
   return out;
 }
+
+/**
+ * Fetch texte SSRF-safe (import README) : scheme http(s), host bloqué +
+ * DNS public VÉRIFIÉS À CHAQUE HOP (redirects manuels, max 3),
+ * content-type texte/markdown, cap octets. Throw FR en cas de refus.
+ */
+export async function fetchVerifiedText(rawUrl: string, maxBytes = 200_000): Promise<string> {
+  let current: string;
+  try {
+    const parsed = new URL(rawUrl.trim());
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("URL invalide (http(s) uniquement).");
+    }
+    current = parsed.toString();
+  } catch (e) {
+    if (e instanceof Error && (e as { code?: string }).code === "REFUSED") throw e;
+    if (e instanceof Error && e.message.startsWith("URL invalide")) throw e;
+    throw new Error("URL invalide.");
+  }
+  for (let hop = 0; hop <= 3; hop++) {
+    const u = new URL(current);
+    if (hostBlocked(u.hostname)) throw refusal();
+    try {
+      await assertPublicHost(u.hostname);
+    } catch {
+      throw refusal();
+    }
+    const res = await fetch(current, {
+      method: "GET",
+      redirect: "manual",
+      signal: AbortSignal.timeout(GET_TIMEOUT_MS),
+      headers: { "User-Agent": USER_AGENT, Accept: "text/plain,text/markdown,text/*" },
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const next = res.headers.get("location");
+      await res.body?.cancel().catch(() => {});
+      if (!next || hop === 3) throw new Error("Trop de redirections.");
+      current = new URL(next, current).toString();
+      continue;
+    }
+    if (res.status === 401 || res.status === 403) {
+      await res.body?.cancel().catch(() => {});
+      throw new Error("Repo privé ou accès refusé (401/403).");
+    }
+    if (res.status === 404) {
+      await res.body?.cancel().catch(() => {});
+      throw new Error("README introuvable (404) — vérifiez la branche (main/master).");
+    }
+    if (res.status < 200 || res.status >= 300) {
+      await res.body?.cancel().catch(() => {});
+      throw new Error(`README inaccessible (HTTP ${res.status}).`);
+    }
+    const contentType = (res.headers.get("content-type") ?? "").toLowerCase();
+    if (
+      contentType !== "" &&
+      !contentType.includes("text/") &&
+      !contentType.includes("markdown") &&
+      !contentType.includes("octet-stream")
+    ) {
+      await res.body?.cancel().catch(() => {});
+      throw new Error("Contenu non textuel refusé.");
+    }
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("Lecture impossible.");
+    const chunks: Uint8Array[] = [];
+    let seen = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        seen += value.length;
+        if (seen > maxBytes) {
+          await reader.cancel().catch(() => {});
+          throw new Error("README trop volumineux (200 Ko max).");
+        }
+        chunks.push(value);
+      }
+    }
+    const text = new TextDecoder().decode(Buffer.concat(chunks.map((c) => Buffer.from(c))));
+    if (text.trim() === "") throw new Error("README vide.");
+    return text;
+  }
+  throw new Error("Trop de redirections.");
+}
+
+function refusal(): Error {
+  const err = new Error("Hôte refusé (SSRF).") as Error & { code?: string };
+  err.code = "REFUSED";
+  return err;
+}

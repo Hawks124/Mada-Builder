@@ -18,13 +18,22 @@ import { getOccupationById } from "@/config/occupations";
 import { logPageView } from "@/services/stats.service";
 import { OverviewStats } from "@/components/dashboard/overview-stats";
 import type { DashboardTotals } from "@/components/dashboard/dashboard-mock";
-import { getUserProfile } from "@/services/users.service";
+import { ProductCard } from "@/components/product/product-card";
+import { getSessionUser } from "@/lib/supabase/server";
+import { getUserVotedIds } from "@/services/votes.service";
+import {
+  appGradientFor,
+  appInitialsFor,
+  getMakerPublicProfile,
+  ratingLabelOf,
+} from "@/services/products.service";
+import { siteUrl } from "@/lib/site-url";
+import { itemListLd } from "@/lib/seo";
 
-// Profil public maker (PRD §6D) : avatar, nom, bio, liens, produits
-// publiés, total votes, MRR combiné. Pas de messagerie in-app (hors V1) :
-// le contact passe par les liens sortants du maker.
-// Produits : vide honnête jusqu'au milestone listings (aucun mock).
-// Indexable (§7) dès que les données sont réelles.
+// Profil public maker (PRD §6D, 4C) : avatar, nom, bio, liens, produits
+// publiés, total votes reçus. Vues = privées (dashboard). MRR : phase
+// revenus. Pas de messagerie in-app (hors V1) : contact via liens sortants.
+// Indexable (§7) : données 100 % réelles, 404 sinon (chemin démo supprimé).
 const SOCIAL_DEFS = [
   { id: "website", label: "Site web", icon: GlobeIcon },
   { id: "github", label: "GitHub", icon: GithubLogoIcon },
@@ -36,105 +45,58 @@ const SOCIAL_DEFS = [
   { id: "whatsapp", label: "WhatsApp", icon: WhatsappLogoIcon },
 ] as const;
 
-const ZERO_TOTALS: DashboardTotals = {
-  totalUpvotes: 0,
-  liveCount: 0,
-  totalListings: 0,
-  totalViews: 0,
-  pendingCount: 0,
-  totalMrrCents: 0,
-  totalComments: 0,
-  globalRating: 0,
-};
-
 type Params = { username: string };
 
-type PublicProfile = {
-  username: string;
-  displayName: string;
-  avatarUrl: string | null;
-  bio: string | null;
-  occupation: string;
-  city: string | null;
-  country: string | null;
-  websiteUrl: string | null;
-  socialLinks: Record<string, string>;
-  banned: boolean;
-};
-
-// Démo sans backend (contributeur) : mock documenté, noindex forcé.
-// Avec backend : réel ou 404, jamais de faux contenu.
-const DEMO_PROFILE: PublicProfile = {
-  username: "kaliana",
-  displayName: "Kaliana R.",
-  avatarUrl: "https://i.pravatar.cc/150?u=kaliana",
-  bio: "Maker malgache — SaaS RH et outils fintech.",
-  occupation: "maker",
-  city: "Antananarivo",
-  country: "Madagascar",
-  websiteUrl: "https://kaliana.dev",
-  socialLinks: {
-    github: "https://github.com/kaliana",
-    x: "https://x.com/kaliana",
-  },
-  banned: false,
-};
-
-async function loadProfile(
-  username: string,
-): Promise<{ profile: PublicProfile | null; demo: boolean }> {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    return {
-      profile: username.toLowerCase() === "kaliana" ? DEMO_PROFILE : null,
-      demo: true,
-    };
-  }
-  try {
-    const row = await getUserProfile(username.toLowerCase());
-    if (!row) return { profile: null, demo: false };
-    const socialLinks: Record<string, string> = {};
-    for (const [k, v] of Object.entries(row.socialLinks ?? {})) {
-      if (typeof v === "string" && v !== "") socialLinks[k] = v;
-    }
-    // Transparence modération : profil visible + badge (jamais d'effacement).
-    const banned = row.bannedAt !== null;
-    return {
-      profile: {
-        username: row.username,
-        displayName: row.displayName,
-        avatarUrl: row.avatarUrl,
-        bio: row.bio,
-        occupation: row.occupation,
-        city: row.city,
-        country: row.country,
-        websiteUrl: row.websiteUrl,
-        socialLinks,
-        banned,
-      },
-      demo: false,
-    };
-  } catch {
-    return { profile: null, demo: false };
-  }
-}
+// Toujours dynamique : votes initiaux + session (jamais de HTML statique
+// partagé — même raison que la fiche produit).
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { username } = await params;
-  const { profile, demo } = await loadProfile(username);
-  if (!profile || demo) return { robots: { index: false, follow: false } };
+  const data = await getMakerPublicProfile(username);
+  if (!data) return { robots: { index: false, follow: false } };
+  const { profile, totals } = data;
+  const title = `${profile.displayName} (@${profile.username}) — maker malgache`;
+  const description =
+    profile.bio ??
+    `Découvrez les ${totals.products} produit${totals.products === 1 ? "" : "s"} de ${profile.displayName}, maker malgache.`;
+  const url = `${siteUrl()}/makers/${profile.username}`;
   return {
-    title: `${profile.displayName} (@${profile.username})`,
-    description: profile.bio ?? `Profil maker de ${profile.displayName}.`,
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      title,
+      description,
+      url,
+      type: "profile",
+      ...(profile.avatarUrl
+        ? { images: [{ url: profile.avatarUrl, alt: profile.displayName }] }
+        : {}),
+    },
+    twitter: {
+      card: "summary",
+      title,
+      description,
+      ...(profile.avatarUrl ? { images: [profile.avatarUrl] } : {}),
+    },
   };
 }
 
 export default async function MakerPage({ params }: { params: Promise<Params> }) {
   const { username } = await params;
-  const { profile } = await loadProfile(username);
-  if (!profile) notFound();
+  const data = await getMakerPublicProfile(username);
+  if (!data) notFound();
+  const { profile, products, totals } = data;
 
   // Compteur vitrine anonyme (même pattern que la home).
   after(() => logPageView(`/makers/${profile.username}`));
+
+  const sessionUser = await getSessionUser();
+  const votedIds = await getUserVotedIds(
+    sessionUser?.id ?? null,
+    products.map((p) => p.id),
+  );
 
   const occupation = getOccupationById(profile.occupation) ?? getOccupationById("maker")!;
   const location = [profile.city, profile.country].filter(Boolean).join(", ");
@@ -152,8 +114,47 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
     .map((w) => w[0]!.toUpperCase())
     .join("");
 
+  // Stats publiques réelles (§6D strict) : upvotes + produits (+ MRR à 0,
+  // réel : aucune connexion). Champs privés à 0 = non rendus en mode public.
+  const publicTotals: DashboardTotals = {
+    totalUpvotes: totals.upvotes,
+    liveCount: totals.products,
+    totalListings: totals.products,
+    totalViews: 0,
+    totalClicks: 0,
+    totalViews7d: 0,
+    pendingCount: 0,
+    totalMrrCents: 0,
+    totalComments: 0,
+    globalRating: 0,
+  };
+
+  const pageUrl = `${siteUrl()}/makers/${profile.username}`;
+  const personLd = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    url: pageUrl,
+    mainEntity: {
+      "@type": "Person",
+      name: profile.displayName,
+      ...(profile.bio ? { description: profile.bio } : {}),
+      ...(profile.avatarUrl ? { image: profile.avatarUrl } : {}),
+      ...(location !== "" ? { homeLocation: location } : {}),
+    },
+  };
+
   return (
     <main className="min-h-screen bg-background">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(itemListLd(products, `Produits de ${profile.displayName}`)),
+        }}
+      />
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-20 pb-24 flex flex-col gap-12">
         {/* Identity */}
         <div className="flex flex-col gap-5">
@@ -217,22 +218,53 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
           )}
         </div>
 
-        {/* Stats publiques (§6D strict) — zéros sans produits, jamais de mock */}
-        <OverviewStats totals={ZERO_TOTALS} mode="public" revenueDisplay="full" />
+        {/* Stats publiques réelles — jamais de mock */}
+        <OverviewStats totals={publicTotals} mode="public" revenueDisplay="full" />
 
         <div className="w-full h-px bg-border/40" />
 
-        {/* Produits publiés — rows leaderboard, colonne maker implicite */}
+        {/* Produits publiés */}
         <div className="flex flex-col gap-6">
           <div className="flex items-baseline gap-3">
             <h2 className="text-2xl font-black tracking-tight text-foreground">Produits</h2>
-            <span className="text-[13px] font-medium text-muted-foreground">0 publié</span>
+            <span className="text-[13px] font-medium text-muted-foreground">
+              {totals.products} publié{totals.products === 1 ? "" : "s"}
+            </span>
           </div>
 
-          {/* Milestone listings : lister ici les produits publiés du maker. */}
-          <p className="text-[14px] font-medium text-muted-foreground py-8 text-center">
-            Aucun produit publié pour le moment.
-          </p>
+          {products.length === 0 ? (
+            <p className="text-[14px] font-medium text-muted-foreground py-8 text-center">
+              Aucun produit publié pour le moment.
+            </p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {products.map((p) => (
+                <ProductCard
+                  key={p.id}
+                  product={{
+                    id: p.id,
+                    slug: p.slug,
+                    name: p.name,
+                    tagline: p.tagline,
+                    categoryId: p.categoryId,
+                    maker: profile.displayName,
+                    makerUsername: profile.username,
+                    makerAvatar: profile.avatarUrl,
+                    votes: p.upvotes,
+                    initialVoted: votedIds.has(p.id),
+                    iconGradient: appGradientFor(p.id),
+                    initials: appInitialsFor(p.name),
+                    pricing: p.pricing,
+                    platforms: p.platforms,
+                    audienceId: p.audienceId,
+                    publishedAt: p.publishedAt,
+                    rating: ratingLabelOf(p.ratingAvg, p.ratingsCount),
+                    curated: p.curated,
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </main>

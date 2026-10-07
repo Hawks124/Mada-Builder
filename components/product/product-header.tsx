@@ -1,94 +1,184 @@
 "use client";
 
-import { useState } from "react";
-import { StarIcon, ChatCircleTextIcon } from "@phosphor-icons/react";
+import * as React from "react";
+import { startTransition } from "react";
+import { ChatCircleTextIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { useVoteWall } from "@/components/votes/use-vote-wall";
+import { toggleVoteAction } from "@/app/actions/products";
+import { toast } from "@/components/ui/toast";
 
-export function ProductHeader() {
+export type ProductHeaderData = {
+  id: string;
+  name: string;
+  tagline: string;
+  categoryId: string;
+  makerUsername: string;
+  makerDisplayName: string;
+  makerAvatarUrl: string | null;
+  votes: number;
+  initialVoted: boolean;
+  iconUrl: string | null;
+  initials: string;
+  iconGradient: string;
+  /** Veille : badge + vote désactivé (hors jeu). */
+  curated: boolean;
+  commentsCount: number;
+};
+
+export function ProductHeader({ product }: { product: ProductHeaderData }) {
+  const category = getCategoryById(product.categoryId);
   return (
     <div className="flex flex-col gap-4">
       {/* Row 1: Logo + Vote CTA (same row on mobile too) */}
       <div className="flex items-start gap-4 md:gap-6">
-        {/* Animated logo */}
-        <div className="group w-20 h-20 md:w-28 md:h-28 rounded-3xl bg-linear-to-br from-emerald-400 to-teal-500 shadow-md shrink-0 flex items-center justify-center text-white font-extrabold text-3xl md:text-4xl cursor-pointer transition-all duration-300 hover:scale-105 hover:-rotate-3 hover:shadow-xl dark:hover:shadow-emerald-900/50 relative overflow-hidden">
-          <span className="relative z-10 transition-transform duration-300 group-hover:scale-110">
-            TA
-          </span>
-          <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-        </div>
+        {/* Logo réel ou initiales (même fallback que partout) */}
+        {product.iconUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.iconUrl}
+            alt={`Logo de ${product.name}`}
+            className="w-20 h-20 md:w-28 md:h-28 rounded-3xl shadow-md shrink-0 object-cover bg-muted/20"
+          />
+        ) : (
+          <div
+            className={cn(
+              "w-20 h-20 md:w-28 md:h-28 rounded-3xl bg-linear-to-br shadow-md shrink-0 flex items-center justify-center text-white font-extrabold text-3xl md:text-4xl",
+              product.iconGradient,
+            )}
+          >
+            {product.initials}
+          </div>
+        )}
 
         {/* Right of logo: name + tagline + stats */}
         <div className="flex-1 min-w-0 flex flex-col gap-1.5 pt-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-3xl md:text-5xl font-extrabold tracking-tighter leading-none text-foreground">
-              Tarsi
+              {product.name}
             </h1>
-            <Link
-              href={`/categories/${getCategoryById("finance")!.id}`}
-              className={cn(
-                "px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-widest mt-1 cursor-pointer transition-all",
-                getCategoryById("finance")!.chipClass,
-                getCategoryById("finance")!.hoverClass,
-              )}
-            >
-              {getCategoryById("finance")!.name}
-            </Link>
+            {category && (
+              <Link
+                href={`/categories/${category.id}`}
+                className={cn(
+                  "px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-widest mt-1 cursor-pointer transition-all",
+                  category.chipClass,
+                  category.hoverClass,
+                )}
+              >
+                {category.name}
+              </Link>
+            )}
+            {product.curated && (
+              <span
+                title="Veille internationale : pas un produit de la scène locale — hors classement, votes et avis désactivés"
+                className="px-2.5 py-0.5 rounded-full border border-sky-500/30 bg-sky-500/10 text-[10px] font-black uppercase tracking-widest mt-1 text-sky-600 dark:text-sky-400"
+              >
+                Veille
+              </span>
+            )}
           </div>
           <p className="text-base md:text-lg font-medium text-muted-foreground leading-snug max-w-lg">
-            Your Personal Finance Companion
+            {product.tagline}
           </p>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <Link href="/makers/bryl" className="flex items-center gap-2 group/maker">
+            <Link
+              href={`/makers/${product.makerUsername}`}
+              className="flex items-center gap-2 group/maker"
+            >
               <AvatarImage
-                src="https://i.pravatar.cc/150?u=bryl"
-                name="Bryl Lim"
+                src={product.makerAvatarUrl}
+                name={product.makerDisplayName}
                 size={20}
                 className="grayscale group-hover/maker:grayscale-0 transition-all"
               />
               <span className="text-sm font-semibold text-foreground group-hover/maker:text-primary transition-colors">
-                Bryl Lim
+                {product.makerDisplayName}
               </span>
             </Link>
-            <div className="w-1 h-1 rounded-full bg-border" />
-            <div className="flex items-center gap-1">
-              <StarIcon weight="fill" className="w-4 h-4 text-amber-500" />
-              <span className="text-sm font-bold text-foreground">
-                5.0 <span className="text-muted-foreground font-medium text-[13px]">(1)</span>
-              </span>
-            </div>
             <div className="w-1 h-1 rounded-full bg-border" />
             <Link
               href="#comments"
               className="flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
             >
               <ChatCircleTextIcon weight="fill" className="w-4 h-4" />
-              <span>4 commentaires</span>
+              <span>
+                {product.commentsCount} commentaire{product.commentsCount > 1 ? "s" : ""}
+              </span>
             </Link>
           </div>
         </div>
 
         {/* Vote button — same row on all screen sizes, compact on mobile */}
-        <AnimatedVoteButton />
+        <AnimatedVoteButton
+          productId={product.id}
+          productName={product.name}
+          votes={product.votes}
+          curated={product.curated}
+          initialVoted={product.initialVoted}
+        />
       </div>
     </div>
   );
 }
 
-function AnimatedVoteButton() {
-  const [voted, setVoted] = useState(false);
-  const guardedVote = useVoteWall();
+function AnimatedVoteButton({
+  productId,
+  productName,
+  votes,
+  initialVoted,
+  curated,
+}: {
+  productId: string;
+  productName: string;
+  votes: number;
+  initialVoted: boolean;
+  curated: boolean;
+}) {
+  const [voted, setVoted] = React.useState(initialVoted);
+  const [count, setCount] = React.useState(votes);
+  const [pending, setPending] = React.useState(false);
+  const guardedVote = useVoteWall(productId);
+  const offReason = curated ? "Produit en veille : hors classement, votes désactivés." : undefined;
 
   return (
     <button
+      type="button"
+      disabled={pending || curated}
       onClick={() => {
-        // TODO(votes): remplacer par la Server Action toggleVote (optimiste).
-        void guardedVote(() => setVoted(!voted));
+        guardedVote(() => {
+          const next = !voted;
+          setPending(true);
+          startTransition(async () => {
+            // Optimiste immédiat (même animation qu'avant, vrais chiffres).
+            setVoted(next);
+            setCount((c) => c + (next ? 1 : -1));
+            const res = await toggleVoteAction({ productId });
+            if (res.ok) {
+              setVoted(res.voted);
+              setCount(res.upvoteCount);
+              if (res.voted && !res.counted) {
+                toast(
+                  "info",
+                  "Vote enregistré — il comptera au classement avec un compte plus ancien.",
+                );
+              }
+            } else {
+              setVoted(!next);
+              setCount((c) => c + (next ? -1 : 1));
+              toast("err", res.message ?? "Vote impossible pour le moment.");
+            }
+            setPending(false);
+          });
+        });
       }}
-      className="relative group/vote flex flex-col items-center justify-center w-20 md:w-24 py-4 md:py-5 shrink-0 transition-all outline-none cursor-pointer"
+      aria-pressed={voted}
+      aria-label={offReason ?? `Voter pour ${productName}`}
+      title={offReason}
+      className="relative group/vote flex flex-col items-center justify-center w-20 md:w-24 py-4 md:py-5 shrink-0 transition-all outline-none cursor-pointer disabled:cursor-not-allowed"
     >
       {/* Soft background that only appears on hover or active */}
       <div
@@ -127,7 +217,7 @@ function AnimatedVoteButton() {
             voted ? "text-emerald-600 dark:text-emerald-400" : "text-foreground",
           )}
         >
-          {voted ? 312 : 311}
+          {count}
         </span>
 
         <span

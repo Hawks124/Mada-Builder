@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
 import { FacetGrid, type FacetGroup } from "@/components/categories/category-index";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 
@@ -161,22 +162,19 @@ export function CategoriesList() {
   }
 
   return (
-    <div className="flex flex-col items-start gap-4 rounded-2xl border border-border/50 bg-muted/30 px-6 py-10 max-w-xl">
-      <p className="text-[15px] font-bold text-foreground">
-        Aucun résultat pour « {query.trim()} »
-      </p>
-      <p className="text-[14px] text-muted-foreground">
-        Aucun {noun} ne correspond. Essayez un terme plus court, ou repartez de la liste complète de{" "}
-        {total}.
-      </p>
-      <button
-        type="button"
-        onClick={() => setQuery("")}
-        className="inline-flex items-center gap-2 text-[13px] font-bold text-foreground hover:text-primary transition-colors cursor-pointer"
-      >
-        <ArrowCounterClockwiseIcon weight="bold" className="h-3.5 w-3.5" />
-        Réinitialiser la recherche
-      </button>
-    </div>
+    <EmptyState
+      title={`Aucun résultat pour « ${query.trim()} »`}
+      description={`Aucun ${noun} ne correspond. Essayez un terme plus court, ou repartez de la liste complète de ${total}.`}
+      action={
+        <button
+          type="button"
+          onClick={() => setQuery("")}
+          className="inline-flex items-center gap-2 text-[13px] font-bold text-foreground hover:text-primary transition-colors cursor-pointer"
+        >
+          <ArrowCounterClockwiseIcon weight="bold" className="h-3.5 w-3.5" />
+          Réinitialiser la recherche
+        </button>
+      }
+    />
   );
 }

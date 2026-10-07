@@ -32,6 +32,14 @@ export type DashboardApp = {
   waitingText?: string;
   votes: number;
   views: number;
+  /** Clics sortants (4C) : le chiffre qui compte pour les makers. */
+  clicks: number;
+  /** Vues 7 j (Lot 3) : le pouls actuel (vs cumulé). */
+  views7d: number;
+  /** Rang top 15 tout temps (Lot 3) — absent = hors top, jamais de faux rang. */
+  topRank?: number;
+  /** Dernière notif email liée (Lot 5) — pastille non-live uniquement. */
+  notifStatus?: "ok" | "ko";
   comments: number;
   rating: number;
   ratingsCount: number;
@@ -40,6 +48,24 @@ export type DashboardApp = {
   revenue?: DashboardRevenue;
   iconGradient: string;
   initials: string;
+  /** Logo réel (R2) — absent = initiales (jamais de visage d'emprunt). */
+  iconUrl?: string | null;
+  /**
+   * Pré-remplissage édition (Phase 2) : valeurs DB brutes. Absentes des
+   * mocks (l'édition mock n'a jamais existé).
+   */
+  description?: string;
+  linkValues?: Record<string, string>;
+  categoryIds?: string[];
+  license?: string;
+  installCommand?: string;
+  requirements?: string;
+  changelogUrl?: string;
+  hasAds?: boolean;
+  hasThirdParty?: boolean;
+  targetCountries?: string[];
+  languagesSupported?: string[];
+  galleryOrientation?: "portrait" | "landscape";
 };
 
 export const STATUS_META: Record<AppStatus, { label: string; pillClass: string }> = {
@@ -74,6 +100,8 @@ export const MOCK_APPS: DashboardApp[] = [
     tags: ["sirh", "paie", "b2b"],
     votes: 342,
     views: 12400,
+    clicks: 0,
+    views7d: 0,
     comments: 58,
     rating: 4.9,
     ratingsCount: 120,
@@ -97,6 +125,8 @@ export const MOCK_APPS: DashboardApp[] = [
     tags: ["marketplace", "artisanat"],
     votes: 187,
     views: 8300,
+    clicks: 0,
+    views7d: 0,
     comments: 24,
     rating: 4.7,
     ratingsCount: 64,
@@ -120,6 +150,8 @@ export const MOCK_APPS: DashboardApp[] = [
     tags: ["epargne", "mobile-money"],
     votes: 96,
     views: 4100,
+    clicks: 0,
+    views7d: 0,
     comments: 12,
     rating: 4.8,
     ratingsCount: 31,
@@ -148,6 +180,8 @@ export const MOCK_APPS: DashboardApp[] = [
     waitingText: "En attente depuis 2 j",
     votes: 0,
     views: 0,
+    clicks: 0,
+    views7d: 0,
     comments: 0,
     rating: 0,
     ratingsCount: 0,
@@ -170,6 +204,8 @@ export const MOCK_APPS: DashboardApp[] = [
     tags: ["temps", "freelance"],
     votes: 0,
     views: 0,
+    clicks: 0,
+    views7d: 0,
     comments: 0,
     rating: 0,
     ratingsCount: 0,
@@ -194,6 +230,8 @@ export const MOCK_APPS: DashboardApp[] = [
     tags: ["recettes", "hors-ligne"],
     votes: 58,
     views: 2300,
+    clicks: 0,
+    views7d: 0,
     comments: 9,
     rating: 4.6,
     ratingsCount: 22,
@@ -208,6 +246,8 @@ export type DashboardTotals = {
   liveCount: number;
   totalListings: number;
   totalViews: number;
+  totalClicks: number;
+  totalViews7d: number;
   pendingCount: number;
   totalMrrCents: number;
   totalComments: number;
@@ -222,6 +262,8 @@ export function getDashboardTotals(apps: DashboardApp[]): DashboardTotals {
     liveCount: apps.filter((a) => a.status === "live").length,
     totalListings: apps.length,
     totalViews: apps.reduce((acc, a) => acc + a.views, 0),
+    totalClicks: apps.reduce((acc, a) => acc + a.clicks, 0),
+    totalViews7d: apps.reduce((acc, a) => acc + a.views7d, 0),
     pendingCount: apps.filter((a) => a.status === "pending").length,
     totalMrrCents: apps.reduce((acc, a) => acc + (a.revenue?.mrrCents ?? 0), 0),
     totalComments: apps.reduce((acc, a) => acc + a.comments, 0),

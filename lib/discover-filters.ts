@@ -27,7 +27,17 @@ export const DISCOVER_PARAMS = {
   pricing: "pricing",
   lifecycle: "lifecycle",
   ages: "age",
+  sort: "sort",
 } as const;
+
+/** Tri — dans l'URL (le serveur trie) : `votes` par défaut, jamais vide. */
+export type DiscoverSort = "votes" | "newest";
+
+/** Taille de page (client + serveur : source unique, module client-safe). */
+export const DISCOVER_PAGE_SIZE = 12;
+export function parseDiscoverSort(params: ParamsReader): DiscoverSort {
+  return params.get(DISCOVER_PARAMS.sort) === "newest" ? "newest" : "votes";
+}
 
 export type DiscoverFilterState = {
   cat: string | null;
@@ -91,20 +101,25 @@ export function parseDiscoverFilters(params: ParamsReader): DiscoverFilterState 
   };
 }
 
-/** Pur, testé seul : état de filtres → URL. Les valeurs vides sont omises. */
+/** Pur, testé seul : état de filtres (+ tri + recherche) → URL. Les valeurs vides sont omises. */
 export function buildDiscoverHref(
   state: Partial<DiscoverFilterState>,
   page?: number | null,
+  sort?: string | null,
+  q?: string | null,
 ): string {
-  const q = new URLSearchParams();
-  if (state.cat) q.set(DISCOVER_PARAMS.cat, state.cat);
-  for (const v of state.types ?? []) q.append(DISCOVER_PARAMS.types, v);
-  for (const v of state.platforms ?? []) q.append(DISCOVER_PARAMS.platforms, v);
-  for (const v of state.pricing ?? []) q.append(DISCOVER_PARAMS.pricing, v);
-  for (const v of state.lifecycle ?? []) q.append(DISCOVER_PARAMS.lifecycle, v);
-  for (const v of state.ages ?? []) q.append(DISCOVER_PARAMS.ages, v);
-  if (page != null && page > 1) q.set("page", String(page));
-  const s = q.toString();
+  const query = new URLSearchParams();
+  if (state.cat) query.set(DISCOVER_PARAMS.cat, state.cat);
+  for (const v of state.types ?? []) query.append(DISCOVER_PARAMS.types, v);
+  for (const v of state.platforms ?? []) query.append(DISCOVER_PARAMS.platforms, v);
+  for (const v of state.pricing ?? []) query.append(DISCOVER_PARAMS.pricing, v);
+  for (const v of state.lifecycle ?? []) query.append(DISCOVER_PARAMS.lifecycle, v);
+  for (const v of state.ages ?? []) query.append(DISCOVER_PARAMS.ages, v);
+  if (sort != null && sort !== "" && sort !== "votes") query.set(DISCOVER_PARAMS.sort, sort);
+  const trimmed = (q ?? "").trim();
+  if (trimmed !== "") query.set("q", trimmed);
+  if (page != null && page > 1) query.set("page", String(page));
+  const s = query.toString();
   return `/discover${s !== "" ? `?${s}` : ""}`;
 }
 

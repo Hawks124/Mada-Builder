@@ -5,18 +5,25 @@ import { useState } from "react";
 import { XIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { FieldBadge } from "@/components/ui/field-badge";
-import { useSubmitForm } from "@/components/submit/submit-form-context";
+import { useSubmitForm, draftJsonList } from "@/components/submit/submit-form-context";
 
 const MAX_TAGS = 5;
 
 export function SubmitCategoriesSection() {
-  const { editApp } = useSubmitForm();
-  const [selectedIds, setSelectedIds] = useState<string[]>(editApp ? [editApp.categoryId] : []);
+  const { editApp, errors, clearError, draft } = useSubmitForm();
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => {
+    if (editApp) return editApp.categoryIds ?? [editApp.categoryId];
+    return draftJsonList(draft, "categories");
+  });
   // Tags libres — état string[] prêt pour la table product_tags (backend)
-  const [tags, setTags] = useState<string[]>(editApp?.tags ?? []);
+  const [tags, setTags] = useState<string[]>(() => {
+    if (editApp?.tags) return editApp.tags;
+    return draftJsonList(draft, "tags");
+  });
   const [tagInput, setTagInput] = useState("");
 
   const toggleCategory = (id: string) => {
+    clearError("categories");
     setSelectedIds((prev) => {
       if (prev.includes(id)) return prev.filter((i) => i !== id);
       if (prev.length >= 3) return prev;
@@ -31,7 +38,11 @@ export function SubmitCategoriesSection() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 scroll-mt-24" data-field-anchor="categories" tabIndex={-1}>
+      {/* Sérialisés pour la Server Action (états locaux). */}
+      <input type="hidden" name="categories" value={JSON.stringify(selectedIds)} />
+      <input type="hidden" name="tags" value={JSON.stringify(tags)} />
+      <input type="hidden" name="category" value={selectedIds[0] ?? ""} />
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-black tracking-tight">Catégories</h2>
@@ -54,6 +65,7 @@ export function SubmitCategoriesSection() {
           return (
             <button
               key={cat.id}
+              type="button"
               onClick={() => toggleCategory(cat.id)}
               className={cn(
                 "group relative border text-left px-4 py-2.5 rounded-full flex items-center gap-2.5 transition-all duration-200 cursor-pointer",
@@ -92,6 +104,11 @@ export function SubmitCategoriesSection() {
           );
         })}
       </div>
+      {errors["categories"] && (
+        <p role="alert" className="text-[12px] font-bold text-red-600 dark:text-red-400">
+          {errors["categories"]}
+        </p>
+      )}
 
       {/* ── Tags libres (optionnel, max 5) ── */}
       <div className="flex flex-col gap-3 mt-2">
@@ -103,8 +120,8 @@ export function SubmitCategoriesSection() {
           </span>
         </label>
         <p className="text-[12px] font-medium text-muted-foreground leading-relaxed">
-          Mots-clés libres pour affiner la découverte (ex : mobile-money, offline-first). Entrée ou
-          virgule pour ajouter.
+          Mots-clés libres pour affiner la découverte (ex : mobile-money, offline-first). Espace,
+          Entrée ou virgule pour ajouter.
         </p>
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-background border border-border/60 px-4 py-3 focus-within:border-foreground/40 hover:border-foreground/20 transition-colors">
           {tags.map((tag) => (
@@ -136,7 +153,14 @@ export function SubmitCategoriesSection() {
                 }
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                // Standard tokenisé (Stack Overflow, GitHub) : l'espace
+                // transforme le mot en badge supprimable (les espaces sont
+                // normalisés en `-` de toute façon — commitTag).
+                if (e.key === " ") {
+                  e.preventDefault();
+                  commitTag(tagInput);
+                  setTagInput("");
+                } else if (e.key === "Enter") {
                   e.preventDefault();
                   commitTag(tagInput);
                   setTagInput("");

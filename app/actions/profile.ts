@@ -96,6 +96,8 @@ export async function updateMyProfile(
       ...splitLocation(formData.get("location")),
       socialLinks: socialLinksFrom(formData),
       ...(timeZone !== undefined ? { timeZone } : {}),
+      // digestOptOut : GÉRÉ PAR /settings (updateDigestPref) — jamais ici,
+      // sinon chaque sauvegarde du profil réinitialiserait la préférence.
     });
     revalidateMaker(username);
     return { ok: true, message: "Profil enregistré." };
@@ -191,6 +193,7 @@ export async function fetchMyProfile() {
       socialLinks: users.socialLinks,
       country: users.country,
       city: users.city,
+      digestOptOut: users.digestOptOut,
     })
     .from(users)
     .where(and(eq(users.id, user.id), isNull(users.deletedAt)))

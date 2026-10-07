@@ -5,11 +5,15 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import AdminShell from "@/components/admin/admin-shell";
 import { getOnboardingRedirect } from "@/app/actions/onboarding";
+import { getPendingCountCached, getRejectedCountCached } from "@/services/stats.service";
 
 /**
  * Double-check server : session + rôle staff (admin|moderateur).
- * JWT d'abord (zéro requête), fallback rôle-table si muet (promotion
- * récente — même règle que proxy.ts, défense en profondeur).
+ * VÉRITÉ DB (request-cached, 1 requête/requête HTTP) — JAMAIS le miroir
+ * JWT seul : un app_metadata stale (demotion en DB directe sans sync,
+ * ex. setup-curation-account sur open-sources, oct. 2026) laissait entrer
+ * un `user` dans tout le panel. Le proxy garde le JWT en fast path
+ * (fail-closed vers /), le layout tranche sur la table.
  * Sinon / (pas de 403 qui confirme l'existence de l'admin).
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -23,23 +27,29 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       redirect(viewer.status === "guest" ? "/signin" : "/");
     }
     const user = viewer.user;
-    const role = (user?.app_metadata as { role?: string } | undefined)?.role;
-    if (role !== "admin" && role !== "moderateur") {
-      let staff = false;
-      try {
-        const [row] = await db
-          .select({ role: users.role })
-          .from(users)
-          .where(eq(users.id, user.id))
-          .limit(1);
-        staff = !!row && (row.role === "admin" || row.role === "moderateur");
-      } catch {
-        staff = false;
-      }
-      if (!staff) redirect("/");
+    let staff = false;
+    try {
+      const [row] = await db
+        .select({ role: users.role })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+      staff = !!row && (row.role === "admin" || row.role === "moderateur");
+    } catch {
+      staff = false;
     }
+    if (!staff) redirect("/");
     const dest = await getOnboardingRedirect().catch(() => null);
     if (dest) redirect(dest);
   }
-  return <AdminShell>{children}</AdminShell>;
+  // Badges réels (files DB, pas de mock).
+  const [pendingCount, rejectedCount] = await Promise.all([
+    getPendingCountCached(),
+    getRejectedCountCached(),
+  ]);
+  return (
+    <AdminShell pendingCount={pendingCount} rejectedCount={rejectedCount}>
+      {children}
+    </AdminShell>
+  );
 }

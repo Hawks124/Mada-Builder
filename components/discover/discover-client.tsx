@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { DiscoverToolbar } from "@/components/discover/discover-toolbar";
 import { DiscoverGrid } from "@/components/discover/discover-grid";
 import { GridBackground } from "@/components/ui/grid-background";
@@ -12,8 +11,23 @@ import {
 } from "@/components/discover/sidebar-filter";
 import { cn } from "@/lib/utils";
 import type { DiscoverFilterState } from "@/lib/discover-filters";
+import type { DiscoverSortId } from "@/components/discover/sidebar-filter";
+import type { DiscoverItem } from "@/services/discover.service";
+import { useEffect } from "react";
 
-function DiscoverLayout({ searchQuery, page }: { searchQuery: string; page: number }) {
+function DiscoverLayout({
+  items,
+  total,
+  page,
+  searchQuery,
+  votedIds,
+}: {
+  items: DiscoverItem[];
+  total: number;
+  page: number;
+  searchQuery: string;
+  votedIds: string[];
+}) {
   const { sidebarOpen, toggleSidebar } = useFilters();
 
   // Raccourci "f" : toggle sidebar (desktop). "Alt+K" global (navbar) gère
@@ -55,7 +69,13 @@ function DiscoverLayout({ searchQuery, page }: { searchQuery: string; page: numb
         )}
       >
         <div className="container px-4 md:px-8 max-w-7xl mx-auto py-10">
-          <DiscoverGrid searchQuery={searchQuery} page={page} />
+          <DiscoverGrid
+            items={items}
+            total={total}
+            page={page}
+            searchQuery={searchQuery}
+            votedIds={votedIds}
+          />
         </div>
       </main>
     </div>
@@ -63,30 +83,34 @@ function DiscoverLayout({ searchQuery, page }: { searchQuery: string; page: numb
 }
 
 /**
- * Client island — l'état filtrant vient des props lues par le serveur
- * depuis l'URL. La recherche (`q`) est locale : seedée une fois ici.
+ * Client island — filtres/tri/recherche seedés par l'URL via le serveur
+ * (props), items chargés serveur. La sidebar navigue (pas d'état dupliqué).
  */
 export function DiscoverClient({
   initialFilters,
+  initialSortId,
   initialQuery,
   initialPage,
+  items,
+  total,
+  catalogTotal,
+  votedIds,
 }: {
   initialFilters: DiscoverFilterState;
+  initialSortId: DiscoverSortId;
   initialQuery: string;
   initialPage: number;
+  items: DiscoverItem[];
+  total: number;
+  catalogTotal: number;
+  votedIds: string[];
 }) {
-  const [searchQuery, setSearchQuery] = useState(initialQuery);
-
-  // Suit `initialQuery` (lien navbar réinitialise le champ) — dérivation
-  // au rendu, pas d'effect (le seed ne dépend que de la navigation).
-  const [prevInitial, setPrevInitial] = useState(initialQuery);
-  if (initialQuery !== prevInitial) {
-    setPrevInitial(initialQuery);
-    setSearchQuery(initialQuery);
-  }
-
   return (
-    <FilterProvider initialFilters={initialFilters}>
+    <FilterProvider
+      initialFilters={initialFilters}
+      initialSortId={initialSortId}
+      initialQuery={initialQuery}
+    >
       <div className="flex flex-col w-full min-h-[calc(100vh-72px)]">
         {/* ── HEADER & TOOLBAR (fond grille, même langage que la home) ── */}
         <div className="relative w-full border-b border-border/40">
@@ -103,16 +127,19 @@ export function DiscoverClient({
                 Explorer la tech malgache
               </h1>
               <p className="text-muted-foreground font-medium md:text-lg tracking-tight mt-2 max-w-2xl">
-                <span className="font-bold text-foreground"> +{`1 329`} </span> produits, apps, SaaS
-                et outils construits par des makers de Madagascar. Découvrez, votez, et soutenez la
-                scène locale.
+                <span className="font-bold text-foreground">
+                  {" "}
+                  +{catalogTotal.toLocaleString("fr-FR")}{" "}
+                </span>{" "}
+                produits, apps, SaaS et outils construits par des makers de Madagascar. Découvrez,
+                votez, et soutenez la scène locale.
               </p>
             </div>
             <div
               className="flex flex-row items-center gap-2 w-full"
               title="Raccourcis : Alt+K recherche, f filtres"
             >
-              <DiscoverToolbar onSearchChange={setSearchQuery} searchValue={searchQuery} />
+              <DiscoverToolbar />
               <div className="lg:hidden shrink-0">
                 <MobileFilterTrigger />
               </div>
@@ -120,7 +147,13 @@ export function DiscoverClient({
           </div>
         </div>
 
-        <DiscoverLayout searchQuery={searchQuery} page={initialPage} />
+        <DiscoverLayout
+          items={items}
+          total={total}
+          page={initialPage}
+          searchQuery={initialQuery}
+          votedIds={votedIds}
+        />
       </div>
     </FilterProvider>
   );

@@ -1,13 +1,16 @@
 import {
   ApiError,
+  CACHE_PUBLIC_SHORT,
   apiCatch,
   apiOk,
   corsPreflight,
   iso,
   methodNotAllowed,
+  withCache,
 } from "@/lib/api/response";
 import { apiLimit } from "@/lib/api/ratelimit";
 import { fetchUserProfile } from "@/services/users.service";
+import { isCurationAccount } from "@/config/curation";
 
 export const OPTIONS = async () => corsPreflight();
 
@@ -48,20 +51,26 @@ export async function GET(
     }
     const row = await fetchUserProfile(username);
     if (!row) throw new ApiError("NOT_FOUND", 404, "Profil introuvable.");
-    return apiOk({
-      id: row.id,
-      username: row.username,
-      displayName: row.displayName,
-      avatarUrl: row.avatarUrl,
-      bio: row.bio,
-      occupation: row.occupation,
-      websiteUrl: row.websiteUrl,
-      socialLinks: row.socialLinks,
-      country: row.country,
-      city: row.city,
-      bannedAt: iso(row.bannedAt),
-      createdAt: iso(row.createdAt),
-    });
+    return withCache(
+      apiOk({
+        id: row.id,
+        username: row.username,
+        displayName: row.displayName,
+        avatarUrl: row.avatarUrl,
+        bio: row.bio,
+        occupation: row.occupation,
+        websiteUrl: row.websiteUrl,
+        socialLinks: row.socialLinks,
+        country: row.country,
+        city: row.city,
+        bannedAt: iso(row.bannedAt),
+        createdAt: iso(row.createdAt),
+        // Veille : pilote le badge profil + la clause (bio). Jamais de
+        // hardcode côté mobile (la liste vit en config serveur).
+        isCuration: isCurationAccount(row.username),
+      }),
+      CACHE_PUBLIC_SHORT,
+    );
   } catch (e) {
     return apiCatch(e, "api.makers.get");
   }

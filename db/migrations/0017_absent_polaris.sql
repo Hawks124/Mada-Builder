@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "shares_data" boolean DEFAULT false NOT NULL;

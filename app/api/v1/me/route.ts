@@ -6,6 +6,8 @@ import {
   iso,
   methodNotAllowed,
   readJson,
+  withCache,
+  CACHE_PRIVATE,
 } from "@/lib/api/response";
 import { requireApiUser } from "@/lib/api/auth";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
@@ -43,6 +45,7 @@ function serialize(row: OwnRow) {
     banReason: row.banReason,
     appealsCount: row.appealsCount,
     onboardingCompleted: row.onboardingCompleted,
+    digestOptOut: row.digestOptOut,
     createdAt: iso(row.createdAt),
   };
 }
@@ -57,7 +60,7 @@ export async function GET(req: Request): Promise<Response> {
     await apiLimit("api:me:read", user.id, API_WINDOWS.read);
     const row = await fetchOwnProfile(user.id);
     if (!row) throw new ApiError("UNAUTHORIZED", 401, "Compte introuvable.");
-    return apiOk(serialize(row));
+    return withCache(apiOk(serialize(row)), CACHE_PRIVATE);
   } catch (e) {
     return apiCatch(e, "api.me.get");
   }
@@ -77,7 +80,7 @@ export async function PATCH(req: Request): Promise<Response> {
     await updateProfile(user.id, user.id, body);
     const row = await fetchOwnProfile(user.id);
     if (!row) throw new ApiError("NOT_FOUND", 404, "Compte introuvable.");
-    return apiOk(serialize(row));
+    return withCache(apiOk(serialize(row)), CACHE_PRIVATE);
   } catch (e) {
     return apiCatch(e, "api.me.patch");
   }
@@ -120,7 +123,7 @@ export async function DELETE(req: Request): Promise<Response> {
       });
     }
     await deleteAccount(user.id, user.id);
-    return apiOk({ deleted: true });
+    return withCache(apiOk({ deleted: true }), CACHE_PRIVATE);
   } catch (e) {
     return apiCatch(e, "api.me.delete");
   }

@@ -1,5 +1,4 @@
 import { Prose } from "@/components/ui/prose";
-import { getProductById } from "@/services/catalog-mock.service";
 import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react/dist/ssr";
 
 /**
@@ -34,12 +33,11 @@ import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react/dist/ssr";
  * rendu, et le composant n'a besoin d'aucun JavaScript — d'où le passage en
  * composant serveur, qui rend toute la section indexable.
  */
-export function ProductAbout({ productId }: { productId: string }) {
-  const product = getProductById(productId);
-  const markdown = product?.description?.trim();
+export function ProductAbout({ name, markdown: raw }: { name: string; markdown: string }) {
+  const markdown = raw.trim();
   // Pas de description longue : on ne rend rien. Un cadre vide serait pire
   // qu'une absence — le lecteur ne doit pas deviner ce qui manque.
-  if (!product || !markdown) return null;
+  if (!markdown) return null;
 
   const collapsible = hasSubsequentBlocks(markdown);
 
@@ -49,7 +47,7 @@ export function ProductAbout({ productId }: { productId: string }) {
       className="flex flex-col gap-5 border-t border-border/40 pt-6"
     >
       <h2 id="product-about" className="text-2xl font-extrabold tracking-tight text-foreground">
-        À propos de {product.name}
+        À propos de {name}
       </h2>
 
       {collapsible ? (
@@ -58,7 +56,7 @@ export function ProductAbout({ productId }: { productId: string }) {
             type="checkbox"
             id="product-about-toggle"
             className="peer sr-only"
-            aria-label={`Afficher la description complète de ${product.name}`}
+            aria-label={`Afficher la description complète de ${name}`}
           />
 
           {/* Repli : on masque tout ce qui suit le premier titre de niveau 2,

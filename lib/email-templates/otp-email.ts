@@ -69,7 +69,8 @@ export function otpEmailHtml(input: {
     .code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 48px; font-weight: 800; letter-spacing: 0.2em; margin: 0 0 56px 0; color: #09090b; display: block; }
     .text { font-size: 16px; line-height: 1.6; color: #52525b; margin: 0 0 40px 0; font-weight: 400; }
     
-    .cta { display: inline-block; background-color: #09090b; color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none; padding: 18px 36px; border-radius: 999px; letter-spacing: -0.01em; }
+    .cta { display: inline-block; background-color: #09090b; text-decoration: none; padding: 18px 36px; border-radius: 999px; letter-spacing: -0.01em; }
+    .cta span { font-size: 15px; font-weight: 600; color: #ffffff !important; }
     
     .footer { margin-top: 96px; font-size: 13px; color: #a1a1aa; line-height: 1.5; }
     ${BRAND_CSS_BASE}
@@ -79,7 +80,8 @@ export function otpEmailHtml(input: {
       .brand-text, .code { color: #ffffff !important; }
       .text { color: #a1a1aa !important; }
       .label { color: #71717a !important; }
-      .cta { background-color: #ffffff !important; color: #000000 !important; }
+      .cta { background-color: #ffffff !important; }
+      .cta span { color: #000000 !important; }
       ${BRAND_CSS_DARK}
     }
   </style>
@@ -101,7 +103,7 @@ export function otpEmailHtml(input: {
     ${
       input.actionLink
         ? `<div>
-      <a href="${input.actionLink}" class="cta">Se connecter rapidement</a>
+      <a href="${input.actionLink}" class="cta"><span>Se connecter rapidement</span></a>
     </div>`
         : ""
     }

@@ -17,6 +17,13 @@ export const adminActionEnum = pgEnum("admin_action", [
   "demote",
   "appeal_upheld",
   "appeal_overturned",
+  "product_published",
+  "product_rejected",
+  "product_removed",
+  "product_featured",
+  "product_nudged",
+  "review_removed",
+  "comment_removed",
 ]);
 
 export type AdminActionType = (typeof adminActionEnum.enumValues)[number];
@@ -34,9 +41,11 @@ export const adminActions = pgTable(
     actorId: uuid("actor_id").references(() => users.id, {
       onDelete: "set null",
     }),
-    targetId: uuid("target_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    // Cible polymorphe (user OU product) : PAS de FK (un productId violerait
+    // la contrainte users) — la cohérence vit dans les services (targetId =
+    // id existant vérifié avant log). L'historique user (bans ×) filtre sur
+    // les actions ban/unban, jamais pollué par les ids produits.
+    targetId: uuid("target_id").notNull(),
     action: adminActionEnum("action").notNull(),
     // Motif de ban / vide ailleurs pour l'instant (note reviewer : V1.5).
     note: text("note"),

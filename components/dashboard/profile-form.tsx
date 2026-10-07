@@ -266,7 +266,7 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
               maxLength={50}
               defaultValue={initial.displayName}
             />
-            <ProfileOccupation defaultValue={initial.occupation} />
+            <ProfileOccupation defaultValue={initial.occupation} onChange={() => setDirty(true)} />
             <div className="flex flex-col gap-2">
               <label htmlFor="profile-bio" className="text-[14px] font-bold text-foreground">
                 Bio
@@ -329,6 +329,12 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
                 </div>
               ))}
             </div>
+
+            {/* Notifications — déplacées dans /settings (switch immédiat).
+                Retirées du formulaire profil : sinon chaque sauvegarde
+                réinitialiserait la préférence. */}
+
+            <div className="w-full h-px bg-border/40" />
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-4 pt-2">

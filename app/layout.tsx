@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { siteUrl } from "@/lib/site-url";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -7,6 +8,7 @@ import { UmamiTracker } from "@/components/analytics/umami";
 import { CookieNotice } from "@/components/legal/cookie-notice";
 import { AuthRemember } from "@/components/auth/auth-remember";
 import { ToastViewport } from "@/components/ui/toast";
+import { PendingVoteReplayer } from "@/components/votes/pending-vote-replayer";
 import { Suspense } from "react";
 
 const geistSans = Geist({
@@ -20,6 +22,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: {
     default: "Made in Madagascar — Annuaire des produits tech malgaches",
     template: "%s — Made in Madagascar",
@@ -46,6 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthRemember />
           <Suspense fallback={null}>
             <ToastViewport />
+          </Suspense>
+          <Suspense fallback={null}>
+            <PendingVoteReplayer />
           </Suspense>
           {children}
           <CookieNotice />

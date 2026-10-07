@@ -1,26 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { ArrowRightIcon } from "@phosphor-icons/react";
 import { GridBackground } from "@/components/ui/grid-background";
 import { Pagination } from "@/components/ui/pagination";
+import { ListLoadingOverlay } from "@/components/ui/list-loading-overlay";
+import { EmptyState } from "@/components/ui/empty-state";
 import { FeaturedProduct } from "@/components/home/featured-product";
+import type { FeaturedProductData } from "@/services/home.service";
 import { LeaderboardList } from "@/components/ranking/leaderboard-list";
 import { RankingFilterBar } from "@/components/ranking/ranking-filter-bar";
-import {
-  RANKING_WINDOWS,
-  getLeaderboard,
-  getTaxonomyRanking,
-  getTaxonomyWeight,
-  getWindowLabel,
-  type RankingWindow,
-} from "@/services/home.service";
+import { RANKING_WINDOWS, getWindowLabel, type RankingWindow } from "@/services/home.service";
 import { getCategoryById } from "@/config/categories";
 import { getProductTypeById } from "@/config/product-types";
 import { cn } from "@/lib/utils";
+import type { LeaderboardItem } from "@/services/ranking.service";
 
-const VALID_WINDOWS: RankingWindow[] = ["today", "week", "month", "all"];
 const TOP_SIZE = 10;
 const PAGE_SIZE = 15;
 
@@ -39,44 +36,55 @@ function buildHref(params: {
   return `/leaderboard${s !== "" ? `?${s}` : ""}`;
 }
 
-export function LeaderboardContent() {
-  const params = useSearchParams();
+/**
+ * Coquille classement — données via props (la page serveur charge) :
+ * podium chronologique + taxonomique + produit du jour. Seule la
+ * navigation reste cliente (`scroll: false` obligatoire : les facettes
+ * sont à mi-page, un scroll top ferait perdre le contexte — cf. commentaire
+ * historique).
+ */
+export function LeaderboardContent({
+  chrono,
+  taxo,
+  taxoTotal,
+  taxoWeight,
+  featured,
+  votedIds = [],
+  window: w,
+  cat,
+  type,
+  page,
+}: {
+  chrono: LeaderboardItem[];
+  taxo: LeaderboardItem[];
+  taxoTotal: number;
+  taxoWeight: number;
+  featured: FeaturedProductData | null;
+  votedIds?: string[];
+  window: RankingWindow;
+  cat: string | null;
+  type: string | null;
+  page: number;
+}) {
   const router = useRouter();
-  const rawW = params.get("w");
-  const w: RankingWindow = VALID_WINDOWS.includes(rawW as RankingWindow)
-    ? (rawW as RankingWindow)
-    : "today";
-  const cat = params.get("cat");
-  const type = params.get("type");
-  const page = Math.max(1, Number.parseInt(params.get("page") ?? "1", 10) || 1);
-
   const windowLabel = getWindowLabel(w);
-  // `scroll: false` **obligatoire** : chaque facette du « Classement par
-  // domaine » est à mi-page, et une navigation par défaut remonte en haut. Le
-  // filtre s'appliquait, la liste se mettait à jour, mais l'utilisateur
-  // repartait de l'en-tête et devait redescendre ~1 600 px pour voir le
-  // résultat de son propre filtre. La barre reste donc à sa place, les
-  // résultats se mettent à jour juste en dessous.
-  const go = (href: string) => router.push(href, { scroll: false });
+  // Voile pendant les navigations facettes (retombe seul au commit).
+  const [isNavigating, startNavTransition] = useTransition();
+  const go = (href: string) =>
+    startNavTransition(() => {
+      router.push(href, { scroll: false });
+    });
 
   /* ── Classement 1 : CHRONOLOGIQUE ──────────────────────────────
      Le podium Top 10 EST le classement temporel. `?w=` ne pilote
      que cette section. */
-  const chrono = getLeaderboard(w);
   const podium = chrono.slice(0, TOP_SIZE);
-  // NOTE — reste chrono (hors podium) non rendu : le podium EST le
-  // classement temporel, la liste paginée ci-dessous est taxonomique.
-  // Si un "top complet" chronologique s'ajoute un jour, le Rankings source
-  // est `chrono.slice(TOP_SIZE)` paginé comme `taxo`.
 
   /* ── Classement 2 : TAXONOMIQUE ───────────────────────────────
-     Logique distincte : classement par poids de la facette. Il
-     n'lit PAS `?w=` — les deux classements ne se contaminent pas. */
-  const taxo = getTaxonomyRanking(cat, type);
-  const taxoWeight = getTaxonomyWeight(cat, type);
-  const taxoPages = Math.max(1, Math.ceil(taxo.length / PAGE_SIZE));
+     Rang par poids (votes pondérés all-time) sur la sélection
+     cat/type. `?w=` ne le contamine pas. */
+  const taxoPages = Math.max(1, Math.ceil(taxoTotal / PAGE_SIZE));
   const taxoPage = Math.min(page, taxoPages);
-  const taxoItems = taxo.slice((taxoPage - 1) * PAGE_SIZE, taxoPage * PAGE_SIZE);
   const taxoStartRank = (taxoPage - 1) * PAGE_SIZE + 1;
 
   const catName = cat == null ? null : (getCategoryById(cat)?.name ?? null);
@@ -113,12 +121,30 @@ export function LeaderboardContent() {
           liste de 38 pages, et l'utilisateur ne le voyait jamais. PRD §6 :
           « Slot Produit du jour mis en avant en haut ». */}
       <div className="w-full relative border-b border-border/20 pt-12 pb-12">
-        <FeaturedProduct dense />
+        {featured ? (
+          <FeaturedProduct dense product={featured} />
+        ) : (
+          <section className="container px-4 md:px-8 max-w-5xl mx-auto w-full">
+            <EmptyState
+              size="sm"
+              title="Aucun produit à mettre en avant — soyez le premier."
+              action={
+                <Link
+                  href="/products/submit"
+                  className="rounded-full bg-foreground px-6 py-2.5 text-[13px] font-bold text-background hover:opacity-90 transition-opacity"
+                >
+                  Soumettre un produit
+                </Link>
+              }
+            />
+          </section>
+        )}
       </div>
 
       {/* ══ CLASSEMENT 1 — CHRONOLOGIQUE ══ */}
       <div className="w-full relative border-b border-border/20">
-        <section className="container px-4 md:px-8 max-w-5xl mx-auto w-full pt-12 pb-12">
+        <section className="relative container px-4 md:px-8 max-w-5xl mx-auto w-full pt-12 pb-12">
+          <ListLoadingOverlay active={isNavigating} />
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-8">
             <div className="flex flex-col gap-1">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
@@ -133,29 +159,67 @@ export function LeaderboardContent() {
             </div>
             <div className="inline-flex items-center p-1 bg-muted/50 rounded-full border border-border/40 self-start lg:self-auto overflow-x-auto max-w-full">
               {RANKING_WINDOWS.map((opt) => (
-                <Link
+                <button
                   key={opt.id}
-                  href={buildHref({ w: opt.id, cat, type })}
+                  type="button"
+                  onClick={() => go(buildHref({ w: opt.id, cat, type }))}
                   aria-current={w === opt.id ? "page" : undefined}
                   className={cn(
-                    "px-4 py-1.5 rounded-full text-[13px] font-bold transition-all whitespace-nowrap",
+                    "px-4 py-1.5 rounded-full text-[13px] font-bold transition-all whitespace-nowrap cursor-pointer",
                     w === opt.id
                       ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {opt.label}
-                </Link>
+                </button>
               ))}
             </div>
           </div>
-          <LeaderboardList products={podium} startRank={1} kickerLabel="" />
+          <LeaderboardList
+            products={podium}
+            votedIds={votedIds}
+            startRank={1}
+            kickerLabel=""
+            emptyTitle={
+              w === "today"
+                ? "Rien publié aujourd'hui — pour l'instant"
+                : w === "week"
+                  ? "Semaine calme — pour l'instant"
+                  : w === "month"
+                    ? "Mois calme — pour l'instant"
+                    : "Le classement se remplit"
+            }
+            emptyDescription={
+              w === "today"
+                ? "Les produits publiés aujourd'hui apparaîtront ici dès les premiers votes. En attendant, regardez la semaine."
+                : "Cette fenêtre est encore vide — les prochains votes et publications la rempliront."
+            }
+            emptyAction={
+              w === "today" ? (
+                <Link
+                  href={buildHref({ w: "week", cat, type })}
+                  className="rounded-full bg-foreground px-6 py-2.5 text-[13px] font-bold text-background hover:opacity-90 transition-opacity"
+                >
+                  Voir la semaine
+                </Link>
+              ) : (
+                <Link
+                  href="/products/submit"
+                  className="rounded-full bg-foreground px-6 py-2.5 text-[13px] font-bold text-background hover:opacity-90 transition-opacity"
+                >
+                  Soyez le premier à publier
+                </Link>
+              )
+            }
+          />
         </section>
       </div>
 
       {/* ══ CLASSEMENT 2 — TAXONOMIQUE ══ */}
       <div className="w-full bg-background relative">
-        <section className="container px-4 md:px-8 max-w-5xl mx-auto w-full pt-12 pb-12">
+        <section className="relative container px-4 md:px-8 max-w-5xl mx-auto w-full pt-12 pb-12">
+          <ListLoadingOverlay active={isNavigating} />
           <div className="flex flex-col gap-2 mb-8">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
               Classement par domaine
@@ -176,13 +240,14 @@ export function LeaderboardContent() {
               onCatChange={(v) => go(buildHref({ w, cat: v, type }))}
               selectedType={type}
               onTypeChange={(v) => go(buildHref({ w, cat, type: v }))}
-              resultCount={taxo.length}
+              resultCount={taxoTotal}
               onReset={() => go(buildHref({ w }))}
             />
           </div>
 
           <LeaderboardList
-            products={taxoItems}
+            products={taxo}
+            votedIds={votedIds}
             startRank={taxoStartRank}
             kickerLabel={taxoLabel != null ? `${taxoLabel} · Par poids` : ""}
             emptyAction={

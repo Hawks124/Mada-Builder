@@ -36,6 +36,8 @@ export function ProductLinks({
   share = false,
   onShare,
   unverifiedCount = 0,
+  productId,
+  trackOutbound = false,
 }: {
   productType: string;
   /** field-id (matrice) → URL. */
@@ -44,6 +46,10 @@ export function ProductLinks({
   share?: boolean;
   onShare?: () => void;
   unverifiedCount?: number;
+  /** UUID fiche (beacon clics sortants, fiche publique uniquement). */
+  productId?: string;
+  /** Trace les clics sortants (jamais en revue admin). */
+  trackOutbound?: boolean;
 }) {
   const [copied, setCopied] = React.useState(false);
 
@@ -70,6 +76,12 @@ export function ProductLinks({
     setTimeout(() => setCopied(false), 1500);
   };
 
+  // Beacon anonyme best-effort (sendBeacon + repli keepalive) : ne bloque
+  // jamais la navigation, échoue silencieusement hors-ligne.
+  const track = (fieldId: string) => {
+    if (trackOutbound && productId) sendClickBeacon(productId, fieldId);
+  };
+
   if (!primary && !installCommand && !downloadUrl) return null;
 
   return (
@@ -77,6 +89,9 @@ export function ProductLinks({
       {primary && (
         <ActionButton
           href={links[primary.id]!}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => track(primary.id)}
           variant="primary"
           className="w-full justify-center h-12 text-[15px] font-bold hover:opacity-90 transition-all active:scale-95"
         >
@@ -96,6 +111,7 @@ export function ProductLinks({
                   href={links[field.id]!}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => track(field.id)}
                   className="flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-full border border-border/50 bg-muted/20 hover:bg-foreground hover:text-background hover:border-foreground transition-all duration-200 text-[12px] font-bold group whitespace-nowrap"
                 >
                   <StoreLogo icon={field.icon} className="w-4 h-4 shrink-0" />
@@ -122,6 +138,7 @@ export function ProductLinks({
           href={links.registry!}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => track("registry")}
           className="flex items-center justify-center gap-1.5 py-2 rounded-full bg-orange-500/10 text-orange-600 hover:text-white dark:text-orange-400 text-[12px] font-bold hover:bg-orange-500 transition-colors"
         >
           <StoreLogo icon={registry.icon} className="w-4 h-4 shrink-0" />
@@ -165,6 +182,7 @@ export function ProductLinks({
           </p>
           <Link
             href={downloadUrl}
+            onClick={() => track("download")}
             className="flex items-center justify-center gap-2 h-11 rounded-full bg-foreground text-background text-[14px] font-bold hover:opacity-90 transition-all active:scale-[0.98]"
           >
             <DownloadSimpleIcon weight="bold" className="w-4 h-4 shrink-0" />
@@ -195,22 +213,6 @@ function fileNameOf(url: string): string {
 }
 
 /**
- * Mock Tarsi (fiche prototype) — TOUT le type mobile rempli : même forme
- * que le submit, consommé par la sidebar (liens) ET la page (vidéo).
- * Le milestone listings branchera la DB ici sans toucher les composants.
- */
-export const MOCK_TARSI_LINKS: Record<string, string> = {
-  website: "https://example.com",
-  appstore: "https://apps.apple.com",
-  playstore: "https://play.google.com",
-  source: "https://github.com",
-  demo: "https://demo.example.com",
-  docs: "https://docs.example.com",
-};
-
-export const MOCK_TARSI_VIDEO = "https://youtu.be/1NgO4Tzv27I?si=aLi4qXbsqfaVXPNV";
-
-/**
  * Banner vidéo STANDALONE — colonne principale uniquement (jamais
  * sidebar : trop étroit ; jamais galerie : ratio). Preview YouTube quand
  * détecté (`i.ytimg.com`, dérivé en pur client sans clé — le clic sort
@@ -219,6 +221,21 @@ export const MOCK_TARSI_VIDEO = "https://youtu.be/1NgO4Tzv27I?si=aLi4qXbsqfaVXPN
  * 64 px, survol scale + anneau, titre + domaine. Lien sortant (pas
  * d'embed : pas de tracking tiers, pas de poids). Rien si pas d'URL.
  */
+/** Beacon clic sortant anonyme (fiche publique) : sendBeacon + repli
+ * keepalive, jamais bloquant, jamais d'erreur visible. */
+function sendClickBeacon(productId: string, target: string): void {
+  try {
+    const body = new Blob([JSON.stringify({ productId, target })], {
+      type: "application/json",
+    });
+    if (!navigator.sendBeacon("/api/v1/beacon/click", body)) {
+      void fetch("/api/v1/beacon/click", { method: "POST", body, keepalive: true });
+    }
+  } catch {
+    // Best-effort : statistique, pas fonctionnelle.
+  }
+}
+
 export function youtubeVideoId(url: string): string | null {
   const m = url.match(
     /(?:youtube\.com\/(?:watch\?[^#]*v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/,
@@ -226,7 +243,15 @@ export function youtubeVideoId(url: string): string | null {
   return m?.[1] ?? null;
 }
 
-export function ProductVideoBanner({ videoUrl }: { videoUrl: string }) {
+export function ProductVideoBanner({
+  videoUrl,
+  productId,
+  trackOutbound = false,
+}: {
+  videoUrl: string;
+  productId?: string;
+  trackOutbound?: boolean;
+}) {
   const url = (videoUrl ?? "").trim();
   if (url === "") return null;
   let host = "";
@@ -235,12 +260,16 @@ export function ProductVideoBanner({ videoUrl }: { videoUrl: string }) {
   } catch {
     host = url;
   }
+  const onOutbound = () => {
+    if (trackOutbound && productId) sendClickBeacon(productId, "video");
+  };
   const ytId = youtubeVideoId(url);
   const preview = ytId !== null ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : null;
   return (
     <Link
       href={url}
       target="_blank"
+      onClick={onOutbound}
       rel="noopener noreferrer"
       className="group relative block w-full aspect-video rounded-3xl overflow-hidden bg-zinc-950 dark:bg-black border border-border/40 hover:border-border/80 transition-colors"
     >
