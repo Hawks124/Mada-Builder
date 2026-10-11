@@ -227,6 +227,24 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 - Hybride mobile : OTP email (session JSON), docs data par table (20
   fiches), RLS lecture complétées + faille `featured_products` fermée
   (`verify-otp-mobile` 5/5).
+- **Thread réponses** : coudes individuels en « L » par réponse
+  (contraste renforcé, fini le rail continu qui « continuait » après la
+  dernière réponse), clair/sombre.
+- **Activité admin honnête** : approbation = « X (modération) a approuvé
+  Y de Z » (l'admin n'est plus pris pour le maker, maker joint) ;
+  rejet/retrait = motif seul (fini le nom dupliqué) + snapshot « … »
+  si cible supprimée ; audits binaires résolus (« a approuvé/rejeté
+  l'APK vN (C) de Produit », lien cockpit, pastille danger sur rejet) —
+  fini les « → élément supprimé » ; `product_nudged` libellé.
+- **SEO partage** : OG 1200×630 générées maker (`/og/m/…`), catégorie
+  (`/og/c/…`), classement (`/og/leaderboard`, top 3 réel) + OG défaut
+  site (`/og`) ; canonicals absolues leaderboard/discover/catégories
+  (facettes = même canonical), `discover?q=` en noindex/follow.
+- **Featured durci** : seuil des paliers sur catalogue éligible
+  (`curated = false` côté TS + SQL `rotate_featured_daily`) + test de
+  parité auto SQL↔TS (statique 4 gardes + dynamique même-gagnant ;
+  a attrapé la fonction dev obsolète) (`verify-votes-ranking` 35/35) ;
+  note seuils d'optimisation (`docs/featured-produit-du-jour-v1.md`).
 
 ## [0.1.0] — 2026-09-24 — Fondations, identité & modération
 
