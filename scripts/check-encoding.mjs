@@ -19,6 +19,14 @@
 // corruption. Les caractères sont construits par code point : le script ne peut
 // donc pas se signaler lui-même.
 //
+// U+FFFD (caractère de remplacement) : AUTRE famille de corruption — des
+// octets détruits puis remplacés (aller-retour sans encodage explicite),
+// pas du CP1252 mal relu. Perte définitive : contrairement au mojibake,
+// `--fix` ne peut rien réparer (re-décoder ne fait pas baisser le compteur,
+// le garde-fou refuse d'écrire). Détection seule, réécriture manuelle
+// obligatoire (outil d'édition, jamais de shell). U+FFFD n'apparaît jamais
+// dans un source légitime : signalement systématique, comme U+00C3.
+//
 // Usage : node scripts/check-encoding.mjs        (sort 1 si mojibake)
 //        node scripts/check-encoding.mjs --fix  (répare : re-décode CP1252)
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -32,6 +40,7 @@ const SKIP = new Set(["node_modules", ".next", ".git", "out", "dist", "coverage"
 const A_CIRC = String.fromCharCode(0xc3); // A-circ
 const A_CIRCONF = String.fromCharCode(0xc2); // A-circonflexe
 const A_CIRCFLEX = String.fromCharCode(0xe2); // a-circumflexe
+const REPLACEMENT = String.fromCharCode(0xfffd); // U+FFFD, perte définitive
 const EURO = String.fromCharCode(0x20ac);
 const PARTNERS = new Set([
   EURO,
@@ -47,6 +56,7 @@ const RULES = [
   { ch: A_CIRC, partner: null },
   { ch: A_CIRCONF, partner: null },
   { ch: A_CIRCFLEX, partner: PARTNERS },
+  { ch: REPLACEMENT, partner: null },
 ];
 
 function findMojibake(text) {

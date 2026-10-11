@@ -26,9 +26,15 @@ import { LifecyclePill } from "@/components/ui/lifecycle-pill";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { TagPill } from "@/components/ui/tag-pill";
 import { ReviewVerdict } from "@/components/admin/review-verdict";
+import { ReviewBuilds } from "@/components/admin/review-builds";
+import { getBuildsForReview } from "@/app/actions/builds";
 import { ReviewLinks } from "@/components/admin/review-links";
 import { Prose } from "@/components/ui/prose";
-import { getReviewItemById, isProductDecided } from "@/app/actions/products";
+import {
+  getReviewItemById,
+  getDecidedItemForBuildReview,
+  isProductDecided,
+} from "@/app/actions/products";
 import { toReviewItem } from "@/services/products.service";
 import { formatMoney } from "@/lib/utils";
 
@@ -53,10 +59,23 @@ export default async function AdminReviewDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const dossier = await getReviewItemById(id);
+  // Fiche en revue : dossier normal. Fiche DÉJÀ TRANCHÉE + builds pending
+  // (flux update D4) : revue binaire seule — le redirect file vide est
+  // interdit dans ce cas, seul le binaire se tranche ici.
+  let dossier = await getReviewItemById(id);
+  let buildOnly = false;
+  let preloadedBuilds: Awaited<ReturnType<typeof getBuildsForReview>> | null = null;
   if (!dossier) {
-    if (await isProductDecided(id)) redirect("/admin/review");
-    notFound();
+    const decided = await getDecidedItemForBuildReview(id);
+    if (!decided) {
+      if (await isProductDecided(id)) redirect("/admin/review");
+      notFound();
+    }
+    const allBuilds = await getBuildsForReview(decided.id);
+    if (!allBuilds.some((b) => b.status === "pending")) redirect("/admin/review");
+    buildOnly = true;
+    dossier = decided;
+    preloadedBuilds = allBuilds;
   }
   const item = toReviewItem(dossier, {
     shotCount: dossier.shots.length,
@@ -74,7 +93,11 @@ export default async function AdminReviewDetailPage({
   // Liens pilotés matrice (socle + bloc du type) + verdicts re-vérifiés
   // serveur au chargement (bulk cache-first — le reviewer ne clique plus
   // chaque lien à la main). La pastille client permet un "revérifier".
-  const linkIds = linkIdsForType(item.productTypeId).filter((id) => id !== "video");
+  // Android : le téléchargement direct est interdit (anti-contournement
+  // binaire) — le staff ne le revoit même pas en revue.
+  const linkIds = linkIdsForType(item.productTypeId)
+    .filter((id) => id !== "video")
+    .filter((id) => id !== "download" || !item.platforms.includes("android"));
   const filledLinks = linkIds.filter((id) => (item.linkValues[id] ?? "").trim() !== "");
   const verdicts = await getLinkVerdicts({
     ...item.linkValues,
@@ -87,6 +110,9 @@ export default async function AdminReviewDetailPage({
     (id) => classifyForSubmit(verdicts[id]?.verdict ?? "connection_error") === "warn",
   ).length;
   const hasAccess = hasAccessPoint(item.linkValues);
+  // Binaires (D2-UI) : panneau revue si builds ou Android coché.
+  const builds = preloadedBuilds ?? (await getBuildsForReview(dossier.id));
+  const showBuilds = builds.length > 0 || item.platforms.includes("android");
 
   // Remplissage calculé (jamais de liste en dur) : base toujours exigée +
   // point d'accès + champs effectifs du type remplis.
@@ -130,14 +156,24 @@ export default async function AdminReviewDetailPage({
     <div className="w-full px-6 lg:px-12 pt-10 lg:pt-14 pb-24 flex flex-col gap-10">
       {/* Header identité */}
       <div className="flex items-start gap-5">
-        <div
-          className={cn(
-            "w-20 h-20 rounded-3xl shrink-0 flex items-center justify-center text-white font-black text-2xl bg-linear-to-br shadow-md",
-            item.iconGradient,
-          )}
-        >
-          {item.initials}
-        </div>
+        {/* Logo réel si fourni (même repli que partout), sinon initiales. */}
+        {item.iconUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.iconUrl}
+            alt={`Logo de ${item.productName}`}
+            className="w-20 h-20 rounded-3xl shadow-md shrink-0 object-cover bg-muted/20"
+          />
+        ) : (
+          <div
+            className={cn(
+              "w-20 h-20 rounded-3xl shrink-0 flex items-center justify-center text-white font-black text-2xl bg-linear-to-br shadow-md",
+              item.iconGradient,
+            )}
+          >
+            {item.initials}
+          </div>
+        )}
         <div className="flex flex-col gap-2 min-w-0">
           <h1 className="text-3xl md:text-4xl font-black tracking-tight text-foreground leading-none">
             {item.productName}
@@ -167,17 +203,25 @@ export default async function AdminReviewDetailPage({
             ))}
             <LifecyclePill lifecycleId={item.lifecycle} />
             <AgeBadge value={rating.badge} size="xs" />
-            <span className="flex items-center gap-1.5 text-[12px] font-bold text-muted-foreground">
-              <HourglassIcon
-                weight="fill"
-                className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400"
-              />
-              {item.waitingText}
-            </span>
-            {exceeded && (
-              <span className="inline-flex items-center rounded-md border border-red-500/25 bg-red-500/10 px-1.5 py-0.75 text-[9px] font-black uppercase tracking-[0.14em] leading-none text-red-600 dark:text-red-400 shrink-0">
-                Dépassé
+            {buildOnly ? (
+              <span className="inline-flex items-center rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.75 text-[9px] font-black uppercase tracking-[0.14em] leading-none text-emerald-600 dark:text-emerald-400 shrink-0">
+                Fiche approuvée — binaire seul
               </span>
+            ) : (
+              <>
+                <span className="flex items-center gap-1.5 text-[12px] font-bold text-muted-foreground">
+                  <HourglassIcon
+                    weight="fill"
+                    className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400"
+                  />
+                  {item.waitingText}
+                </span>
+                {exceeded && (
+                  <span className="inline-flex items-center rounded-md border border-red-500/25 bg-red-500/10 px-1.5 py-0.75 text-[9px] font-black uppercase tracking-[0.14em] leading-none text-red-600 dark:text-red-400 shrink-0">
+                    Dépassé
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -401,6 +445,20 @@ export default async function AdminReviewDetailPage({
               </div>
             </ProofSection>
           )}
+
+          {showBuilds && (
+            <ProofSection
+              id="binaire"
+              title={`Binaire Android${builds.length > 0 ? ` — ${builds.length}` : ""}`}
+            >
+              <ReviewBuilds
+                builds={builds}
+                productIconUrl={item.iconUrl}
+                productInitials={item.initials}
+                productGradient={item.iconGradient}
+              />
+            </ProofSection>
+          )}
         </div>
 
         {/* Rail sticky — mini maker + checklist + verdict */}
@@ -421,34 +479,50 @@ export default async function AdminReviewDetailPage({
             </div>
           </div>
 
-          <div className="flex flex-col gap-3">
-            <h2 className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">
-              Checklist §9 — auto
-            </h2>
-            <div className="flex flex-col gap-2">
-              <ChecklistRow
-                ok={hasAccess}
-                label={
-                  hasAccess
-                    ? `Point d'accès présent — ${okCount}/${filledLinks.length} lien${filledLinks.length > 1 ? "s" : ""} joignable${okCount > 1 ? "s" : ""}`
-                    : "AUCUN point d'accès — rejet probable"
-                }
-              />
-              {warnCount > 0 && (
-                <ChecklistRow
-                  ok={false}
-                  label={`${warnCount} lien${warnCount > 1 ? "s" : ""} à examiner (privé ou invérifiable)`}
-                />
-              )}
-              <ChecklistRow ok={true} label="Niche & région — catégorie OK" />
-              <ChecklistRow ok={true} label="Pas de spam — aucun doublon" />
-              <ChecklistRow ok={true} label="Icône exploitable — 256px+" />
+          {buildOnly ? (
+            <div className="flex flex-col gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3">
+              <p className="text-[13px] font-bold text-emerald-600 dark:text-emerald-400">
+                Fiche déjà approuvée — seul le binaire se tranche ici.
+              </p>
+              <a
+                href="#binaire"
+                className="text-[13px] font-bold text-foreground hover:text-primary transition-colors w-fit"
+              >
+                Aller au binaire ↓
+              </a>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-3">
+                <h2 className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                  Checklist §9 — auto
+                </h2>
+                <div className="flex flex-col gap-2">
+                  <ChecklistRow
+                    ok={hasAccess}
+                    label={
+                      hasAccess
+                        ? `Point d'accès présent — ${okCount}/${filledLinks.length} lien${filledLinks.length > 1 ? "s" : ""} joignable${okCount > 1 ? "s" : ""}`
+                        : "AUCUN point d'accès — rejet probable"
+                    }
+                  />
+                  {warnCount > 0 && (
+                    <ChecklistRow
+                      ok={false}
+                      label={`${warnCount} lien${warnCount > 1 ? "s" : ""} à examiner (privé ou invérifiable)`}
+                    />
+                  )}
+                  <ChecklistRow ok={true} label="Niche & région — catégorie OK" />
+                  <ChecklistRow ok={true} label="Pas de spam — aucun doublon" />
+                  <ChecklistRow ok={true} label="Icône exploitable — 256px+" />
+                </div>
+              </div>
 
-          <div className="w-full h-px bg-border/40" />
+              <div className="w-full h-px bg-border/40" />
 
-          <ReviewVerdict productId={dossier.id} productName={item.productName} />
+              <ReviewVerdict productId={dossier.id} productName={item.productName} />
+            </>
+          )}
 
           <Link
             href="/admin/review"
@@ -511,9 +585,17 @@ function TechRow({
   );
 }
 
-function ProofSection({ title, children }: { title: string; children: React.ReactNode }) {
+function ProofSection({
+  title,
+  children,
+  id,
+}: {
+  title: string;
+  children: React.ReactNode;
+  id?: string;
+}) {
   return (
-    <section className="flex flex-col gap-4">
+    <section id={id} className="flex flex-col gap-4 scroll-mt-24">
       <h2 className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground">
         {title}
       </h2>

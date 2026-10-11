@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SubmitClient } from "./submit-client";
 import { getSessionUser } from "@/lib/supabase/server";
 import { fetchMyProducts, getEditMedia, toEditApp } from "@/services/products.service";
+import { getProductsBuildStatus } from "@/services/builds.service";
 
 export const metadata: Metadata = {
   title: "Soumettre un produit",
@@ -21,6 +22,7 @@ export default async function SubmitProductPage({
   const { edit } = await searchParams;
   let editApp = null;
   let editMedia: EditMedia = null;
+  let hasTrack = false;
   if (edit) {
     const user = await getSessionUser();
     if (user) {
@@ -29,8 +31,20 @@ export default async function SubmitProductPage({
       if (found) {
         editApp = toEditApp(found);
         editMedia = await getEditMedia(user.id, found.id).catch(() => null);
+        // Track binaire (D6) : sans track → section APK inline dans le
+        // form ; avec track → lien vers Update (verrou versionné).
+        hasTrack =
+          (await getProductsBuildStatus([found.id]).catch(() => null))?.[found.id]?.hasBuilds ??
+          false;
       }
     }
   }
-  return <SubmitClient editId={edit ?? null} editApp={editApp} editMedia={editMedia} />;
+  return (
+    <SubmitClient
+      editId={edit ?? null}
+      editApp={editApp}
+      editMedia={editMedia}
+      hasTrack={hasTrack}
+    />
+  );
 }

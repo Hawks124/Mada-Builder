@@ -5,7 +5,7 @@ import { captureMessage } from "@/lib/monitoring";
 import { withToast } from "@/lib/toast";
 
 /**
- * GET /auth/callback — retour OAuth (Google/GitHub), lien OTP et
+ * GET /auth/callback — retour OAuth (Google/GitHub/GitLab), lien OTP et
  * action_link du code custom. Échange le code, synchronise les providers
  * (multi strict), puis redirige vers ?next= validé same-origin.
  * Feedback via le canal toast partagé (?toast=, voir lib/toast.ts) ;
@@ -84,7 +84,7 @@ export async function GET(request: Request) {
   });
 
   let userId: string | null = null;
-  const linkedProviders: ("github" | "google" | "email")[] = [];
+  const linkedProviders: ("github" | "google" | "gitlab" | "email")[] = [];
   let metadataAvatar: string | null = null;
   try {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
@@ -97,7 +97,7 @@ export async function GET(request: Request) {
     const seen = new Set<string>();
     for (const identity of data.user.identities ?? []) {
       const p = identity.provider;
-      if ((p === "github" || p === "google" || p === "email") && !seen.has(p)) {
+      if ((p === "github" || p === "google" || p === "gitlab" || p === "email") && !seen.has(p)) {
         seen.add(p);
         linkedProviders.push(p);
       }

@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { after } from "next/server";
 import { ProductHeader } from "@/components/product/product-header";
 import { ProductGallery } from "@/components/product/product-gallery";
+import { ProductBuilds } from "@/components/product/product-builds";
+import { getApprovedBuilds } from "@/services/builds.service";
 import { ProductAbout } from "@/components/product/product-about";
 import { ProductVerifiedRevenue } from "@/components/product/product-verified-revenue";
 import { RelatedProducts } from "@/components/product/related-products";
@@ -12,6 +14,7 @@ import { ProductComments } from "@/components/product/product-comments";
 import { ProductSidebar } from "@/components/product/product-sidebar";
 import { ProductVideoBanner } from "@/components/product/product-links";
 import { getCategoryById } from "@/config/categories";
+import { getProductTypeById } from "@/config/product-types";
 import { getSessionUser } from "@/lib/supabase/server";
 import { getUserVotedIds } from "@/services/votes.service";
 import { fetchProductBySlug, logProductView } from "@/services/products.service";
@@ -77,6 +80,22 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
     getRelatedProducts(row.id, row.category, 3),
     getSessionUser(),
   ]);
+  // Builds approuvés (D5) : invisibles si aucun (pending/rejected jamais
+  // exposés). Échec = fiche sans binaire (jamais de page blanche).
+  const approvedBuilds = await getApprovedBuilds(row.id).catch(() => []);
+  const publicBuilds = approvedBuilds.map((b) => ({
+    versionCode: b.versionCode,
+    versionName: b.versionName,
+    createdAt: b.createdAt.toISOString(),
+    sizeBytes: b.sizeBytes,
+    whatsnew: b.whatsnew,
+  }));
+  const downloadPath = `/api/products/${row.id}/download`;
+  const latestBuild = publicBuilds[0] ?? null;
+  const versionLabel =
+    latestBuild && (latestBuild.versionCode !== null || latestBuild.versionName)
+      ? `v${latestBuild.versionName ?? "?"} (${latestBuild.versionCode ?? "?"})`
+      : null;
   const viewerId = sessionUser?.id ?? null;
   // Avis/comments avec le viewer (flags own/votes) + profil pour le composer.
   const [reviewsData, commentsData, ownProfile] = await Promise.all([
@@ -128,6 +147,9 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
       ...(row.makerWebsiteUrl ? { url: row.makerWebsiteUrl } : {}),
     },
     ...(row.publishedAt ? { datePublished: row.publishedAt.toISOString() } : {}),
+    // Build approuvé uniquement (jamais de version inventée).
+    ...(latestBuild?.versionName ? { softwareVersion: latestBuild.versionName } : {}),
+    ...(latestBuild ? { downloadUrl: `${siteUrl()}${downloadPath}` } : {}),
     // Gratuit avéré → prix 0. Sinon : RIEN (jamais de prix inventé).
     ...(row.pricingModel === "free"
       ? { offers: { "@type": "Offer", price: 0, priceCurrency: "MGA" } }
@@ -177,10 +199,10 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
-      {/* Breadcrumb */}
+      {/* Breadcrumb — 1er segment suit le type produit (D6), repli « Produits ». */}
       <div className="flex items-center gap-2 text-[12px] md:text-[13px] font-semibold text-muted-foreground mb-6 md:mb-8">
         <Link href="/products" className="hover:text-foreground transition-colors">
-          Apps
+          {getProductTypeById(row.productType)?.label ?? "Produits"}
         </Link>
         <span className="opacity-50">/</span>
         {category ? (
@@ -216,6 +238,7 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
               iconGradient: appGradientFor(row.id),
               curated: row.curated,
               commentsCount: row.commentsCount,
+              apk: latestBuild && versionLabel ? { downloadPath, versionLabel } : null,
             }}
           />
           <ProductGallery
@@ -236,6 +259,13 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
             </section>
           ) : null}
           <ProductAbout name={row.name} markdown={row.description} />
+          {publicBuilds.length > 0 && (
+            <ProductBuilds
+              builds={publicBuilds}
+              downloadPath={downloadPath}
+              downloadUrl={`${siteUrl()}${downloadPath}`}
+            />
+          )}
           <ProductVerifiedRevenue productId={row.id} />
           <RelatedProducts items={related} categoryId={row.category} />
           <ProductReviews
@@ -300,6 +330,14 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
               iconUrl: row.iconUrl,
               initials: appInitialsFor(row.name),
               iconGradient: appGradientFor(row.id),
+              latestBuild: latestBuild
+                ? {
+                    versionCode: latestBuild.versionCode,
+                    versionName: latestBuild.versionName,
+                    sizeBytes: latestBuild.sizeBytes,
+                  }
+                : null,
+              downloadPath,
             }}
           />
         </div>

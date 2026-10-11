@@ -51,4 +51,4 @@ Sans clés Supabase, l'app tourne en mock (voir `docs/auth.md`).
 
 ## Contribuer
 
-Projet open source sous licence MIT. Lire [`CONTRIBUTING.md`](./CONTRIBUTING.md) et le [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md). Faille de sécurité → [`SECURITY.md`](./SECURITY.md) (jamais en issue publique).
+Projet open source sous licence MIT. Lire [`CONTRIBUTING.md`](./CONTRIBUTING.md) et le [code de conduite](./CODE_OF_CONDUCT.md). La [marque](./TRADEMARK.md) n'est pas couverte par la MIT.`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md). Faille de sécurité → [`SECURITY.md`](./SECURITY.md) (jamais en issue publique).

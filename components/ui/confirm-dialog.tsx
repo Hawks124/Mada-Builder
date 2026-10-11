@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { WarningCircleIcon, XCircleIcon, InfoIcon } from "@phosphor-icons/react";
+import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -41,6 +43,10 @@ export function ConfirmDialog({
   onCancel: () => void;
 }) {
   const [input, setInput] = React.useState("");
+  // Portail body (SSR-safe via useMounted) : certains appelants vivent
+  // sous un header en backdrop-blur (contexte d'empilement) — un `fixed`
+  // non portailé s'y cale et le panneau sort rogné, nav devant.
+  const mounted = useMounted();
 
   const handleCancel = () => {
     setInput("");
@@ -67,12 +73,12 @@ export function ConfirmDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, onCancel]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const isDanger = tone === "danger";
   const matched = !requireConfirmText || input.trim() === requireConfirmText.expected;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
       onMouseDown={(e) => {
@@ -192,6 +198,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -12,6 +12,7 @@ import { FeaturedProduct } from "@/components/home/featured-product";
 import type { FeaturedProductData } from "@/services/home.service";
 import { Leaderboard } from "@/components/home/leaderboard";
 import { NewestProducts } from "@/components/home/newest-products";
+import { RecentUpdates } from "@/components/home/recent-updates";
 import { VerifiedRevenueSection } from "@/components/home/verified-revenue-section";
 import { CommunityCTA } from "@/components/home/community-cta";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,7 +20,9 @@ import { logPageView } from "@/services/stats.service";
 import { getSessionUser } from "@/lib/supabase/server";
 import { getUserVotedIds } from "@/services/votes.service";
 import { getFeatured, getLeaderboard, getNewest, toFeaturedCard } from "@/services/ranking.service";
+import { getProductsUpdateBadges, getRecentApprovedBuilds } from "@/services/builds.service";
 import { ratingLabelOf } from "@/services/products.service";
+import { appGradientFor, appInitialsFor } from "@/services/products.service";
 import type { ProductCardProps } from "@/components/product/product-card";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +52,17 @@ export default async function Home() {
     board = await getLeaderboard({ window: w, page: 1 }).catch(() => null);
   }
   if (board === null) board = { items: [], total: 0, totalVotes: 0, totalWeighted: 0 };
+  // Badges « Mis à jour » (D6) + mises à jour récentes : best-effort
+  // (jamais de page blanche — sections masquées si vide).
+  const homeIds = [...new Set([...board.items.map((i) => i.id), ...newest.map((n) => n.id)])];
+  const [badges, recentBuilds] = await Promise.all([
+    getProductsUpdateBadges(homeIds).catch((): Record<string, string> => ({})),
+    getRecentApprovedBuilds(6).catch(() => []),
+  ]);
+  for (const item of board.items) {
+    const label = badges[item.id];
+    if (label) item.updatedLabel = label;
+  }
   const votedIds = await getUserVotedIds(sessionUser?.id ?? null, [
     ...board.items.map((i) => i.id),
     ...newest.map((n) => n.id),
@@ -70,13 +84,42 @@ export default async function Home() {
     makerAvatar: n.makerAvatarUrl ?? "",
     votes: n.votes,
     iconGradient: n.iconGradient,
+    iconUrl: n.iconUrl ?? null,
     initials: n.initials,
     pricing: n.pricingId,
     platforms: n.platforms,
     audienceId: n.audienceId,
-    comments: 0,
+    comments: n.commentsCount,
     rating: ratingLabelOf(n.ratingAvg, n.ratingsCount),
     curated: n.curated,
+    // Pas de badge « Mis à jour » ici : la section new liste des produits
+    // nouveaux, les updates ont leur propre section (indépendantes).
+    updatedLabel: null,
+  }));
+
+  const recentUpdates: ProductCardProps[] = recentBuilds.map((b) => ({
+    id: b.productId,
+    slug: b.slug,
+    name: b.productName,
+    tagline: b.tagline,
+    categoryId: b.categoryId,
+    maker: b.makerDisplayName,
+    makerUsername: b.makerUsername,
+    makerAvatar: b.makerAvatarUrl ?? "",
+    votes: b.votes,
+    iconGradient: appGradientFor(b.productId),
+    iconUrl: b.iconUrl,
+    initials: appInitialsFor(b.productName),
+    pricing: b.pricing,
+    platforms: b.platforms,
+    audienceId: b.audienceId,
+    comments: b.commentsCount,
+    rating: ratingLabelOf(b.ratingsCount > 0 ? b.ratingsSum / b.ratingsCount : 0, b.ratingsCount),
+    curated: b.curated,
+    // Carte update : version + date (la section parle de récence, pas
+    // les badges board qui restent version seule).
+    updatedLabel: `${b.versionCode === null && !b.versionName ? "Nouvelle version" : `v${b.versionName ?? "?"} (${b.versionCode ?? "?"})`} · ${b.reviewedAt.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`,
+    installPath: `/api/products/${b.productId}/download`,
   }));
 
   return (
@@ -129,6 +172,11 @@ export default async function Home() {
       {/* ─── NEWEST PRODUCTS (FRESHLY SHIPPED) ─── */}
       <div className="w-full bg-background border-t border-border/20 relative">
         <NewestProducts items={newestCards} votedIds={voted} />
+      </div>
+
+      {/* ─── RECENT UPDATES (D6) ─── */}
+      <div className="w-full bg-background border-t border-border/20 relative">
+        <RecentUpdates items={recentUpdates} />
       </div>
 
       {/* ─── VERIFIED REVENUE WALL ─── */}

@@ -120,6 +120,8 @@ export async function upsertReview(input: {
       }
       return { id: existing.id, rating: parsed.data.rating, created: false };
     }
+    // createdAt = updatedAt (même objet) : jamais de faux « modifié ».
+    const now = new Date();
     const [created] = await tx
       .insert(reviews)
       .values({
@@ -127,6 +129,8 @@ export async function upsertReview(input: {
         productId: input.productId,
         rating: parsed.data.rating,
         body: parsed.data.body,
+        createdAt: now,
+        updatedAt: now,
       })
       .returning({ id: reviews.id });
     await tx
@@ -337,6 +341,8 @@ export async function addComment(input: {
     parentAuthorId = parent.userId;
   }
   const created = await db.transaction(async (tx) => {
+    // createdAt = updatedAt (même objet) : jamais de faux « modifié ».
+    const now = new Date();
     const [row] = await tx
       .insert(comments)
       .values({
@@ -344,6 +350,8 @@ export async function addComment(input: {
         productId: input.productId,
         parentId: input.parentId ?? null,
         body: parsed.data.body,
+        createdAt: now,
+        updatedAt: now,
       })
       .returning({ id: comments.id });
     await tx
@@ -401,6 +409,30 @@ export async function deleteOwnComment(input: {
       .set({ commentsCount: sql`GREATEST(${products.commentsCount} - 1, 0)` })
       .where(eq(products.id, row.productId));
   });
+}
+
+/**
+ * Modifier MON commentaire (1 à 1000 caractères, non supprimé) :
+ * `updatedAt` = preuve d'édit (« modifié il y a X » côté fiche).
+ */
+export async function updateOwnComment(input: {
+  viewerId: string;
+  commentId: string;
+  body: string;
+}): Promise<void> {
+  const parsed = commentSchema.safeParse({ body: input.body });
+  if (!parsed.success) throw new ProfileError("VALIDATION", "Commentaire : 1 à 1000 caractères.");
+  const [row] = await db
+    .select({ id: comments.id, userId: comments.userId })
+    .from(comments)
+    .where(and(eq(comments.id, input.commentId), isNull(comments.deletedAt)))
+    .limit(1);
+  if (!row) throw new ProfileError("NOT_FOUND", "Commentaire introuvable.");
+  if (row.userId !== input.viewerId) throw new ProfileError("FORBIDDEN", "Commentaire d'autrui.");
+  await db
+    .update(comments)
+    .set({ body: parsed.data.body, updatedAt: new Date() })
+    .where(eq(comments.id, row.id));
 }
 
 /** Vote +1/-1 (toggle : même valeur = retrait). Recompte exact. */
@@ -479,6 +511,8 @@ export type CommentItem = {
   body: string;
   score: number;
   createdAt: string;
+  /** ISO — « modifié il y a X » si > createdAt. */
+  updatedAt: string;
   own: boolean;
   myVote: "up" | "down" | null;
   author: { username: string; displayName: string; avatarUrl: string | null };
@@ -499,6 +533,7 @@ export async function getProductComments(
       body: comments.body,
       score: comments.score,
       createdAt: comments.createdAt,
+      updatedAt: comments.updatedAt,
       username: users.username,
       displayName: users.displayName,
       avatarUrl: users.avatarUrl,
@@ -529,6 +564,7 @@ export async function getProductComments(
     body: r.body,
     score: r.score,
     createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
     own: viewerId !== null && r.userId === viewerId,
     myVote: myVotes.get(r.id) ?? null,
     author: { username: r.username, displayName: r.displayName, avatarUrl: r.avatarUrl },

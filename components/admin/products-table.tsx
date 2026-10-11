@@ -248,10 +248,15 @@ function AdminProductRow({
         href={`/products/${app.slug}`}
         className={cn(
           "w-12 h-12 rounded-2xl shrink-0 flex items-center justify-center text-white font-black text-base bg-linear-to-br shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3",
-          app.iconGradient,
+          !app.iconUrl && app.iconGradient,
         )}
       >
-        {app.initials}
+        {app.iconUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={app.iconUrl} alt="" className="w-12 h-12 rounded-2xl object-cover shadow-sm" />
+        ) : (
+          app.initials
+        )}
       </Link>
 
       {/* Body */}

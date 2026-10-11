@@ -8,20 +8,14 @@ import { cn } from "@/lib/utils";
  * donc cohérent avec le reste du site. 24×16px : en dessous de ~20px de haut, il se
  * lit comme un voyant plutôt que comme un drapeau.
  *
- * **La bande est en `bg-white`, pas en `bg-background`.** `bg-background` est un
- * jeton de thème : il valait `#09090b` en mode sombre, donc **la bande blanche
- * du drapeau s'affichait noire** — et en mode clair elle se confondait avec les
- * pastilles `bg-background/70` du site. Le drapeau ne se lisait dans aucun
- * thème. Le blanc d'un drapeau est blanc : ce n'est pas une couleur de thème.
- * Le `ring` inset conserve le bord de la bande sur fond blanc.
+ * **La bande est `bg-white` volontairement.** `bg-background` suit le thème et la
+ * rendrait noire en mode sombre. Un drapeau n'a pas de couleur de thème ; le
+ * `ring` inset lui garde un bord sur fond blanc.
  *
- * **Ne pas surcharger la taille par une classe.** Ce composant porte déjà
- * `h-4 w-6`, son propre rapport. Ajouter un `h-*` concurrent produit une
- * chaîne contenant deux utilitaires `height`, dont le gagnant est l'ordre de la
- * feuille générée, pas celui de la chaîne : le drapeau s'est retrouvé en
- * 24×36, donc en portrait, déformé à 90°. Pour l'agrandir, **utiliser une
- * `scale` uniforme** (`scale-150` → 36×24), qui ne peut pas déformer et laisse
- * ce composant maître de son rapport.
+ * **Ne pas surcharger la taille par un `h-*`/`w-*`.** Ce composant porte son
+ * propre `h-4 w-6` ; deux utilitaires de même type dans une même chaîne sont
+ * arbitrés par l'ordre de la feuille générée, pas par la chaîne. Pour l'agrandir,
+ * appliquer une `scale` uniforme, qui préserve le rapport.
  *
  * **Source unique.** Le drapeau apparaît dans le pied de page et au point
  * focal de l'armillaire de la home ; dupliqué, il divergerait au premier

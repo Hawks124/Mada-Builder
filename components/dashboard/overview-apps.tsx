@@ -13,6 +13,7 @@ import {
   GlobeIcon,
   AppleLogoIcon,
   AndroidLogoIcon,
+  ArrowSquareUpIcon,
 } from "@phosphor-icons/react";
 import { cn, formatMoney } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -97,6 +98,9 @@ export function OverviewApps({ apps: initialApps }: { apps: DashboardApp[] }) {
 
   const selectFilter = (f: Filter) => {
     setFilter(f);
+    // Changer de filtre avec une recherche active = vide fantôme (QA) :
+    // la recherche repart à zéro, le filtre parle seul.
+    setQuery("");
     setVisibleCount(PAGE_SIZE);
   };
 
@@ -286,6 +290,46 @@ function EditButton({ appId, appName }: { appId: string; appName: string }) {
   );
 }
 
+/**
+ * Bouton Update (D4) : page dédiée, séparé d'Éditer (jamais le même
+ * geste). Track binaire → « Mettre à jour » (APK + notes requis) ;
+ * Android sans track → « Ajouter l'APK » (rattrapage, notes option).
+ * Pending en cours → état « En revue » (1 pending max, pas de lien).
+ */
+function UpdateButton({
+  appId,
+  appName,
+  hasBuilds,
+  hasPendingBuild,
+}: {
+  appId: string;
+  appName: string;
+  hasBuilds: boolean;
+  hasPendingBuild: boolean;
+}) {
+  if (hasPendingBuild) {
+    return (
+      <span
+        title="Un binaire est déjà en revue — attendez le verdict avant d'envoyer une nouvelle version."
+        className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[13px] font-bold text-amber-600 dark:text-amber-400 cursor-help"
+      >
+        <ArrowSquareUpIcon weight="bold" className="w-3.5 h-3.5" />
+        <span className="hidden md:inline">En revue</span>
+      </span>
+    );
+  }
+  return (
+    <Link
+      href={`/dashboard/products/${appId}/update`}
+      aria-label={hasBuilds ? `Mettre à jour ${appName}` : `Ajouter l'APK de ${appName}`}
+      className="shrink-0 flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-[13px] font-bold text-background hover:opacity-85 transition-opacity"
+    >
+      <ArrowSquareUpIcon weight="bold" className="w-3.5 h-3.5" />
+      <span className="hidden md:inline">{hasBuilds ? "Mettre à jour" : "Ajouter l'APK"}</span>
+    </Link>
+  );
+}
+
 function DeleteButton({ appName, onDelete }: { appName: string; onDelete: () => void }) {
   return (
     <button
@@ -360,6 +404,14 @@ function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) 
           >
             {app.name}
           </Link>
+          {app.curated && (
+            <span
+              title="Veille internationale : hors classement"
+              className="inline-flex items-center rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.14em] leading-none shrink-0 text-sky-600 dark:text-sky-400"
+            >
+              Veille
+            </span>
+          )}
           <span
             className={cn(
               "inline-flex items-center rounded-md border px-1.5 py-0.75 text-[9px] font-black uppercase tracking-[0.14em] leading-none shrink-0",
@@ -371,6 +423,11 @@ function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) 
         </div>
         <p className="text-[13px] font-medium text-muted-foreground truncate">{app.tagline}</p>
         <AppPlatforms app={app} />
+        {(app.buildCount ?? 0) > 0 && (
+          <span className="text-[12px] font-bold text-muted-foreground tabular-nums">
+            {(app.buildCount ?? 0) > 1 ? `${app.buildCount} builds` : "1 build"} Android
+          </span>
+        )}
         {app.status === "rejected" && app.rejectionReason && (
           <p className="text-[12px] font-medium text-red-600 dark:text-red-400 leading-snug">
             Motif : {app.rejectionReason}
@@ -410,10 +467,10 @@ function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) 
               {Math.round((app.clicks / app.views) * 100)} %
             </span>
           )}
-          {app.topRank !== undefined && (
+          {app.topRank !== undefined && !app.curated && (
             <span
               className="flex items-center gap-1 text-[13px] font-black text-amber-600 dark:text-amber-400 tabular-nums"
-              title="Position au classement tout le temps"
+              title="Position au classement tout temps"
             >
               #{app.topRank}
             </span>
@@ -463,6 +520,14 @@ function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) 
       {/* Actions */}
       <div className="flex items-center gap-1 shrink-0">
         {app.status !== "pending" && <EditButton appId={app.id} appName={app.name} />}
+        {app.status !== "pending" && app.platforms.includes("android") && (
+          <UpdateButton
+            appId={app.id}
+            appName={app.name}
+            hasBuilds={app.hasBuilds ?? false}
+            hasPendingBuild={app.hasPendingBuild ?? false}
+          />
+        )}
         <DeleteButton appName={app.name} onDelete={onDelete} />
       </div>
     </div>

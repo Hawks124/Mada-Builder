@@ -7,6 +7,7 @@ import {
 import type { DashboardApp } from "@/components/dashboard/dashboard-mock";
 import { getProductRanks } from "@/services/ranking.service";
 import { getProductNotifStatus } from "@/services/emails.service";
+import { getProductsBuildStatus } from "@/services/builds.service";
 
 /**
  * Apps du maker pour le dashboard (page "Mes produits") : lignes +
@@ -17,7 +18,7 @@ import { getProductNotifStatus } from "@/services/emails.service";
 export async function getMakerAppsDashboard(userId: string): Promise<DashboardApp[]> {
   const { items: rows } = await fetchMyProducts(userId);
   const apps = rows.filter(isListedProduct).map(toDashboardApp);
-  const [engagement, ranks, notifs] = await Promise.all([
+  const [engagement, ranks, notifs, builds] = await Promise.all([
     getProductsEngagement(apps.map((a) => a.id)).catch(
       (): Record<
         string,
@@ -26,6 +27,17 @@ export async function getMakerAppsDashboard(userId: string): Promise<DashboardAp
     ),
     getProductRanks(apps.map((a) => a.id)).catch((): Record<string, number> => ({})),
     getProductNotifStatus(apps.map((a) => a.id)).catch((): Record<string, "ok" | "ko"> => ({})),
+    getProductsBuildStatus(apps.map((a) => a.id)).catch(
+      (): Record<
+        string,
+        {
+          hasBuilds: boolean;
+          latestVersionCode: number | null;
+          buildCount: number;
+          hasPendingBuild: boolean;
+        }
+      > => ({}),
+    ),
   ]);
   for (const app of apps) {
     app.views = engagement[app.id]?.views ?? 0;
@@ -35,6 +47,9 @@ export async function getMakerAppsDashboard(userId: string): Promise<DashboardAp
     if (rank !== undefined) app.topRank = rank;
     const notif = notifs[app.id];
     if (notif) app.notifStatus = notif;
+    app.hasBuilds = builds[app.id]?.hasBuilds ?? false;
+    app.buildCount = builds[app.id]?.buildCount ?? 0;
+    app.hasPendingBuild = builds[app.id]?.hasPendingBuild ?? false;
   }
   return apps;
 }

@@ -3,13 +3,13 @@
 import * as React from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export type RememberedProvider = "google" | "github" | "email";
+export type RememberedProvider = "google" | "github" | "gitlab" | "email";
 
 const STORAGE_KEY = "builder-auth-last-provider";
 const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 function isProvider(value: unknown): value is RememberedProvider {
-  return value === "google" || value === "github" || value === "email";
+  return value === "google" || value === "github" || value === "gitlab" || value === "email";
 }
 
 function clear() {

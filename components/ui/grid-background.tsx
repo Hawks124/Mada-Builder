@@ -15,27 +15,15 @@ interface GridBackgroundProps {
    */
   glowPlacement?: "default" | "centered";
   /**
-   * Pour les surfaces **inversées** (`bg-foreground text-background`).
+   * Surfaces **inversées** (`bg-foreground text-background`) : les deux couleurs
+   * de la grille et le fondu bas sont calés sur une toile claire, donc faux sur
+   * un bandeau inversé. Défaut `false` — les huit appelants sont inchangés.
    *
-   * Les deux couleurs de la grille et le fondu bas sont calés sur une toile
-   * claire, donc ils sont faux sur un bandeau inversé : en thème clair le
-   * bandeau est presque noir et la grille claire y disparaît, et le fondu
-   * bas y verse du `background` clair par-dessus. `inverted` retourne la
-   * correspondance — grille blanche discrète sur bandeau sombre en thème
-   * clair, grille sombre discrète sur bandeau blanc en thème sombre.
+   * Vaut pour la variante `css` seulement : la variante `svg` s'appuie sur
+   * `bg-border`, qui bascule avec le thème mais pas avec la surface.
    *
-   * Défaut `false` : les huit appelants existants sont inchangés.
-   *
-   * **S'applique à la variante `css`.** La variante `svg` s'appuie sur
-   * `bg-border`, qui bascule avec le thème mais pas avec une surface
-   * inversée : elle demanderait un mask propre, pas un simple retournement de
-   * couleur. À ne pas combiner sans traitement.
-   *
-   * **Utiliser `isolate` sur la section inversée.** Ce composant est en
-   * `-z-10`, ce qui fonctionne sur une section sans fond mais le ferait
-   * disparaître derrière le `bg-foreground` d'un bandeau. `isolate` fait de
-   * la section le contexte d'empilement : la grille se peint alors au-dessus
-   * du fond et en dessous du contenu.
+   * Exige `isolate` sur la section : ce composant est en `-z-10` et disparaît
+   * derrière un `bg-foreground` sans contexte d'empilement.
    */
   inverted?: boolean;
 }

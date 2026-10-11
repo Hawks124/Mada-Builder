@@ -6,12 +6,22 @@ import { useSubmitForm } from "@/components/submit/submit-form-context";
 import { clearSubmitDraft } from "@/components/submit/submit-draft";
 import { compressImage } from "@/components/submit/compress-image";
 import { focusFirstError, validateSubmitClient } from "@/components/submit/validate-submit";
+import type { PendingApk } from "@/components/submit/submit-apk-section";
+import { uploadApkBuild, APK_UPLOAD_STEP_LABEL } from "@/components/submit/apk-upload";
 
 export type SendPhase =
   | { name: "idle" }
   | { name: "preparing" }
-  | { name: "uploading"; loaded: number; total: number; origBytes?: number; sentBytes?: number }
-  | { name: "processing" };
+  | {
+      name: "uploading";
+      loaded: number;
+      total: number;
+      origBytes?: number;
+      sentBytes?: number;
+      detail?: string | null;
+    }
+  | { name: "processing" }
+  | { name: "success" };
 
 /**
  * Envoi XHR (vrai %) : validation inline d'abord (erreurs + focus),
@@ -20,13 +30,17 @@ export type SendPhase =
  * l'aller-retour (fini les champs vidés à l'erreur). Succès → toast +
  * redirection client (mêmes destinations que les actions).
  */
-export function useSubmitXhr(formRef: React.RefObject<HTMLFormElement | null>) {
+export function useSubmitXhr(
+  formRef: React.RefObject<HTMLFormElement | null>,
+  opts?: { pendingApk?: PendingApk | null },
+) {
   const router = useRouter();
   const ctx = useSubmitForm();
   const [phase, setPhase] = React.useState<SendPhase>({ name: "idle" });
   const [serverMessage, setServerMessage] = React.useState<string | null>(null);
   const [activeIntent, setActiveIntent] = React.useState<"publish" | "draft" | null>(null);
   const sending = phase.name !== "idle";
+  const pendingApk = opts?.pendingApk ?? null;
 
   const send = React.useCallback(
     async (intent: "publish" | "draft") => {
@@ -117,6 +131,66 @@ export function useSubmitXhr(formRef: React.RefObject<HTMLFormElement | null>) {
         // Compression en panne : originaux (jamais bloquant).
       }
       setPhase({ name: "uploading", loaded: 0, total: 1, origBytes, sentBytes });
+      /**
+       * Chaîne first-upload (D2-UI) : presign web → PUT R2 direct (% réel)
+       * → record build (`pending`, revue bloquante). Succès comme échec =
+       * redirect dashboard (la fiche est sauvée dans tous les cas).
+       */
+      const chainApkUpload = async (
+        apk: PendingApk,
+        productId: string,
+        editing: boolean,
+      ): Promise<void> => {
+        const done = (toast: string) => {
+          setPhase({ name: "idle" });
+          clearSubmitDraft();
+          router.push(`/dashboard?toast=ok:${encodeURIComponent(toast)}`);
+        };
+        try {
+          setPhase({ name: "uploading", loaded: 0, total: apk.file.size, detail: null });
+          // Premier build : pas de notes (pas de track) — whatsnew null.
+          await uploadApkBuild({
+            productId,
+            pending: apk,
+            whatsnew: null,
+            onProgress: (loaded, total) =>
+              setPhase((prev) => ({
+                name: "uploading",
+                loaded,
+                total,
+                detail: prev.name === "uploading" ? prev.detail : null,
+              })),
+            onStep: (step) =>
+              setPhase((prev) => {
+                const base =
+                  prev.name === "uploading"
+                    ? { loaded: prev.loaded, total: prev.total }
+                    : { loaded: 0, total: apk.file.size };
+                return {
+                  name: "uploading",
+                  ...base,
+                  detail: APK_UPLOAD_STEP_LABEL[step],
+                };
+              }),
+          });
+          // Succès visible (D6) : vert ~900 ms avant redirect — jamais de
+          // bascule brutale depuis 100 %.
+          setPhase({ name: "success" });
+          await new Promise((r) => setTimeout(r, 900));
+          done(
+            editing
+              ? "Fiche mise à jour — APK en revue avec elle."
+              : "Produit soumis — APK en revue avec la fiche.",
+          );
+        } catch {
+          // Fiche sauvée, binaire en rattrapage dashboard (jamais bloquant).
+          done(
+            editing
+              ? "Fiche mise à jour — l'APK n'a pas pu être envoyé, retrouvez-le depuis Mes produits."
+              : "Produit soumis — l'APK n'a pas pu être envoyé, ajoutez-le depuis le dashboard.",
+          );
+        }
+      };
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/submit");
       xhr.setRequestHeader("Idempotency-Key", crypto.randomUUID());
@@ -126,7 +200,7 @@ export function useSubmitXhr(formRef: React.RefObject<HTMLFormElement | null>) {
       xhr.onload = () => {
         let body: {
           ok?: boolean;
-          data?: { slug?: string; status?: string; rereview?: boolean };
+          data?: { id?: string; slug?: string; status?: string; rereview?: boolean };
           message?: string;
         } = {};
         try {
@@ -137,6 +211,26 @@ export function useSubmitXhr(formRef: React.RefObject<HTMLFormElement | null>) {
         if (xhr.status >= 200 && xhr.status < 300 && body.ok && body.data) {
           const status = body.data.status ?? (intent === "publish" ? "pending" : "draft");
           const submitted = status === "pending";
+          const productId =
+            typeof body.data.id === "string" && body.data.id !== ""
+              ? body.data.id
+              : (ctx.editApp?.id ?? null);
+          // First-upload (D2-UI + D6) : la fiche existe (productId connu) →
+          // R2 direct (PUT présigné, jamais via Vercel) puis record. En
+          // création : publish seul (brouillon = textes seuls). En édition :
+          // tout save réussi (rattrapage sans track). Échec = fiche sauvée
+          // + rattrapage dashboard (jamais bloquant).
+          const apk = pendingApk && (intent === "publish" || ctx.isEditing) ? pendingApk : null;
+          // TEMP CHAIN-DEBUG — retirer après diagnostic.
+          if (typeof console !== "undefined") {
+            console.log(
+              `[apk-chain] submit ok — apk=${apk ? apk.file.name : "AUCUN"} productId=${productId ?? "MANQUANT"} intent=${intent}`,
+            );
+          }
+          if (apk && productId) {
+            void chainApkUpload(apk, productId, ctx.isEditing);
+            return;
+          }
           const toast = ctx.isEditing
             ? submitted
               ? "Produit soumis — en revue sous 24 h."
@@ -172,7 +266,7 @@ export function useSubmitXhr(formRef: React.RefObject<HTMLFormElement | null>) {
       xhr.upload.onload = () => setPhase({ name: "processing" });
       xhr.send(fd);
     },
-    [ctx, formRef, router, sending],
+    [ctx, formRef, router, sending, pendingApk],
   );
 
   return { phase, sending, serverMessage, activeIntent, send };

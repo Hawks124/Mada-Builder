@@ -1,10 +1,10 @@
 ---
 title: "Politique de confidentialité"
 description: "Quelles données la plateforme collecte, sur quelle base légale, où elles vont, combien de temps elles restent — et comment exercer vos droits."
-updated: "2026-09-27"
+updated: "2026-10-09"
 ---
 
-<!-- TODO(Jalon 5) : validation par juriste. Reste à confirmer avant mise en production — (a) l'autorité de contrôle malgache est citée de façon volontairement neutre, à nommer si vérifié ; (b) le mécanisme de transfert hors UE (Londres) n'est pas chiffré dans ce document ; (c) l'adresse postale n'est pas publiée, l'email suffit à identifier le responsable. -->
+<!-- TODO(Jalon 5) : validation par juriste. Reste à confirmer avant mise en production — (a) l'autorité de contrôle malgache est citée de façon volontairement neutre, à nommer si vérifié ; (b) le mécanisme de transfert hors UE (Londres) n'est pas chiffré dans ce document ; (c) l'adresse postale n'est pas publiée, l'email suffit à identifier le responsable ; (d) le périmètre exact des données lues dans les APK et la purge du stockage binaire restent à confirmer. -->
 
 Ce document décrit les traitements effectués par Mada-Made, l'annuaire des produits tech malgaches. Il s'adresse aux visiteurs comme aux makers inscrits. Il est volontairement précis : une politique de confidentialité qui ne dit pas où vont les données, ni pourquoi, ni combien de temps, n'est pas une politique.
 
@@ -20,7 +20,7 @@ Aucune donnée n'est vendue, louée ou échangée avec un tiers à des fins publ
 
 ## Mon compte
 
-À l'inscription : votre adresse email, le fournisseur d'authentification choisi (Google, GitHub ou lien magique), et votre avatar. Aucun mot de passe n'est stocké — l'authentification est déléguée à votre fournisseur.
+À l'inscription : votre adresse email, le fournisseur d'authentification choisi (Google, GitHub, GitLab ou lien magique), et votre avatar. Aucun mot de passe n'est stocké — l'authentification est déléguée à votre fournisseur.
 
 Votre compte est nécessaire au vote, à la soumission de produits et à l'affichage de vos revenus vérifiés. Sans lui, la consultation de l'annuaire reste ouverte.
 
@@ -37,6 +37,18 @@ Vos descriptions, images, liens, catégories et votes sont conservés pour faire
 L'unicité du vote — un utilisateur, un produit — implique un lien durable entre votre compte et vos votes. C'est la seule raison pour laquelle un vote est rattaché à un compte identifiable.
 
 **Les revenus vérifiés ne sont que des agrégats.** Nous lisons un chiffre mensuel récurrent et un nombre d'abonnés auprès de votre prestataire de facturation. Nous ne recevons jamais l'identité de vos clients, ni le détail de vos transactions, ni le montant unitaire de vos ventes.
+
+## Mes binaires Android (APK)
+
+Si vous envoyez un APK, voilà exactement ce qu'on en fait — rien de plus.
+
+**Ce qu'on lit.** Au moment de l'envoi, votre navigateur extrait : le manifest (nom de package, versions, permissions, SDK minimum), le certificat de signature (empreinte SHA-256, émetteur) et l'icône. C'est tout. On ne lit ni votre code, ni vos assets, ni quoi que ce soit d'autre dans le fichier.
+
+**Ce qu'on stocke.** Le binaire et ces métadonnées, dans un stockage privé. Seuls les builds **approuvés** sont téléchargeables, via des liens temporaires de 5 minutes — jamais d'adresse permanente, jamais d'accès direct. L'historique des versions est conservé : c'est la traçabilité qui prouve qu'une mise à jour vient bien de vous, empreinte comparée à chaque envoi.
+
+**Ce qu'on ne fait jamais.** Revendre, analyser au-delà du manifest et du certificat, ou transmettre votre binaire à un tiers. Votre APK reste votre propriété, comme votre fiche.
+
+**Suppression.** Binaire et métadonnées partent avec la fiche et avec le compte, réellement effacés de la base. Les copies sur le stockage suivent la purge automatique, avec un court délai technique.
 
 ## Mes clés de facturation
 
@@ -73,7 +85,7 @@ En cas de violation de données vous concernant, nous vous prévenons directemen
 - **Accéder** à vos données, depuis votre tableau de bord.
 - **Les exporter** en archive, depuis les paramètres de votre compte.
 - **Les rectifier** — chaque champ que vous avez rempli est modifiable.
-- **Supprimer votre compte**, à tout moment et sans justification. Profil, produits, votes et connexions sont **réellement et définitivement effacés**. Seules les sauvegardes techniques subsistent le temps de leur rotation, puis sont purgées. Les statistiques publiques et anonymisées ne sont pas des données personnelles et survivent.
+- **Supprimer votre compte**, à tout moment et sans justification. Profil, produits, votes, binaires et connexions sont **réellement et définitivement effacés**. Seules les sauvegardes techniques subsistent le temps de leur rotation, puis sont purgées. Les statistiques publiques et anonymisées ne sont pas des données personnelles et survivent.
 - **Vous opposer** à un traitement fondé sur l'intérêt légitime, dont la mesure d'audience.
 
 Ces droits sont les vôtres, pas une faveur. Aucune demande n'est soumise à un délai caché.
@@ -98,7 +110,7 @@ La bannière qui apparaît au premier passage **n'est pas un mécanisme de conse
 
 ## Les emails que nous envoyons
 
-Des emails **transactionnels** uniquement : lien de connexion, approbation ou rejet d'une soumission, alerte de sécurité, puis les changements de conditions. Rien d'autre — jamais de marketing, jamais de revente d'adresses.
+Des emails **transactionnels** uniquement : lien de connexion, approbation ou rejet d'une soumission ou d'un binaire, alerte de sécurité, puis les changements de conditions. Rien d'autre — jamais de marketing, jamais de revente d'adresses.
 
 Le digest hebdomadaire, quand il existera, sera **désinscriptible en un clic** et n'enverra que les nouveaux produits et les revenus vérifiés.
 

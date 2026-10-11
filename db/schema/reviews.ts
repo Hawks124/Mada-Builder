@@ -69,6 +69,8 @@ export const comments = pgTable(
     score: integer("score").notNull().default(0),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    /** Édit auteur : "modifié il y a X" (backfill = created_at, jamais de faux modifié). */
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     index("comments_product_created_idx").on(t.productId, t.createdAt),

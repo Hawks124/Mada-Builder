@@ -303,6 +303,37 @@ async function main(): Promise<void> {
     slot2 !== null && slot2.productId !== topCandidate && slot2.tier === "rotation",
   );
 
+  // 11b. Parité SQL↔TS (anti-dérive des deux moteurs featured).
+  // Statique : la fonction cron contient les mêmes gardes que le TS.
+  const { readFile } = await import("node:fs/promises");
+  const setupSql = await readFile("db/setup.sql", "utf8");
+  const fnStart = setupSql.indexOf("CREATE OR REPLACE FUNCTION public.rotate_featured_daily()");
+  const fnNext = setupSql.indexOf("CREATE OR REPLACE FUNCTION", fnStart + 10);
+  const fnBody = fnNext > 0 ? setupSql.slice(fnStart, fnNext) : setupSql.slice(fnStart);
+  const curatedGuards = (fnBody.match(/curated = false/g) ?? []).length;
+  check("SQL : veille exclue partout (5 branches)", curatedGuards >= 5);
+  check("SQL : fenêtre 30 j (top)", fnBody.includes("CURRENT_DATE - 30"));
+  check("SQL : fenêtre 7 j (rotation)", fnBody.includes("CURRENT_DATE - 7"));
+  check("SQL : jamais-featuré d'abord", fnBody.includes("NULLS FIRST"));
+  // Dynamique : même scénario, même gagnant (ligne du jour purgée avant
+  // et entre les deux appels ; sets identiques → choix identique exigé).
+  try {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    await db.delete(featuredProducts).where(eq(featuredProducts.featuredOn, todayStr));
+    const sqlRows = (await db.execute(
+      sql`SELECT public.rotate_featured_daily() AS id`,
+    )) as unknown as Array<{ id: string | null }>;
+    const sqlChosen = sqlRows[0]?.id ?? null;
+    await db.delete(featuredProducts).where(eq(featuredProducts.featuredOn, todayStr));
+    const tsSlot = await getFeatured();
+    check(
+      "parité SQL↔TS (même gagnant)",
+      sqlChosen !== null && tsSlot !== null && sqlChosen === tsSlot.productId,
+    );
+  } catch {
+    console.log("SKIP: parité dynamique sans fonction SQL (relancer db:setup)");
+  }
+
   // 12. Discover : filtre (ANY, pas primaire seul) + tri + recherche.
   const [multiCat] = await db
     .insert(products)

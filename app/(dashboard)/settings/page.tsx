@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { InputField } from "@/components/ui/input-field";
 import { DangerZone } from "@/components/dashboard/danger-zone";
 import { ProvidersCard, type ProviderId } from "@/components/dashboard/providers-card";
+import { ExportButton } from "@/components/dashboard/export-button";
 import { SettingsNotifications } from "@/components/dashboard/settings-notifications";
 import { getSessionUser, createClient } from "@/lib/supabase/server";
 import { db } from "@/db";
@@ -40,7 +41,10 @@ export default async function SettingsPage() {
       const { data } = await supabase.auth.getUserIdentities();
       const linked = (data?.identities ?? [])
         .map((i) => i.provider)
-        .filter((p): p is ProviderId => p === "github" || p === "google" || p === "email");
+        .filter(
+          (p): p is ProviderId =>
+            p === "github" || p === "google" || p === "gitlab" || p === "email",
+        );
       if (linked.length > 0) connected = [...new Set(linked)];
       email = user.email ?? null;
       try {
@@ -95,27 +99,17 @@ export default async function SettingsPage() {
 
           <div className="w-full h-px bg-border/40" />
 
-          {/* Export — V1.5 : badge Bientôt, pas de handler mort */}
+          {/* Export RGPD : archive ZIP immédiate (données + médias + APKs). */}
           <div className="flex flex-col gap-4">
             <h2 className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground flex items-center gap-2">
               Export de mes données
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                Bientôt
-              </span>
             </h2>
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <p className="text-[14px] font-medium text-muted-foreground leading-relaxed flex-1">
-                Recevez une archive (profil, produits, votes) par email sous 24 h, au format JSON
-                lisible.
+                Téléchargez votre archive : profil, produits, votes, avis, commentaires, images et
+                APK (vos binaires, tous statuts), au format ZIP lisible.
               </p>
-              <button
-                type="button"
-                disabled
-                title="Disponible prochainement"
-                className="shrink-0 rounded-full border border-border/60 px-5 py-2.5 text-[13px] font-bold text-muted-foreground opacity-50 cursor-not-allowed"
-              >
-                Demander l&apos;export
-              </button>
+              <ExportButton />
             </div>
           </div>
 

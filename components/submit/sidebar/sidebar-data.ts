@@ -62,10 +62,8 @@ export const LAUNCH_CHECKLIST: ChecklistItem[] = [
 // ── 2. WHY PUBLISH BENEFITS ──────────────────────────────────────────────────
 export const WHY_PUBLISH: BenefitItem[] = [
   {
-    // **Premier item, volontairement.** C'est l'argument le plus fort et le plus
-    // durable — une fiche indexée vaut mille-six-cents jours, un post de groupe
-    // en vaut un — et c'était le 8e sur 8, donc le moins lu. Le mot « SEO » a
-    // disparu au profit de la conséquence concrète, que tout le monde comprend.
+    // Premier item : l'argument le plus durable — une fiche indexée vaut des
+    // années, un post de groupe des heures — et le moins lu en dernier.
     title: "Une fiche qui reste en ligne",
     text: "Chaque fiche est une page à son adresse : indexée par Google, partageable, et qui continue d'être trouvée des années après qu'un post a disparu. Et si vous reliez votre facturation, vos revenus lus en direct deviennent une preuve que personne ne peut inventer.",
   },
@@ -190,10 +188,8 @@ export const FAQ_ITEMS: FaqItem[] = [
       "Normal, c'est voulu : le formulaire s'adapte à votre type de produit. Une app mobile demande les stores, un package demande son registre, un jeu demande sa démo jouable. Rien n'est caché — chaque type a juste ses propres champs.",
   },
   {
-    // 2e position : c'est la deuxième grande crainte d'un maker, après « mon
-    // formulaire a-t-il l'air correct ». Elle n'était traitée nulle part. La
-    // dernière phrase referme sur le classement invendable, ce qui transforme
-    // une question technique en argument.
+    // 2e position : deuxième grande crainte d'un maker, après l'affichage du
+    // formulaire. La dernière phrase referme sur le classement invendable.
     question: "Est-ce que ma fiche sera visible sur Google ?",
     answer:
       "Oui — c'est même l'intérêt principal. Chaque fiche est une page à son adresse propre, indexée par les moteurs, partageable, et qui reste en ligne. Un post dans un groupe disparaît en quelques heures ; une fiche indexée continue d'être trouvée des années après. C'est aussi pour ça qu'aucun abonnement ne vient acheter une meilleure place : le classement ne se vend pas, donc ce qui est bien fait finit par se voir.",

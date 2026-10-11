@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { CheckCircleIcon } from "@phosphor-icons/react";
 import type { SendPhase } from "@/components/submit/use-submit-xhr";
 
 /**
@@ -8,6 +9,8 @@ import type { SendPhase } from "@/components/submit/use-submit-xhr";
  * indéterminé pendant le traitement serveur (sharp + R2, non mesurable —
  * jamais de faux %). Les clics sont interceptés : impossible de quitter
  * la page en cours d'envoi (refresh/fermeture = beforeunload existant).
+ * Chaîne APK (D6) : `detail` nomme l'étape (connexion/transfert/
+ * vérification) et le compteur Mo s'affiche dès que pertinent.
  */
 export function SubmitProgressOverlay({
   phase,
@@ -26,10 +29,13 @@ export function SubmitProgressOverlay({
     n >= 1024 * 1024
       ? `${(n / 1024 / 1024).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo`
       : `${Math.max(1, Math.round(n / 1024))} Ko`;
+  const detail = phase.name === "uploading" ? (phase.detail ?? null) : null;
   const sizes =
     phase.name === "uploading" && (phase.origBytes ?? 0) > 0
       ? ` · ${mb(phase.origBytes ?? 0)} → ${mb(phase.sentBytes ?? 0)}`
-      : "";
+      : phase.name === "uploading" && phase.total > 1
+        ? ` · ${mb(phase.loaded)} / ${mb(phase.total)}`
+        : "";
   return (
     <div
       aria-hidden={!active}
@@ -40,37 +46,62 @@ export function SubmitProgressOverlay({
       )}
     >
       <div className="flex flex-col items-center gap-4 rounded-3xl border border-border/40 bg-background px-10 py-8 shadow-2xl">
-        <p className="text-[15px] font-black tracking-tight text-foreground">
-          {phase.name === "preparing"
-            ? "Préparation des images…"
-            : phase.name === "uploading"
-              ? isDraft
-                ? "Enregistrement du brouillon…"
-                : "Envoi en cours…"
-              : isDraft
-                ? "Finalisation du brouillon…"
-                : "Finalisation de l'envoi…"}
-        </p>
-        <div
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={percent ?? undefined}
-          className="h-2 w-64 overflow-hidden rounded-full bg-muted"
-        >
-          <div
-            className={cn(
-              "h-full rounded-full bg-foreground transition-[width]",
-              percent === null && "animate-pulse",
-            )}
-            style={{ width: percent === null ? "100%" : `${percent}%` }}
-          />
-        </div>
-        <p className="text-[12px] font-bold tabular-nums text-muted-foreground">
-          {percent === null
-            ? "Finalisation côté serveur — ne quittez pas."
-            : `${percent} %${sizes} — ne quittez pas cette page.`}
-        </p>
+        {phase.name === "success" ? (
+          <>
+            <CheckCircleIcon
+              weight="fill"
+              className="w-10 h-10 text-emerald-500"
+              aria-hidden="true"
+            />
+            <p className="text-[15px] font-black tracking-tight text-foreground">
+              APK envoyé — redirection…
+            </p>
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={100}
+              className="h-2 w-64 overflow-hidden rounded-full bg-muted"
+            >
+              <div className="h-full rounded-full bg-emerald-500" style={{ width: "100%" }} />
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-[15px] font-black tracking-tight text-foreground">
+              {detail ??
+                (phase.name === "preparing"
+                  ? "Préparation des images…"
+                  : phase.name === "uploading"
+                    ? isDraft
+                      ? "Enregistrement du brouillon…"
+                      : "Envoi en cours…"
+                    : isDraft
+                      ? "Finalisation du brouillon…"
+                      : "Finalisation de l'envoi…")}
+            </p>
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent ?? undefined}
+              className="h-2 w-64 overflow-hidden rounded-full bg-muted"
+            >
+              <div
+                className={cn(
+                  "h-full rounded-full bg-foreground transition-[width]",
+                  percent === null && "animate-pulse",
+                )}
+                style={{ width: percent === null ? "100%" : `${percent}%` }}
+              />
+            </div>
+            <p className="text-[12px] font-bold tabular-nums text-muted-foreground">
+              {percent === null
+                ? "Finalisation côté serveur — ne quittez pas."
+                : `${percent} %${sizes} — ne quittez pas cette page.`}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

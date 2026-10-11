@@ -62,7 +62,7 @@ export const users = pgTable("users", {
   // (audience) — jamais bloquant, jamais exposé en public.
   timeZone: text("time_zone"),
 
-  // Fournisseurs liés (github/google/email) — synchronisé au login.
+  // Fournisseurs liés (github/google/gitlab/email) — synchronisé au login.
   // Source de vérité auth : Supabase identities ; ce miroir sert
   // l'affichage admin/settings sans appel Auth API par ligne.
   providers: text("providers").array().notNull().default([]),

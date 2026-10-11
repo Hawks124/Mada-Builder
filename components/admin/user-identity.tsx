@@ -37,6 +37,17 @@ export function ProviderMarks({ providers }: { providers: string[] }) {
             <GithubLogoIcon weight="fill" className="w-3.5 h-3.5 shrink-0" />
             GitHub
           </span>
+        ) : p === "gitlab" ? (
+          <span key={p} className="flex items-center gap-1.5 text-muted-foreground">
+            <Image
+              src="/logos/gitlab.svg"
+              alt="GitLab"
+              width={14}
+              height={14}
+              className="w-3.5 h-3.5 shrink-0"
+            />
+            GitLab
+          </span>
         ) : (
           <span key={p} className="flex items-center gap-1.5 text-muted-foreground">
             <EnvelopeIcon weight="bold" className="w-3.5 h-3.5 shrink-0" />

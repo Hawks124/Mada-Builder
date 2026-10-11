@@ -10,6 +10,18 @@ import { otpEmailHtml, otpEmailText } from "../lib/email-templates/otp-email";
 import { productRemovedHtml, productRemovedText } from "../lib/email-templates/product-removed";
 import { productNudgeHtml, productNudgeText } from "../lib/email-templates/product-nudge";
 import { digestWeeklyHtml, digestWeeklyText } from "../lib/email-templates/digest-weekly";
+import {
+  staffBuildSubmittedHtml,
+  staffBuildSubmittedText,
+  staffFicheSubmittedHtml,
+  staffFicheSubmittedText,
+} from "../lib/email-templates/staff-review";
+import {
+  buildApprovedHtml,
+  buildApprovedText,
+  buildRejectedHtml,
+  buildRejectedText,
+} from "../lib/email-templates/build-review";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { LOGO_ON_DARK_URL, LOGO_ON_LIGHT_URL } from "../lib/email-templates/brand";
@@ -137,6 +149,96 @@ const rendered: Array<[string, string]> = [
       timeZone: null,
     }),
   ],
+  [
+    "build-approved",
+    buildApprovedHtml({
+      displayName: "Test <User>",
+      productName: "App <Test>",
+      versionLabel: "v1.2.3 (42)",
+      productUrl: `${ORIGIN}/products/app-test`,
+      origin: ORIGIN,
+      timeZone: null,
+    }),
+  ],
+  [
+    "build-approved-text",
+    buildApprovedText({
+      displayName: "Test",
+      productName: "App Test",
+      versionLabel: "v1.2.3 (42)",
+      productUrl: `${ORIGIN}/products/app-test`,
+      origin: ORIGIN,
+      timeZone: null,
+    }),
+  ],
+  [
+    "build-rejected",
+    buildRejectedHtml({
+      displayName: "Test <User>",
+      productName: "App <Test>",
+      versionLabel: "v1.2.3 (42)",
+      reason: "Motif <b>gras</b>",
+      dashboardUrl: `${ORIGIN}/dashboard`,
+      origin: ORIGIN,
+      timeZone: null,
+    }),
+  ],
+  [
+    "build-rejected-text",
+    buildRejectedText({
+      displayName: "Test",
+      productName: "App Test",
+      versionLabel: "v1.2.3 (42)",
+      reason: "Motif",
+      dashboardUrl: `${ORIGIN}/dashboard`,
+      origin: ORIGIN,
+      timeZone: null,
+    }),
+  ],
+  [
+    "staff-fiche",
+    staffFicheSubmittedHtml({
+      productName: "App <Test>",
+      makerDisplayName: "Maker <B>",
+      reviewUrl: `${ORIGIN}/admin/review/123`,
+      origin: ORIGIN,
+      buildNote: "Un APK est encore en revue sur cette fiche.",
+    }),
+  ],
+  [
+    "staff-fiche-text",
+    staffFicheSubmittedText({
+      productName: "App Test",
+      makerDisplayName: "Maker B",
+      reviewUrl: `${ORIGIN}/admin/review/123`,
+      origin: ORIGIN,
+      buildNote: null,
+    }),
+  ],
+  [
+    "staff-build",
+    staffBuildSubmittedHtml({
+      productName: "App <Test>",
+      makerDisplayName: "Maker <B>",
+      versionLabel: "v1.2.3 (42)",
+      package: "com.example.app",
+      reviewUrl: `${ORIGIN}/admin/review/123`,
+      origin: ORIGIN,
+      ficheNote: "Fiche en revue elle aussi — tout est à revoir d'un coup.",
+    }),
+  ],
+  [
+    "staff-build-text",
+    staffBuildSubmittedText({
+      productName: "App Test",
+      makerDisplayName: "Maker B",
+      versionLabel: "v1.2.3 (42)",
+      package: null,
+      reviewUrl: `${ORIGIN}/admin/review/123`,
+      origin: ORIGIN,
+      ficheNote: null,
+    }),
+  ],
 ];
 
 let pass = 0;
@@ -164,6 +266,10 @@ const branded = [
   "role",
   "otp",
   "removed",
+  "build-approved",
+  "build-rejected",
+  "staff-fiche",
+  "staff-build",
 ];
 for (const [name, body] of rendered) {
   if (!branded.includes(name)) continue;
@@ -189,6 +295,41 @@ check("nudge: délai rejeté affiché", nudgeHtml.includes("5 jours"));
 const nudgeText = rendered.find(([n]) => n === "nudge-text")?.[1] ?? "";
 check("nudge-text: singulier jour", nudgeText.includes("1 jour") && !nudgeText.includes("1 jours"));
 
+const buildApprovedHtmlBody = rendered.find(([n]) => n === "build-approved")?.[1] ?? "";
+check("build-approved: displayName échappé", buildApprovedHtmlBody.includes("Test &lt;User&gt;"));
+check("build-approved: produit échappé", buildApprovedHtmlBody.includes("App &lt;Test&gt;"));
+check("build-approved: version affichée", buildApprovedHtmlBody.includes("v1.2.3 (42)"));
+check("build-approved: URL fiche", buildApprovedHtmlBody.includes(`${ORIGIN}/products/app-test`));
+const buildApprovedTextBody = rendered.find(([n]) => n === "build-approved-text")?.[1] ?? "";
+check("build-approved-text: version", buildApprovedTextBody.includes("v1.2.3 (42)"));
+const buildRejectedHtmlBody = rendered.find(([n]) => n === "build-rejected")?.[1] ?? "";
+check(
+  "build-rejected: motif échappé",
+  buildRejectedHtmlBody.includes("Motif &lt;b&gt;gras&lt;/b&gt;"),
+);
+check(
+  "build-rejected: fiche reste en ligne",
+  buildRejectedHtmlBody.includes("La fiche reste en ligne"),
+);
+check("build-rejected: dashboard", buildRejectedHtmlBody.includes(`${ORIGIN}/dashboard`));
+const buildRejectedTextBody = rendered.find(([n]) => n === "build-rejected-text")?.[1] ?? "";
+check("build-rejected-text: motif", buildRejectedTextBody.includes("Motif : Motif"));
+
+const staffFicheHtml = rendered.find(([n]) => n === "staff-fiche")?.[1] ?? "";
+check("staff-fiche: produit échappé", staffFicheHtml.includes("App &lt;Test&gt;"));
+check("staff-fiche: maker échappé", staffFicheHtml.includes("Maker &lt;B&gt;"));
+check("staff-fiche: cockpit", staffFicheHtml.includes(`${ORIGIN}/admin/review/123`));
+check("staff-fiche: ligne binaire", staffFicheHtml.includes("encore en revue"));
+const staffFicheText = rendered.find(([n]) => n === "staff-fiche-text")?.[1] ?? "";
+check("staff-fiche-text: cockpit", staffFicheText.includes(`${ORIGIN}/admin/review/123`));
+const staffBuildHtml = rendered.find(([n]) => n === "staff-build")?.[1] ?? "";
+check("staff-build: version affichée", staffBuildHtml.includes("v1.2.3 (42)"));
+check("staff-build: package affiché", staffBuildHtml.includes("com.example.app"));
+check("staff-build: ligne fiche", staffBuildHtml.includes("en revue elle aussi"));
+check("staff-build: cockpit", staffBuildHtml.includes(`${ORIGIN}/admin/review/123`));
+const staffBuildText = rendered.find(([n]) => n === "staff-build-text")?.[1] ?? "";
+check("staff-build-text: version", staffBuildText.includes("v1.2.3 (42)"));
+
 // Salutation dynamique : Bonjour ou Bonsoir selon l'heure réelle du run.
 // Le rendu seul ne distingue pas calculé vs codé en dur selon l'heure —
 // d'où le contrôle source ci-dessous, déterministe.
@@ -206,6 +347,10 @@ for (const name of [
   "removed-text",
   "nudge",
   "nudge-text",
+  "build-approved",
+  "build-approved-text",
+  "build-rejected",
+  "build-rejected-text",
 ]) {
   const body = rendered.find(([n]) => n === name)?.[1] ?? "";
   check(`${name}: salutation dynamique`, body.includes("Bonjour ") || body.includes("Bonsoir "));

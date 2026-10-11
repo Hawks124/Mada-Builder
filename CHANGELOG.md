@@ -104,6 +104,11 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   submit/update/resubmit/re-revue, lecture + tri file, backfill ;
   section 13-bis verify : draft=NULL, publish=posé, resubmit=reset ;
   122/122).
+- **D1 builds APK** : table `product_builds` (migration 0033, historique,
+  UNIQUE produit+version), bucket privé + presign PUT (quota 250 Mo,
+  15 min) + GET signées, record `pending` avec preuves HEAD (taille
+  menteuse/clé étrangère refusées + purge, jamais d'orphelin) ;
+  `docs/data/product_builds.md` + contrats ; verify hardening 29/29.
 
 - Milestone products Phase 1–2 : schéma (`products`, `product_screenshots`,
   `votes`, `product_page_views`), liens JSONB par field-id, RLS, buckets R2,
@@ -222,6 +227,44 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 - Hybride mobile : OTP email (session JSON), docs data par table (20
   fiches), RLS lecture complétées + faille `featured_products` fermée
   (`verify-otp-mobile` 5/5).
+- **Thread réponses** : coudes individuels en « L » par réponse
+  (contraste renforcé, fini le rail continu qui « continuait » après la
+  dernière réponse), clair/sombre.
+- **Activité admin honnête** : approbation = « X (modération) a approuvé
+  Y de Z » (l'admin n'est plus pris pour le maker, maker joint) ;
+  rejet/retrait = motif seul (fini le nom dupliqué) + snapshot « … »
+  si cible supprimée ; audits binaires résolus (« a approuvé/rejeté
+  l'APK vN (C) de Produit », lien cockpit, pastille danger sur rejet) —
+  fini les « → élément supprimé » ; `product_nudged` libellé.
+- **SEO partage** : OG 1200×630 générées maker (`/og/m/…`), catégorie
+  (`/og/c/…`), classement (`/og/leaderboard`, top 3 réel) + OG défaut
+  site (`/og`) ; canonicals absolues leaderboard/discover/catégories
+  (facettes = même canonical), `discover?q=` en noindex/follow.
+- **Featured durci** : seuil des paliers sur catalogue éligible
+  (`curated = false` côté TS + SQL `rotate_featured_daily`) + test de
+  parité auto SQL↔TS (statique 4 gardes + dynamique même-gagnant ;
+  a attrapé la fonction dev obsolète) (`verify-votes-ranking` 35/35) ;
+  note seuils d'optimisation (`docs/featured-produit-du-jour-v1.md`).
+- **Binaires APK D2–D6** : extraction locale 38/38 (package, version,
+  icône, permissions), re-vérification SHA + Range avant mise en ligne,
+  flow Update dédié (APK + notes, 1 pending max par produit),
+  téléchargement direct (302 signé, QR, `downloadUrl` JSON-LD), section
+  Mises à jour + badges « Mis à jour » 14 j, upload multipart resumable
+  (parts 8 Mo, quota 300 Mo, offline-first + retry/reprise, watchdog),
+  `download` interdit sur Android hors revue (matrice fiche×binaire 2×2,
+  règle dans `/regles`), file + cockpit binaires admin (queue, cockpit
+  `#binaire`, historique), RLS deny-all `product_builds`
+  (`verify-apk-extract` 38/38, hardening 51/51).
+- **Auth GitLab** : bouton + OAuth (scopes openid/profile/email/
+  read_user), liaison multi-provider stricte (auto-link si email
+  vérifié), mentions légales à jour.
+- **Compte RGPD** : suppression avec purge réelle des objets
+  (produits+médias+builds) + export ZIP immédiat (données, médias,
+  builds tous statuts, appels, MANIFEST).
+- **Recherche** : suggestions overlay (produits + makers + catégories,
+  120 ms debounce, Alt+K, portail).
+- **Images distantes** : allowlist centralisée (`lib/remote-images.ts`,
+  R2 + GitLab + customs), avatars résilients (repli initiales).
 
 ## [0.1.0] — 2026-09-24 — Fondations, identité & modération
 

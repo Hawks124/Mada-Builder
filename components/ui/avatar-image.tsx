@@ -3,16 +3,33 @@
 import * as React from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { isRemoteImageAllowed } from "@/lib/remote-images";
 
 /**
  * Avatar unifié — src distante ou null + nom. Règles :
  * - src null → initiales (jamais de visage d'emprunt) ;
- * - ÉCHEC de chargement (timeout optimiseur, 403 bucket, domaine mort) →
- *   initiales aussi (c'est le bug QA : `onError` manquait partout, images
- *   pendues/cassées au lieu du fallback) ;
- * - `unoptimized` pour les SVG locaux ? Non : next/image les sert tels
- *   quels, pas d'optimisation tentée.
+ * - host non allowlisté → initiales SANS passer par next/image (rapide) ;
+ * - host allowlisté mais échec (404, 403, timeout optimiseur) → initiales
+ *   via onError (le bug QA : images pendues/cassées) ;
+ * - host inattendu en prod (domaine custom R2 non listé côté client) →
+ *   boundary attrape le throw next/image (« hostname not configured »)
+ *   et rend des initiales : UNE image ne crashe plus jamais une page.
  */
+class AvatarBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
 export function AvatarImage({
   src,
   name,
@@ -40,32 +57,34 @@ export function AvatarImage({
     .map((w) => w[0]!.toUpperCase())
     .join("");
 
-  if (!src || failed) {
-    return (
-      <span
-        aria-hidden={src ? undefined : "true"}
-        role={src ? "img" : undefined}
-        aria-label={src ? `${name} (image indisponible)` : undefined}
-        style={{ width: size, height: size }}
-        className={cn(
-          "rounded-full bg-[#EA580C] flex items-center justify-center text-white font-bold shrink-0",
-          className,
-        )}
-      >
-        <span style={{ fontSize: Math.max(10, Math.round(size * 0.35)) }}>{initials || "M"}</span>
-      </span>
-    );
-  }
+  const fallback = (
+    <span
+      aria-hidden={src ? undefined : "true"}
+      role={src ? "img" : undefined}
+      aria-label={src ? `${name} (image indisponible)` : undefined}
+      style={{ width: size, height: size }}
+      className={cn(
+        "rounded-full bg-[#EA580C] flex items-center justify-center text-white font-bold shrink-0",
+        className,
+      )}
+    >
+      <span style={{ fontSize: Math.max(10, Math.round(size * 0.35)) }}>{initials || "M"}</span>
+    </span>
+  );
+
+  if (!src || failed || !isRemoteImageAllowed(src)) return fallback;
 
   return (
-    <Image
-      src={src}
-      alt={name}
-      width={size}
-      height={size}
-      onError={() => setFailed(true)}
-      className={cn("rounded-full object-cover shrink-0", className)}
-      style={{ width: size, height: size }}
-    />
+    <AvatarBoundary fallback={fallback}>
+      <Image
+        src={src}
+        alt={name}
+        width={size}
+        height={size}
+        onError={() => setFailed(true)}
+        className={cn("rounded-full object-cover shrink-0", className)}
+        style={{ width: size, height: size }}
+      />
+    </AvatarBoundary>
   );
 }

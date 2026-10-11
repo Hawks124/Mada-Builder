@@ -6,6 +6,7 @@ import { users } from "@/db/schema";
 import AdminShell from "@/components/admin/admin-shell";
 import { getOnboardingRedirect } from "@/app/actions/onboarding";
 import { getPendingCountCached, getRejectedCountCached } from "@/services/stats.service";
+import { getBuildStats } from "@/services/builds.service";
 
 /**
  * Double-check server : session + rôle staff (admin|moderateur).
@@ -43,12 +44,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     if (dest) redirect(dest);
   }
   // Badges réels (files DB, pas de mock).
-  const [pendingCount, rejectedCount] = await Promise.all([
+  const [pendingCount, rejectedCount, buildsPending] = await Promise.all([
     getPendingCountCached(),
     getRejectedCountCached(),
+    getBuildStats()
+      .then((s) => s.pending)
+      .catch(() => 0),
   ]);
   return (
-    <AdminShell pendingCount={pendingCount} rejectedCount={rejectedCount}>
+    <AdminShell
+      pendingCount={pendingCount}
+      rejectedCount={rejectedCount}
+      buildsPendingCount={buildsPending}
+    >
       {children}
     </AdminShell>
   );

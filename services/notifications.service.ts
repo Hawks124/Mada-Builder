@@ -1,11 +1,19 @@
 import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { notifications, type NotificationKind } from "@/db/schema";
-import { productPageViews, products } from "@/db/schema";
+import { productBuilds, productPageViews, products } from "@/db/schema";
 import { users } from "@/db/schema";
 import { captureError } from "@/lib/monitoring";
-import { sendEmail } from "@/lib/email";
+import { adminRecipients, sendEmail } from "@/lib/email";
 import { siteUrl } from "@/lib/site-url";
+import {
+  staffBuildSubmittedHtml,
+  staffBuildSubmittedSubject,
+  staffBuildSubmittedText,
+  staffFicheSubmittedHtml,
+  staffFicheSubmittedSubject,
+  staffFicheSubmittedText,
+} from "@/lib/email-templates/staff-review";
 import {
   digestWeeklyHtml,
   digestWeeklySubject,
@@ -331,4 +339,114 @@ export async function sendWeeklyDigest(input?: {
     }
   }
   return { eligible, sent };
+}
+
+/**
+ * Notification staff — file de revue (D6) : fiche qui ENTRE en pending
+ * ou build enregistré. Best-effort total (jamais de throw) : la revue
+ * ne doit jamais dépendre de l'email. Silencieux si ADMIN_EMAILS vide.
+ * Jamais sur les brouillons ni les edits sans re-revue (pas de spam) —
+ * c'est l'appelant qui décide (entrée en pending / record réussi).
+ */
+export async function notifyAdminsReview(input: {
+  productId: string;
+  buildId?: string | null;
+}): Promise<void> {
+  try {
+    const to = adminRecipients();
+    if (to.length === 0) return;
+    const origin = siteUrl();
+    const [p] = await db
+      .select({
+        id: products.id,
+        name: products.name,
+        status: products.status,
+        makerDisplayName: users.displayName,
+      })
+      .from(products)
+      .innerJoin(users, eq(users.id, products.makerId))
+      .where(eq(products.id, input.productId))
+      .limit(1);
+    if (!p) return;
+    const reviewUrl = `${origin}/admin/review/${p.id}`;
+    if (input.buildId) {
+      const [b] = await db
+        .select({
+          versionCode: productBuilds.versionCode,
+          versionName: productBuilds.versionName,
+          package: productBuilds.package,
+        })
+        .from(productBuilds)
+        .where(eq(productBuilds.id, input.buildId))
+        .limit(1);
+      if (!b) return;
+      const versionLabel =
+        b.versionCode === null && !b.versionName
+          ? "sans version"
+          : `v${b.versionName ?? "?"} (${b.versionCode ?? "?"})`;
+      const ficheNote =
+        p.status === "pending"
+          ? "Fiche en revue elle aussi — tout est à revoir d'un coup."
+          : p.status === "published"
+            ? "Fiche déjà en ligne."
+            : "Fiche rejetée — à revoir avec la fiche corrigée.";
+      await sendEmail({
+        to,
+        subject: staffBuildSubmittedSubject(p.name),
+        template: "staff-build-submitted",
+        productId: p.id,
+        html: staffBuildSubmittedHtml({
+          productName: p.name,
+          makerDisplayName: p.makerDisplayName,
+          versionLabel,
+          package: b.package,
+          reviewUrl,
+          origin,
+          ficheNote,
+        }),
+        text: staffBuildSubmittedText({
+          productName: p.name,
+          makerDisplayName: p.makerDisplayName,
+          versionLabel,
+          package: b.package,
+          reviewUrl,
+          origin,
+          ficheNote,
+        }),
+      });
+      return;
+    }
+    const buildRows = await db
+      .select({ status: productBuilds.status })
+      .from(productBuilds)
+      .where(eq(productBuilds.productId, p.id))
+      .limit(20);
+    const buildNote = buildRows.some((r) => r.status === "pending")
+      ? "Un APK est encore en revue sur cette fiche."
+      : buildRows.some((r) => r.status === "approved")
+        ? "Son APK est déjà en ligne."
+        : null;
+    await sendEmail({
+      to,
+      subject: staffFicheSubmittedSubject(p.name),
+      template: "staff-fiche-submitted",
+      productId: p.id,
+      html: staffFicheSubmittedHtml({
+        productName: p.name,
+        makerDisplayName: p.makerDisplayName,
+        reviewUrl,
+        origin,
+        buildNote,
+      }),
+      text: staffFicheSubmittedText({
+        productName: p.name,
+        makerDisplayName: p.makerDisplayName,
+        reviewUrl,
+        origin,
+        buildNote,
+      }),
+    });
+  } catch {
+    // Best-effort : la soumission ne dépend jamais de cet email.
+  }
 }

@@ -6,6 +6,7 @@ export * from "./page_views";
 export * from "./appeals";
 export * from "./admin_actions";
 export * from "./products";
+export * from "./builds";
 export * from "./idempotency";
 export * from "./email_logs";
 export * from "./reviews";

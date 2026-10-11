@@ -10,6 +10,7 @@ import {
   deleteOwnReview,
   respondToReview,
   toggleCommentVote,
+  updateOwnComment,
   upsertReview,
 } from "@/services/feedback.service";
 import { logAdminAction } from "@/services/admin-audit.service";
@@ -119,6 +120,23 @@ export async function deleteCommentAction(input: {
     return { ok: true, message: "Commentaire supprimé." };
   } catch (e) {
     return fail(e, "feedback.comment.delete", "Suppression impossible.");
+  }
+}
+
+/** Modifier MON commentaire (1 à 1000 caractères). */
+export async function updateCommentAction(input: {
+  productId: string;
+  slug: string;
+  commentId: string;
+  body: string;
+}): Promise<FeedbackActionState> {
+  try {
+    const id = await viewerId();
+    await updateOwnComment({ viewerId: id, commentId: input.commentId, body: input.body });
+    revalidatePath(`/products/${input.slug}`);
+    return { ok: true, message: "Commentaire modifié." };
+  } catch (e) {
+    return fail(e, "feedback.comment.update", "Modification impossible.");
   }
 }
 

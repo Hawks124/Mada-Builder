@@ -335,6 +335,26 @@ export function SigninForm() {
         <RecentBadge visible={lastUsed === "github"} />
       </button>
 
+      {/* GitLab — logomark full color officiel, même traitement que Google :
+          fond blanc/bordure, tanuki intact (asset local, jamais de hotlink) */}
+      <button
+        type="button"
+        onClick={() => signInWith("gitlab")}
+        disabled={pending !== null}
+        className="relative w-full flex items-center justify-center gap-3 rounded-full border border-zinc-200 dark:border-zinc-900 bg-white dark:bg-black px-5 h-12 text-[15px] font-medium text-[#1f1f1f] dark:text-[#e3e3e3] hover:bg-[#f8fafc] dark:hover:bg-[#1f1f1f] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+      >
+        <Image
+          src="/logos/gitlab.svg"
+          alt=""
+          width={18}
+          height={18}
+          className="h-4.5 w-4.5 shrink-0"
+        />
+        <span>Continuer avec GitLab</span>
+        {pending === "gitlab" && <Spinner size="sm" />}
+        <RecentBadge visible={lastUsed === "gitlab"} />
+      </button>
+
       {/* Divider */}
       <div className="flex items-center gap-4 my-2">
         <div className="h-px flex-1 bg-border/60" />

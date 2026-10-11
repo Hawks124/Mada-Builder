@@ -12,6 +12,7 @@ import { getSessionUser } from "@/lib/supabase/server";
 import { getUserVotedIds } from "@/services/votes.service";
 import { itemListLd } from "@/lib/seo";
 import { searchProducts } from "@/services/discover.service";
+import { siteUrl } from "@/lib/site-url";
 
 type Params = { slug: string };
 
@@ -23,9 +24,25 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { slug } = await params;
   const category = getCategoryById(slug);
   if (!category) return { robots: { index: false, follow: false } };
+  const url = `${siteUrl()}/categories/${category.id}`;
+  const ogImage = `${siteUrl()}/og/c/${category.id}`;
   return {
     title: `${category.name} — produits tech malgaches | Mada-Made`,
     description: `Découvrez les produits tech construits à Madagascar en ${category.name} : ${category.subtitle}. Apps, SaaS et outils des makers malgaches.`,
+    alternates: { canonical: url },
+    openGraph: {
+      title: `${category.name} — produits tech malgaches`,
+      description: `Découvrez les produits tech construits à Madagascar en ${category.name}.`,
+      url,
+      type: "website",
+      images: [{ url: ogImage, width: 1200, height: 630, alt: category.name }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${category.name} — produits tech malgaches`,
+      description: `Découvrez les produits tech construits à Madagascar en ${category.name}.`,
+      images: [ogImage],
+    },
   };
 }
 

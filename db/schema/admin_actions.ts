@@ -22,6 +22,8 @@ export const adminActionEnum = pgEnum("admin_action", [
   "product_removed",
   "product_featured",
   "product_nudged",
+  "build_approved",
+  "build_rejected",
   "review_removed",
   "comment_removed",
 ]);

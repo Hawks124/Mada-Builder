@@ -94,6 +94,15 @@ export function OverviewStats({
             tone: "neutral",
           },
           {
+            label: "Binaires APK",
+            value: `${totals.totalBuilds ?? 0}`,
+            delta:
+              (totals.appsWithApk ?? 0) > 0
+                ? `sur ${totals.appsWithApk} produit${(totals.appsWithApk ?? 0) > 1 ? "s" : ""}`
+                : "aucun binaire envoyé",
+            tone: "neutral",
+          },
+          {
             label: "Vues fiches",
             value: formatCompactCount(totals.totalViews),
             delta:

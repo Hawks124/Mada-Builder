@@ -1,10 +1,10 @@
 ---
 title: "Conditions d'utilisation"
 description: "Les règles d'usage de Mada-Made : ce que vous publiez, ce que vous gardez, comment la revue et la modération travaillent, et jusqu'où va notre responsabilité."
-updated: "2026-10-05"
+updated: "2026-10-09"
 ---
 
-<!-- TODO(Jalon 5) : validation par juriste. Points encore ouverts — (a) la devise de facturation de Maker Pro et ses modalités de prélèvement ne sont pas arrêtées ; (b) le lieu du tribunal n'est pas nommé, faute de conseil juridique ; (c) la clause de transfert des fiches non réclamées doit être confirmée. -->
+<!-- TODO(Jalon 5) : validation par juriste. Points encore ouverts — (a) la devise de facturation de Maker Pro et ses modalités de prélèvement ne sont pas arrêtées ; (b) le lieu du tribunal n'est pas nommé, faute de conseil juridique ; (c) la clause de transfert des fiches non réclamées doit être confirmée ; (d) la clause de distribution des binaires (licence incluant la mise à disposition au téléchargement) reste à confirmer. -->
 
 Mada-Made est un annuaire : on y publie des produits, on y vote, on y lit des chiffres de revenus vérifiés. Ce document dit ce que nous fournissons, ce que vous fournissez, et ce qu'il arrive quand ça ne fonctionne pas.
 
@@ -22,7 +22,7 @@ Si vous créez un compte en contournant cette règle, nous pouvons leuspendre sa
 
 Un compte par personne. Vos informations doivent être exactes.
 
-L'authentification passe par Google, GitHub ou un lien magique à usage unique. **Ne transférez jamais un lien de connexion** : il contient votre accès. Nous n'envoient aucun mot de passe.
+L'authentification passe par Google, GitHub, GitLab ou un lien magique à usage unique. **Ne transférez jamais un lien de connexion** : il contient votre accès. Nous n'envoient aucun mot de passe.
 
 Vous répondez de toute activité depuis votre compte. Si vous pensez qu'il est compromis, changez vos accès immédiatement et prévenez-nous : un compte compromis utilisé pour voter truqué est traité comme une fraude, pas comme une victime.
 
@@ -32,7 +32,7 @@ Vous publiez un produit réel et joignable : lien fonctionnel, icône exploitabl
 
 **Vous continuez de détenir l'intégralité de vos droits** sur tout ce que vous soumettez. Nous ne vous cédons aucun droit.
 
-Vous nous accordez une **licence non exclusive** d'afficher ces contenus, limitée à ce qui fait fonctionner le service : la fiche produit, le classement, les listes, les captures d'aperçu, les images de partage, la mise en avant « produit du jour », et le digest si vous y êtes inscrit. Cette licence court **pendant la publication de la fiche** et cesse quand vous la supprimez. Elle ne vous interdit pas d'afficher le même produit ailleurs.
+Vous nous accordez une **licence non exclusive** d'afficher ces contenus, limitée à ce qui fait fonctionner le service : la fiche produit, le classement, les listes, les captures d'aperçu, les images de partage, la mise en avant « produit du jour », et le digest si vous y êtes inscrit. **Pour les binaires Android approuvés, elle inclut la mise à disposition au téléchargement** : sans elle, le bouton Installer n'existerait pas. Cette licence court **pendant la publication de la fiche** et cesse quand vous la supprimez. Elle ne vous interdit pas d'afficher le même produit ailleurs.
 
 Vous nous déclarez détenir les droits sur ce que vous soumettez. Si un tiers conteste un contenu, vous le retirez — nous ne pouvons pas arbitrer un litige de propriété intellectuelle à votre place.
 
@@ -48,11 +48,23 @@ Mada-Made est un **annuaire**, pas une place de marché. Nous ne vendons rien, n
 
 Les fiches produits comportent des liens d'achat qui pointent **vers le site du maker ou vers un store tiers**. La transaction se conclut entre vous et ce tiers : nous n'en sommes pas partie, nous ne touchons pas le paiement, et nous n'accordons aucune garantie sur ce que vous achetez.
 
+Le téléchargement des APK approuvés est **gratuit et direct** : aucun paiement ne transite par nous, et il ne crée aucune relation commerciale avec la plateforme.
+
 De même, les liens externes du site — stores, documentations, dépôts de code, groupes — sont fournis pour votre confort. Nous ne contrôlons pas ces sites et ne sommes pas responsables de leur contenu.
 
 ## La revue est humaine, et elle est motivée
 
 Chaque soumission est relue par une personne, sous 24 h ouvrées. Un rejet est **toujours motivé**, et reste réversible après correction. Les changements de nom et de liens repassent en revue, parce qu'ils peuvent changer ce que la fiche représente.
+
+Les binaires Android sont **installés et testés sur un vrai téléphone** avant approbation : ce qui ne s'installe pas ou ne se lance pas est rejeté avec motif, sans toucher à la fiche.
+
+## Les binaires Android
+
+Si votre produit est sur Android, vous pouvez joindre son APK : **universel** (pas de split par architecture), **signé release** — le debug est refusé automatiquement, comme sur Play —, avec un **code de version strictement croissant** et des **notes de version** (1000 signes maximum) à chaque mise à jour.
+
+**Fiche et binaire ont chacun leur revue.** Le refus de l'un ne bloque jamais l'autre : une fiche rejetée garde ses builds en revue, un binaire rejeté laisse la fiche en ligne. Seul le **dernier binaire approuvé** est téléchargeable.
+
+En cas de changement de clé de signature (rotation), prévenez dans les notes : la revue le détecte et vérifie avec vous avant d'approuver.
 
 Nous ne publions pas d'annuaire avec une file de censure automatique : c'est le prix d'un annuaire dont les entrées sont le travail de quelqu'un.
 
@@ -141,7 +153,7 @@ Un produit listé qui se révèle frauduleux, contrefaisant ou illegal engage **
 
 ## Fin, résiliation, suppression
 
-Supprimez votre compte à tout moment depuis les paramètres. Vos produits, votes et clés sont réellement effacés, selon la [politique de confidentialité](/confidentialite). Les statistiques publiques et anonymisées ne sont pas des données personnelles et survivent.
+Supprimez votre compte à tout moment depuis les paramètres. Vos produits, binaires, votes et clés sont réellement effacés, selon la [politique de confidentialité](/confidentialite). Les statistiques publiques et anonymisées ne sont pas des données personnelles et survivent.
 
 Nous pouvons suspendre un compte en cas de manquement, selon l'échelle de modération ci-dessus. Une suspension définitive est motivée et écrite.
 

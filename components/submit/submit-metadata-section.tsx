@@ -33,6 +33,7 @@ export function SubmitMetadataSection() {
     editApp,
     pricing: selectedPricing,
     setPricing: setSelectedPricing,
+    setPlatforms: syncPlatforms,
     errors,
     clearError,
     draft,
@@ -53,6 +54,10 @@ export function SubmitMetadataSection() {
   // (remount par clé — InputField uncontrolled).
   const [licenseDraft, setLicenseDraft] = useState<string | null>(null);
   const selectedPlatforms = manualPlatforms ?? suggestedPlatforms;
+  // Remontée contexte (bloc APK) : garde d'égalité côté setter.
+  React.useEffect(() => {
+    syncPlatforms(selectedPlatforms);
+  }, [selectedPlatforms, syncPlatforms]);
 
   const togglePlatform = (p: string) => {
     clearError("platforms");

@@ -13,8 +13,12 @@ interface SubmitFormState {
   /** Produit en cours d'édition (?edit=id) — null en création. */
   editApp: DashboardApp | null;
   isEditing: boolean;
+  /** Track binaire (D6) : sans track → section APK inline ; avec track → lien Update (verrou). */
+  hasTrack: boolean;
   /** Pricing (remonté de metadata — règle privacy si monétisé). */
   pricing: string;
+  /** Plateformes (remonté de metadata — conditionne le bloc APK). */
+  platforms: string[];
   /** Valeurs des champs liens (pastilles + règle point d'accès). */
   linkValues: Record<string, string>;
   /** Politiques constatées par champ (warn = flag revue admin). */
@@ -37,6 +41,7 @@ interface SubmitFormContextValue extends SubmitFormState {
   setAudience: (value: string) => void;
   setLifecycle: (value: string) => void;
   setPricing: (value: string) => void;
+  setPlatforms: (value: string[]) => void;
   setLinkValue: (id: string, value: string) => void;
   setLinkPolicy: (id: string, policy: UrlPolicy | null) => void;
   setErrors: (errors: Record<string, string>) => void;
@@ -90,6 +95,7 @@ export function SubmitFormProvider({
   editApp,
   initialDraft,
   existingMedia,
+  hasTrack,
   children,
 }: {
   editApp: DashboardApp | null;
@@ -100,6 +106,8 @@ export function SubmitFormProvider({
     iconUrl: string | null;
     shots: { url: string; width: number | null; height: number | null }[];
   } | null;
+  /** Track binaire (édition) — faux en création. */
+  hasTrack?: boolean;
   children: React.ReactNode;
 }) {
   const draft = editApp ? null : (initialDraft ?? null);
@@ -115,6 +123,14 @@ export function SubmitFormProvider({
   const [pricing, setPricing] = React.useState<string>(
     PRICING_MODELS.find((o) => o.label === editApp?.pricing)?.id ?? draft?.pricing ?? "free",
   );
+  // Plateformes : la section metadata synchronise (garde d'égalité :
+  // même contenu = même état, pas de boucle).
+  const [platforms, setPlatformsState] = React.useState<string[]>([]);
+  const setPlatforms = React.useCallback((value: string[]) => {
+    setPlatformsState((prev) =>
+      prev.length === value.length && prev.every((p, i) => p === value[i]) ? prev : value,
+    );
+  }, []);
   const [linkValues, setLinkValues] = React.useState<Record<string, string>>(() => {
     if (editApp?.linkValues) return editApp.linkValues;
     if (!draft) return {};
@@ -160,7 +176,9 @@ export function SubmitFormProvider({
       lifecycle,
       editApp,
       isEditing: editApp !== null,
+      hasTrack: hasTrack ?? false,
       pricing,
+      platforms,
       linkValues,
       linkPolicies,
       errors,
@@ -171,6 +189,7 @@ export function SubmitFormProvider({
       setAudience,
       setLifecycle,
       setPricing,
+      setPlatforms,
       setLinkValue,
       setLinkPolicy,
       setErrors,
@@ -182,7 +201,9 @@ export function SubmitFormProvider({
       audience,
       lifecycle,
       editApp,
+      hasTrack,
       pricing,
+      platforms,
       linkValues,
       linkPolicies,
       errors,
@@ -192,6 +213,7 @@ export function SubmitFormProvider({
       setLinkPolicy,
       setLinkValue,
       clearError,
+      setPlatforms,
     ],
   );
 

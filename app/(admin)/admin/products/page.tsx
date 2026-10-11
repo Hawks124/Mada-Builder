@@ -4,6 +4,8 @@ import { ProductsTable } from "@/components/admin/products-table";
 import type { AdminProduct } from "@/components/admin/admin-mock";
 import { fetchAdminProducts, getProductsEngagement } from "@/services/products.service";
 import { appGradientFor, appInitialsFor } from "@/services/products.service";
+import { getPricingById } from "@/config/pricing";
+import { getProductTypeById } from "@/config/product-types";
 
 // noindex strict — jamais indexé, même au backend.
 export const metadata: Metadata = {
@@ -34,10 +36,10 @@ export default async function AdminProductsPage() {
     name: r.name,
     tagline: r.tagline,
     categoryId: r.category,
-    productType: r.productType,
+    productType: getProductTypeById(r.productType)?.label ?? r.productType,
     platforms: r.platforms,
     audienceId: r.audience,
-    pricing: r.pricingModel,
+    pricing: getPricingById(r.pricingModel)?.label ?? r.pricingModel,
     version: r.version ?? undefined,
     launchedAt: r.publishedAt
       ? r.publishedAt.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
@@ -50,6 +52,7 @@ export default async function AdminProductsPage() {
     rating: 0,
     revenue: undefined,
     iconGradient: appGradientFor(r.id),
+    iconUrl: r.iconUrl ?? null,
     initials: appInitialsFor(r.name),
     maker: {
       name: r.makerDisplayName,

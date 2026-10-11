@@ -45,6 +45,7 @@ import {
   toReviewItem,
   updateProduct,
 } from "@/services/products.service";
+import { hasAccessPoint } from "@/config/product-links";
 import { getRelatedProducts } from "@/services/ranking.service";
 import { searchProducts } from "@/services/discover.service";
 import type { DashboardRow, ReviewQueueRow } from "@/services/products.service";
@@ -1127,6 +1128,56 @@ async function main(): Promise<void> {
     kidsMissing = e instanceof ProfileError && e.code === "VALIDATION";
   }
   check("kids sans liens requis refusé", kidsMissing);
+  // 8d. Anti-contournement binaire : lien direct interdit sur Android.
+  const apkDirect = {
+    playstore: "https://play.google.com/store/apps/details?id=com.example",
+    download: "https://example.com/app.apk",
+  };
+  let dlBanned = false;
+  try {
+    assertLinkRules({
+      productType: "app_mobile",
+      audience: "all",
+      pricingModel: "free",
+      platforms: ["android"],
+      links: apkDirect,
+    });
+  } catch (e) {
+    dlBanned =
+      e instanceof ProfileError &&
+      e.code === "VALIDATION" &&
+      e.message.includes("Téléchargement direct");
+  }
+  check("android + lien direct refusé", dlBanned);
+  let dlOkSansAndroid = true;
+  try {
+    assertLinkRules({
+      productType: "app_mobile",
+      audience: "all",
+      pricingModel: "free",
+      platforms: ["ios"],
+      links: apkDirect,
+    });
+  } catch {
+    dlOkSansAndroid = false;
+  }
+  check("ios + lien direct accepté", dlOkSansAndroid);
+  check(
+    "android : download seul ne compte pas comme accès",
+    hasAccessPoint({ download: "https://example.com/app.apk" }, { ignoreDownload: true }) === false,
+  );
+  // 8e. Doctrine RLS deny-all : toute table publique a le RLS actif
+  // (drizzle-kit ne le met jamais — c'est comme ça que product_builds
+  // a fuité en UNRESTRICTED ; aucune policy = refusé via Data API).
+  const rlsOff = (await db.execute(sql`
+    SELECT relname FROM pg_class
+    JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+    WHERE pg_namespace.nspname = 'public' AND relkind = 'r' AND NOT relrowsecurity
+  `)) as unknown as Array<{ relname: string }>;
+  check("RLS actif sur toutes les tables publiques", rlsOff.length === 0);
+  if (rlsOff.length > 0) {
+    console.log("  tables sans RLS : " + rlsOff.map((r) => r.relname).join(", "));
+  }
 
   // 10. Mappers présentation + parse mobile (purs, offline — les pages
   // et routes ne font que brancher ces fonctions).

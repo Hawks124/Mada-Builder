@@ -363,7 +363,10 @@ export async function deleteAccount(viewerId: string, targetId: string) {
 }
 
 // ── Auth : sync providers (multi strict) ──────────────────────────────────────
-export async function addAuthProvider(userId: string, provider: "github" | "google" | "email") {
+export async function addAuthProvider(
+  userId: string,
+  provider: "github" | "google" | "gitlab" | "email",
+) {
   // Idempotent : append SEULEMENT si absent (chaque login repasse ici —
   // l'ancien array_append aveugle produisait ["google","google"]).
   await db
@@ -539,7 +542,7 @@ export async function unbanUser(isStaff: boolean, targetId: string) {
 }
 
 // ── Onboarding /bienvenue (complétion profil post-signup) ────────────────────
-// GitHub sans email → trigger placeholder (setup.sql) au lieu d'un crash
+// GitHub/GitLab sans email → trigger placeholder (setup.sql) au lieu d'un crash
 // NOT NULL : la gate exige un vrai email ensuite. Marqueur partagé ici
 // (même règle des deux côtés — trigger SQL et service).
 export function isPlaceholderEmail(email: string): boolean {
@@ -627,7 +630,8 @@ export async function getOnboardingFormData(userId: string): Promise<{
     email: isPlaceholderEmail(row.email) ? "" : row.email,
     displayName: generated ? "" : row.displayName,
     occupation: row.occupation,
-    provider: row.providers.find((p) => p === "github" || p === "google") ?? "email",
+    provider:
+      row.providers.find((p) => p === "github" || p === "google" || p === "gitlab") ?? "email",
     username: row.username,
     avatarUrl: row.avatarUrl,
     accountId: userId,
@@ -908,6 +912,36 @@ export async function getMakersCount(): Promise<number> {
     .from(users)
     .where(and(isNull(users.deletedAt), isNull(users.bannedAt)));
   return value;
+}
+
+/**
+ * Suggest makers (overlay nav) : username/displayName partiels, ni
+ * supprimés ni bannis. Rien de plus (pas de tri par popularité V1).
+ */
+export async function getMakersSuggest(
+  q: string,
+  limit = 4,
+): Promise<{ username: string; displayName: string; avatarUrl: string | null }[]> {
+  const clean = q.trim().slice(0, 60);
+  if (clean.length < 2) return [];
+  // Échappe les jokers LIKE (sinon `%` = match-all, comportement bizarre).
+  const like = `%${clean.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  return db
+    .select({
+      username: users.username,
+      displayName: users.displayName,
+      avatarUrl: users.avatarUrl,
+    })
+    .from(users)
+    .where(
+      and(
+        isNull(users.deletedAt),
+        isNull(users.bannedAt),
+        or(ilike(users.username, like), ilike(users.displayName, like)),
+      ),
+    )
+    .orderBy(desc(users.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 8));
 }
 
 // ── Helpers slug (règle partagée trigger SQL — voir db/setup.sql) ─────────────

@@ -316,6 +316,359 @@ async function main(): Promise<void> {
     await deleteR2Object(PRODUCT_LOGOS_BUCKET, victim).catch(() => {});
   }
 
+  // 5-bis. Builds APK (D1 + D3) : presign quota + PUT réel + record
+  // pending + preuves (HEAD) + confinement + RE-VÉRIF SERVEUR (le client
+  // ne peut pas mentir : faux ZIP et cert divergent sont purgés).
+  // R2-gated comme §5.
+  if (!r2Configured()) {
+    console.log("SKIP: builds sans R2");
+  } else {
+    const { presignBuildUpload, PRODUCT_BUILDS_BUCKET, MAX_BUILD_BYTES, headR2Object } =
+      await import("@/lib/r2");
+    // Garde anti-dérive (D6) : serveur, client et contrat partagent le
+    // même plafond, pinné ici à sa valeur décidée (300 Mo).
+    const { MAX_APK_BYTES } = await import("@/lib/apk-limits");
+    check("plafond partagé 300 Mo", MAX_BUILD_BYTES === 300 * 1024 * 1024);
+    check("plafond client = serveur", MAX_APK_BYTES === MAX_BUILD_BYTES);
+    const { createBuild } = await import("@/services/builds.service");
+    const { createHash } = await import("node:crypto");
+    const { FIXTURE_CERT_SHA, fakeSignedApk, fakeUnsignedBytes, fixtureCertDer } =
+      await import("./fixtures/apk-fixture");
+    const realApk = Buffer.from(fakeSignedApk(fixtureCertDer()));
+    const realSha = createHash("sha256").update(realApk).digest("hex");
+    const fakeApk = Buffer.from(fakeUnsignedBytes());
+    const fakeSha = createHash("sha256").update(fakeApk).digest("hex");
+    // Quota refusé à la signature.
+    let quotaRefused = false;
+    try {
+      await presignBuildUpload({
+        makerId: maker,
+        productId: maker,
+        contentLength: MAX_BUILD_BYTES + 1,
+      });
+    } catch {
+      quotaRefused = true;
+    }
+    check("presign APK > 300 Mo refusé", quotaRefused);
+    const buildProduct = await submitProduct({
+      viewerId: maker,
+      data: { ...baseData, name: "Produit Vérif Builds" },
+      asDraft: true,
+    });
+    const presigned = await presignBuildUpload({
+      makerId: maker,
+      productId: buildProduct.id,
+      contentLength: realApk.length,
+    });
+    check(
+      "presign APK confiné builds/",
+      presigned.key.startsWith(`builds/${maker}/${buildProduct.id}/`),
+    );
+    const put = await fetch(presigned.url, {
+      method: "PUT",
+      body: realApk,
+      headers: { "Content-Type": "application/vnd.android.package-archive" },
+    });
+    check("PUT direct R2 (apk)", put.ok);
+    const { id: buildId } = await createBuild({
+      viewerId: maker,
+      productId: buildProduct.id,
+      r2Key: presigned.key,
+      sha256: realSha,
+      sizeBytes: realApk.length,
+      versionCode: 1,
+      versionName: "1.0",
+      package: "com.example.verify",
+      certSha256: FIXTURE_CERT_SHA,
+    });
+    check("build pending enregistré", typeof buildId === "string" && buildId.length > 0);
+    // Un seul pending à la fois : 2e envoi (valide) refusé + objet purgé.
+    const presignedSecond = await presignBuildUpload({
+      makerId: maker,
+      productId: buildProduct.id,
+      contentLength: realApk.length,
+    });
+    await fetch(presignedSecond.url, {
+      method: "PUT",
+      body: realApk,
+      headers: { "Content-Type": "application/vnd.android.package-archive" },
+    });
+    let secondPendingRefused = false;
+    try {
+      await createBuild({
+        viewerId: maker,
+        productId: buildProduct.id,
+        r2Key: presignedSecond.key,
+        sha256: realSha,
+        sizeBytes: realApk.length,
+        versionCode: 2,
+        versionName: "2.0",
+        whatsnew: "Second envoi pendant revue",
+        package: "com.example.verify",
+        certSha256: FIXTURE_CERT_SHA,
+      });
+    } catch (e) {
+      secondPendingRefused =
+        e instanceof ProfileError &&
+        e.code === "VALIDATION" &&
+        (e.message ?? "").includes("déjà en revue");
+    }
+    check("2e build pendant revue refusé", secondPendingRefused);
+    check(
+      "2e objet purgé de R2",
+      (await headR2Object(PRODUCT_BUILDS_BUCKET, presignedSecond.key)) === null,
+    );
+    // Vrai flow : verdict sur v1 → la voie est libre pour v2 (tests D4+).
+    const { reviewBuild } = await import("@/services/builds.service");
+    await reviewBuild({ buildId, decision: "approved", staffId: maker });
+    const { productBuilds: pbTable } = await import("@/db/schema");
+    const [v1row] = await db
+      .select({ status: pbTable.status })
+      .from(pbTable)
+      .where(eq(pbTable.id, buildId))
+      .limit(1);
+    check("v1 approuvée (voie libre v2)", v1row?.status === "approved");
+    // Métadonnées déclarées stockées (re-vérifiées serveur : le cert
+    // déclaré matchait celui lu sur R2).
+    const { productBuilds } = await import("@/db/schema");
+    const [stored] = await db
+      .select({ package: productBuilds.package, certSha256: productBuilds.certSha256 })
+      .from(productBuilds)
+      .where(eq(productBuilds.id, buildId))
+      .limit(1);
+    check(
+      "build : package + cert stockés",
+      stored?.package === "com.example.verify" && stored?.certSha256 === FIXTURE_CERT_SHA,
+    );
+    // Faux ZIP refusé (NOT_ZIP serveur) + objet purgé.
+    const presignedFake = await presignBuildUpload({
+      makerId: maker,
+      productId: buildProduct.id,
+      contentLength: fakeApk.length,
+    });
+    await fetch(presignedFake.url, {
+      method: "PUT",
+      body: fakeApk,
+      headers: { "Content-Type": "application/vnd.android.package-archive" },
+    });
+    let zipRefused = false;
+    try {
+      await createBuild({
+        viewerId: maker,
+        productId: buildProduct.id,
+        r2Key: presignedFake.key,
+        sha256: fakeSha,
+        sizeBytes: fakeApk.length,
+        versionCode: 9,
+        whatsnew: "Faux fichier de test",
+      });
+    } catch (e) {
+      zipRefused = e instanceof ProfileError && e.code === "VALIDATION";
+    }
+    check("faux ZIP refusé (re-vérif)", zipRefused);
+    check(
+      "faux ZIP purgé de R2",
+      (await headR2Object(PRODUCT_BUILDS_BUCKET, presignedFake.key)) === null,
+    );
+    // Cert MENTEUR refusé (divergence déclaré/lu) + objet purgé.
+    const presignedLiar = await presignBuildUpload({
+      makerId: maker,
+      productId: buildProduct.id,
+      contentLength: realApk.length,
+    });
+    await fetch(presignedLiar.url, {
+      method: "PUT",
+      body: realApk,
+      headers: { "Content-Type": "application/vnd.android.package-archive" },
+    });
+    let liarRefused = false;
+    try {
+      await createBuild({
+        viewerId: maker,
+        productId: buildProduct.id,
+        r2Key: presignedLiar.key,
+        sha256: realSha,
+        sizeBytes: realApk.length,
+        versionCode: 9,
+        certSha256: "0".repeat(64),
+        whatsnew: "Menteur de test",
+      });
+    } catch (e) {
+      liarRefused = e instanceof ProfileError && e.code === "VALIDATION";
+    }
+    check("cert menteur refusé (divergence)", liarRefused);
+    check(
+      "menteur purgé de R2",
+      (await headR2Object(PRODUCT_BUILDS_BUCKET, presignedLiar.key)) === null,
+    );
+    // Règles Update (D4) : version strictement croissante + notes si track.
+    const updateBase = {
+      viewerId: maker,
+      productId: buildProduct.id,
+      r2Key: presigned.key,
+      sha256: realSha,
+      sizeBytes: realApk.length,
+    };
+    let dupRefused = false;
+    try {
+      await createBuild({ ...updateBase, versionCode: 1, versionName: "1.0", whatsnew: "Bis" });
+    } catch (e) {
+      dupRefused = e instanceof ProfileError && e.code === "VALIDATION";
+    }
+    check("version non croissante refusée", dupRefused);
+    let lowerRefused = false;
+    try {
+      await createBuild({ ...updateBase, versionCode: 0, versionName: "0.9", whatsnew: "Baisse" });
+    } catch (e) {
+      lowerRefused = e instanceof ProfileError && e.code === "VALIDATION";
+    }
+    check("version inférieure refusée", lowerRefused);
+    let notesMissingRefused = false;
+    try {
+      await createBuild({ ...updateBase, versionCode: 2, versionName: "2.0" });
+    } catch (e) {
+      notesMissingRefused = e instanceof ProfileError && e.code === "VALIDATION";
+    }
+    check("notes manquantes refusées (track)", notesMissingRefused);
+    let notesLongRefused = false;
+    try {
+      await createBuild({
+        ...updateBase,
+        versionCode: 2,
+        versionName: "2.0",
+        whatsnew: "x".repeat(1001),
+      });
+    } catch (e) {
+      notesLongRefused = e instanceof ProfileError && e.code === "VALIDATION";
+    }
+    check("notes > 1000 refusées", notesLongRefused);
+    const { id: buildId2 } = await createBuild({
+      ...updateBase,
+      versionCode: 2,
+      versionName: "2.0",
+      whatsnew: "Nouveautés de la v2",
+    });
+    check("update v2 + notes enregistré", typeof buildId2 === "string" && buildId2.length > 0);
+    // Taille menteuse refusée + objet purgé (inline, pre-D3).
+    let sizeRefused = false;
+    try {
+      await createBuild({
+        viewerId: maker,
+        productId: buildProduct.id,
+        r2Key: presigned.key,
+        sha256: realSha,
+        sizeBytes: realApk.length + 1,
+        versionCode: 9,
+        whatsnew: "Taille de test",
+      });
+    } catch (e) {
+      sizeRefused = e instanceof ProfileError && e.code === "VALIDATION";
+    }
+    check("taille menteuse refusée", sizeRefused);
+    // Clé étrangère refusée.
+    let foreignBuildRefused = false;
+    try {
+      await createBuild({
+        viewerId: maker,
+        productId: buildProduct.id,
+        r2Key: `builds/00000000-0000-0000-0000-000000000000/${buildProduct.id}/x.apk`,
+        sha256: realSha,
+        sizeBytes: realApk.length,
+      });
+    } catch (e) {
+      foreignBuildRefused = e instanceof ProfileError && e.code === "VALIDATION";
+    }
+    check("clé étrangère refusée", foreignBuildRefused);
+    // Multipart resumable (D6) : cycle complet + reprise + abort, objet
+    // composé prouvé par le record (HEAD + re-vérif Range inchangés).
+    const {
+      createMultipartUpload,
+      presignMultipartPart,
+      listMultipartParts,
+      completeMultipartUpload,
+      abortMultipartUpload,
+    } = await import("@/lib/r2");
+    const mp = await createMultipartUpload({
+      makerId: maker,
+      productId: buildProduct.id,
+      contentLength: realApk.length,
+    });
+    check("multipart confiné builds/", mp.key.startsWith(`builds/${maker}/${buildProduct.id}/`));
+    const mpPart = {
+      makerId: maker,
+      productId: buildProduct.id,
+      key: mp.key,
+      uploadId: mp.uploadId,
+    };
+    const partUrl = (await presignMultipartPart({ ...mpPart, partNumber: 1 })).url;
+    const putMp1 = await fetch(partUrl, {
+      method: "PUT",
+      body: realApk,
+      headers: { "Content-Type": "application/vnd.android.package-archive" },
+    });
+    check("PUT part 1", putMp1.ok);
+    const etag1 = putMp1.headers.get("etag") ?? "";
+    check("ETag part exposé", etag1 !== "");
+    // Reprise simulée : renvoi idempotent de la même part.
+    const partUrl2 = (await presignMultipartPart({ ...mpPart, partNumber: 1 })).url;
+    const putMp1b = await fetch(partUrl2, {
+      method: "PUT",
+      body: realApk,
+      headers: { "Content-Type": "application/vnd.android.package-archive" },
+    });
+    check("PUT part 1 (reprise, idempotent)", putMp1b.ok);
+    const listed = await listMultipartParts(mpPart);
+    check("parts listées (reprise)", listed.length === 1 && listed[0]?.n === 1);
+    await completeMultipartUpload({
+      ...mpPart,
+      parts: [{ n: 1, etag: etag1, size: realApk.length }],
+    });
+    // v2 tranchée avant le record multipart (1 pending max).
+    await reviewBuild({ buildId: buildId2, decision: "approved", staffId: maker });
+    const { id: buildId3 } = await createBuild({
+      viewerId: maker,
+      productId: buildProduct.id,
+      r2Key: mp.key,
+      sha256: realSha,
+      sizeBytes: realApk.length,
+      versionCode: 3,
+      versionName: "3.0",
+      whatsnew: "Multipart",
+      package: "com.example.verify",
+      certSha256: FIXTURE_CERT_SHA,
+    });
+    check(
+      "build multipart composé + enregistré",
+      typeof buildId3 === "string" && buildId3.length > 0,
+    );
+    const mp2 = await createMultipartUpload({
+      makerId: maker,
+      productId: buildProduct.id,
+      contentLength: realApk.length,
+    });
+    await abortMultipartUpload({
+      makerId: maker,
+      productId: buildProduct.id,
+      key: mp2.key,
+      uploadId: mp2.uploadId,
+    });
+    let abortedGone = false;
+    try {
+      await listMultipartParts({
+        makerId: maker,
+        productId: buildProduct.id,
+        key: mp2.key,
+        uploadId: mp2.uploadId,
+      });
+    } catch {
+      abortedGone = true;
+    }
+    check("session abortée illisible", abortedGone);
+    await deleteR2Object(PRODUCT_BUILDS_BUCKET, presigned.key).catch(() => {});
+    await db.delete(productBuilds).where(eq(productBuilds.productId, buildProduct.id));
+    await db.delete(products).where(eq(products.id, buildProduct.id));
+  }
+
   // 6. Nettoyage maker.
   const [stale] = await db
     .select({ id: users.id })

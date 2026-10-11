@@ -39,7 +39,7 @@ const RULES = [
   {
     id: "regles-produits-reels",
     title: "Des produits réels",
-    body: "Seuls les produits réels et joignables ont leur place ici : lien fonctionnel, icône exploitable, description honnête. Pas de spam, pas de doublons, pas de coquilles vides.",
+    body: "Seuls les produits réels et joignables ont leur place ici : lien fonctionnel, icône exploitable, description honnête. Pas de spam, pas de doublons, pas de coquilles vides. Un APK joint doit être universel, signé release, et installable : ce qui ne s'installe pas ne reste pas. Distribution Android : lien Play Store ou APK soumis à la revue — le téléchargement direct est interdit, car un binaire distribué hors revue contourne tout le circuit de confiance.",
   },
   {
     id: "regles-revue-humaine",
