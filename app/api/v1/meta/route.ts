@@ -49,7 +49,7 @@ export async function GET(req: Request): Promise<Response> {
           description: o.description,
         })),
         defaultOccupation: DEFAULT_OCCUPATION_ID,
-        providers: ["github", "google", "email"],
+        providers: ["github", "google", "gitlab", "email"],
         limits: {
           avatarMaxBytes: AVATAR_MAX_INPUT_BYTES,
           appealMaxFiles: APPEAL_MAX_FILES,

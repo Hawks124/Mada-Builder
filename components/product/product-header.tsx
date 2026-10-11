@@ -27,6 +27,8 @@ export type ProductHeaderData = {
   /** Veille : badge + vote désactivé (hors jeu). */
   curated: boolean;
   commentsCount: number;
+  /** Binaire vérifié (D5) : chemin download stable (route 302) + version. */
+  apk?: { downloadPath: string; versionLabel: string } | null;
 };
 
 export function ProductHeader({ product }: { product: ProductHeaderData }) {
@@ -121,6 +123,22 @@ export function ProductHeader({ product }: { product: ProductHeaderData }) {
           initialVoted={product.initialVoted}
         />
       </div>
+
+      {/* Binaire vérifié (D5) : badge + version (le téléchargement vit
+          dans la section contenu + la sidebar — jamais 3 boutons). */}
+      {product.apk && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <span
+            title="APK vérifié par la revue : signature et contenu contrôlés avant publication"
+            className="px-2.5 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400"
+          >
+            APK vérifié
+          </span>
+          <span className="text-[13px] font-medium text-muted-foreground">
+            {product.apk.versionLabel}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

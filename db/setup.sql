@@ -436,23 +436,24 @@ BEGIN
   -- Déjà calculé (idempotent, pin respecté) : rien à faire.
   SELECT product_id INTO chosen FROM public.featured_products WHERE featured_on = today;
   IF FOUND THEN RETURN chosen; END IF;
-  SELECT COUNT(*)::int INTO total FROM public.products WHERE status = 'published' AND deleted_at IS NULL;
+  -- Catalogue ÉLIGIBLE (veille exclue — miroir du publishedCount TS).
+  SELECT COUNT(*)::int INTO total FROM public.products WHERE status = 'published' AND deleted_at IS NULL AND curated = false;
   IF total = 0 THEN RETURN NULL; END IF;
   IF total = 1 THEN
     SELECT id INTO chosen FROM public.products
-    WHERE status = 'published' AND deleted_at IS NULL ORDER BY published_at DESC LIMIT 1;
+    WHERE status = 'published' AND deleted_at IS NULL AND curated = false ORDER BY published_at DESC LIMIT 1;
   ELSIF total < 5 THEN
     -- Rotation : jamais-featuré d'abord, re-feature >= 7 j.
     SELECT p.id INTO chosen FROM public.products p
     LEFT JOIN public.featured_products f ON f.product_id = p.id
-    WHERE p.status = 'published' AND p.deleted_at IS NULL
+    WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.curated = false
       AND (f.featured_on IS NULL OR f.featured_on < CURRENT_DATE - 7)
     GROUP BY p.id
     ORDER BY MAX(f.featured_on) ASC NULLS FIRST, MAX(p.published_at) DESC LIMIT 1;
   ELSE
     -- Normal : #1 d'hier (votes pondérés) non-featuré depuis 30 j.
     SELECT p.id INTO chosen FROM public.products p
-    WHERE p.status = 'published' AND p.deleted_at IS NULL
+    WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.curated = false
       AND p.published_at >= day_start - INTERVAL '1 day'
       AND p.published_at < day_start
       AND NOT EXISTS (
@@ -466,7 +467,7 @@ BEGIN
     IF NOT FOUND THEN
       SELECT p.id INTO chosen FROM public.products p
       LEFT JOIN public.featured_products f ON f.product_id = p.id
-      WHERE p.status = 'published' AND p.deleted_at IS NULL
+      WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.curated = false
         AND (f.featured_on IS NULL OR f.featured_on < CURRENT_DATE - 7)
       GROUP BY p.id
       ORDER BY MAX(f.featured_on) ASC NULLS FIRST, MAX(p.published_at) DESC LIMIT 1;

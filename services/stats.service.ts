@@ -3,6 +3,8 @@ import { cache } from "react";
 import { db } from "@/db";
 import { pageViews } from "@/db/schema";
 import { users } from "@/db/schema";
+import { getMakersCount } from "@/services/users.service";
+import { getEmailStats } from "@/services/emails.service";
 import {
   comments,
   products,
@@ -55,6 +57,13 @@ async function countSince(days: number, onlyPath?: string): Promise<number> {
 /** Hits tous chemins (7 j par défaut) — anonymes, connectés indistingués. */
 export async function getVisitsTotal(days = 7): Promise<number> {
   return countSince(days);
+}
+
+/** Hits tous chemins, sans borne de date — le VRAI total (getVisitsTotal
+    est fenêtré, 7 j par défaut : l'afficher comme « total » mentait). */
+export async function getVisitsAllTime(): Promise<number> {
+  const [{ value }] = await db.select({ value: count() }).from(pageViews);
+  return value;
 }
 
 /** Hits homepage (7 j par défaut) — la stat "vitrine" demandée. */
@@ -204,4 +213,199 @@ export async function getOutboundClicksTotal(days?: number): Promise<number> {
     .from(productLinkClicks)
     .where(conditions.length > 0 ? and(...conditions) : undefined);
   return value;
+}
+
+// ── Analytics admin à cache court (perf overview) ────────────────────
+// Split décisionnel vs analytique : ce que l'admin ACTIONNE (files)
+// reste frais avec timeout ; les compteurs vitrine sont cachés 90 s
+// (personne ne modère sur un total de visites à la minute près).
+
+export type EmailCounters = { sent: number; delivered: number; failed: number };
+export type AdminAnalytics = {
+  visits: number;
+  visits30: number;
+  visitsTotal: number;
+  homeViews: number;
+  makers: number;
+  users: number;
+  banned: number;
+  published: number;
+  drafts: number;
+  rejected: number;
+  upvotes: number;
+  views: number;
+  views7: number;
+  clicks: number;
+  clicks7: number;
+  emails: EmailCounters;
+  emails7: EmailCounters;
+  feedback: { reviews: number; comments: number; avgRating: number | null };
+};
+
+const ANALYTICS_TTL_MS = 90_000;
+let analyticsCache: { at: number; data: AdminAnalytics } | null = null;
+
+/** Timeout individuel : une stat lente ne bloque jamais la page (repli). */
+export async function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((resolve) => {
+    t = setTimeout(() => resolve(fallback), ms);
+  });
+  try {
+    return await Promise.race([p, timeout]);
+  } finally {
+    if (t !== undefined) clearTimeout(t);
+  }
+}
+
+/** Une stat analytique : repliée si erreur/timeout, avec flag. Un repli
+    à zéro affiché comme un fait produit des impossibles (total < 7 j) —
+    l'appelant ne doit JAMAIS mettre en cache un lot contenant un repli. */
+function stat<T>(label: string, p: Promise<T>, fallback: T): Promise<{ v: T; ok: boolean }> {
+  void label;
+  return new Promise<{ v: T; ok: boolean }>((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ v: fallback, ok: false });
+    }, 8000);
+    p.then(
+      (v) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ v, ok: true });
+      },
+      () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ v: fallback, ok: false });
+      },
+    );
+  });
+}
+
+const ZERO_EMAILS: EmailCounters = { sent: 0, delivered: 0, failed: 0 };
+
+async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: boolean }> {
+  const [
+    visits,
+    visits30,
+    visitsTotal,
+    homeViews,
+    makers,
+    users,
+    banned,
+    byStatus,
+    upvotes,
+    views,
+    views7,
+    clicks,
+    clicks7,
+    emails,
+    emails7,
+    feedback,
+  ] = await Promise.all([
+    stat("visits", getVisitsTotal(7), 0),
+    stat("visits30", getVisitsTotal(30), 0),
+    stat("visitsTotal", getVisitsAllTime(), 0),
+    stat("homeViews", getHomepageViews(7), 0),
+    stat("makers", getMakersCount(), 0),
+    stat("users", getUsersTotal(), 0),
+    stat("banned", getBannedCount(), 0),
+    stat("byStatus", getProductsCountByStatus(), {
+      draft: 0,
+      pending: 0,
+      published: 0,
+      rejected: 0,
+    }),
+    stat("upvotes", getTotalUpvotes(), 0),
+    stat("views", getProductViewsTotal(), 0),
+    stat("views7", getProductViewsTotal(7), 0),
+    stat("clicks", getOutboundClicksTotal(), 0),
+    stat("clicks7", getOutboundClicksTotal(7), 0),
+    stat("emails", getEmailStats(), ZERO_EMAILS),
+    stat("emails7", getEmailStats(7), ZERO_EMAILS),
+    stat("feedback", getFeedbackStats(), { reviews: 0, comments: 0, avgRating: null }),
+  ]);
+  const parts = [
+    visits,
+    visits30,
+    visitsTotal,
+    homeViews,
+    makers,
+    users,
+    banned,
+    byStatus,
+    upvotes,
+    views,
+    views7,
+    clicks,
+    clicks7,
+    emails,
+    emails7,
+    feedback,
+  ];
+  const ok = parts.every((s) => s.ok);
+  const data: AdminAnalytics = {
+    visits: visits.v,
+    visits30: visits30.v,
+    visitsTotal: visitsTotal.v,
+    homeViews: homeViews.v,
+    makers: makers.v,
+    users: users.v,
+    banned: banned.v,
+    published: byStatus.v.published,
+    drafts: byStatus.v.draft,
+    rejected: byStatus.v.rejected,
+    upvotes: upvotes.v,
+    views: views.v,
+    views7: views7.v,
+    clicks: clicks.v,
+    clicks7: clicks7.v,
+    emails: emails.v,
+    emails7: emails7.v,
+    feedback: feedback.v,
+  };
+  return { data, ok };
+}
+
+/** Analytique cachée 90 s (module singleton serveur). Échec = zéros.
+    Règle anti-mensonge : un lot contenant un repli (timeout/erreur) n'est
+    JAMAIS mis en cache — sinon un zéro de repli persiste 90 s et produit
+    des impossibles (total < 7 j, commentaires 0 avec des avis visibles). */
+export async function getAdminAnalyticsCached(): Promise<AdminAnalytics> {
+  if (analyticsCache && Date.now() - analyticsCache.at < ANALYTICS_TTL_MS) {
+    return analyticsCache.data;
+  }
+  try {
+    const { data, ok } = await computeAdminAnalytics();
+    if (ok) analyticsCache = { at: Date.now(), data };
+    return data;
+  } catch {
+    return (
+      analyticsCache?.data ?? {
+        visits: 0,
+        visits30: 0,
+        visitsTotal: 0,
+        homeViews: 0,
+        makers: 0,
+        users: 0,
+        banned: 0,
+        published: 0,
+        drafts: 0,
+        rejected: 0,
+        upvotes: 0,
+        views: 0,
+        views7: 0,
+        clicks: 0,
+        clicks7: 0,
+        emails: ZERO_EMAILS,
+        emails7: ZERO_EMAILS,
+        feedback: { reviews: 0, comments: 0, avgRating: null },
+      }
+    );
+  }
 }

@@ -241,27 +241,55 @@ re-revue auto, badge admin « Binaire ajouté via édition », CTA dashboard
   re-revue, lecture `toReviewItem` + tri file, backfill `updated_at`, schéma
   Drizzle + `docs/data/products.md` ; resubmit = nouveau cycle)
   — FAIT (verify 122/122, section 13-bis SLA).
-- **D1** : table `product_builds` (historique complet, rollback possible),
-  quota **250 Mo**, upload direct R2 présigné (jamais via Vercel),
-  **pinning certificat strict dès D1** (update autre certificat = refus),
-  **revue binaire bloquante** avant publication. APK universel only
-  (splits refusés avec doc ; AAB refusé avec doc — conversion = clé maker).
+- **D1** : table `product_builds` (migration 0033, historique complet,
+  versionCode nullable en D1), quota **300 Mo** (borne RAM navigateur + PUT single-shot, voir `lib/apk-limits.ts`), upload direct R2 présigné
+  (jamais via Vercel), bucket privé `product-builds` + URLs GET signées
+  — FAIT (verify hardening 29/29 : quota, confinement, HEAD, purge orphelins).
 - **D2** : bloc first-upload submit (conditionnel `android`, recommandé +
   bannière) + extraction cliente (manifest + cert, tableau Play) ;
   robustesse : corpus 15-20 APK, face-à-face libs, vendoring pinné,
   fixtures verify, vérif serveur par Range (`app-info-parser` vs
   `reiko-parser` à départager aux tests).
+  — FAIT côté extraction (verify 38/38 : v1/v2/v3 + pad16 réel + tolérance
+  résidus + DSA + 17 cas adverses manifest ; réel : F-Droid, Facebook,
+  Xender, WhatsApp). Reste D2-UI (ci-dessous).
+- **D2-UI** : bloc first-upload + tableau Play (fiche) + panneau « Binaire
+  Android » revue admin + 2 mails build. **Modèle décidé, verrouillé** :
+  fiche et binaire = deux axes indépendants (matrice 2×2 : fiche OK +
+  binaire KO = publié sans download). Build = statut propre
+  (`pending|approved|rejected` + motif), symétrique fiche. **Linkage** :
+  pending/rejected visibles dans la fiche de revue admin (déjà là),
+  approved seul sur la fiche publique. **Download = dernier build
+  approved**, jamais un pending (update en revue ne casse rien).
+  Mails : `build-approved` + `build-rejected` (pattern `product-review.ts`).
 - **D3** : parse manifest côté client à l'upload (package, versions,
   minSdk warning seul, permissions, label, icône) + SHA-256/taille +
-  scan malware minimal.
+  scan malware minimal + re-vérif serveur par Range (le client ne peut
+  pas mentir : divergence = rejet auto).
 - **D4** : flow **Update** (bouton dashboard séparé, page dédiée,
   versionCode strictement supérieur, pinning, notes **1000 signes**
   requises si track) + **revue binaire bloquante** admin ;
   install = job mobile (un tap, comme Aptoide) — APK only.
 - **D5** : fiche (bloc Télécharger + QR PC→téléphone + historique versions
   - notes dynamiques par build ; download = dernier build revu).
+    Historique = tous les builds approved (version, date, taille, notes),
+    pending/rejected invisibles au public. **Hero** (`ProductHeader`) :
+    badge « APK vérifié » + bouton Installer (style Play, à côté du vote).
+    JSON-LD `softwareVersion`/`downloadUrl` si LD existant (bonus cheap).
+    File de revue : PAS de badge build sur les lignes (le cockpit suffit ;
+    à rouvrir si les admins le réclament).
+    — FAIT (route download 302, hero, section Versions, LD, fiche mobile
+    `latestBuild` pour le job install).
 - **D6** : home « Mises à jour récentes » + badge discovery **14 j** +
-  gestion builds dashboard.
+  gestion builds dashboard : bloc « Binaire » par produit (dernier build,
+  statut, historique, CTA re-upload) + stat `build_count` dashboard ;
+  côté admin : stat builds (pending/approved/rejected) dans le shell.
+  — FAIT (section home, badge cartes + leaderboard, historique page
+  Update + téléchargement maker, `build_count` lignes, stat admin).
+- **D6** : home « Mises à jour récentes » + badge discovery **14 j** +
+  gestion builds dashboard : bloc « Binaire » par produit (dernier build,
+  statut, historique, CTA re-upload) + stat `build_count` dashboard ;
+  côté admin : stat builds (pending/approved/rejected) dans le shell.
 - [x] Hybride mobile : OTP email (2 endpoints session JSON, stateless),
       docs data par table (`docs/data`, 20 fiches relues schéma/RLS),
       RLS lecture (screenshots/reviews/comments/comment_votes, fix

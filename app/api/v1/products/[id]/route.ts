@@ -12,6 +12,7 @@ import { requireApiUser } from "@/lib/api/auth";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
 import { MAX_PRODUCT_UPLOAD_BYTES, assertContentLength } from "@/lib/api/response";
 import { fetchProductBySlug, updateProduct } from "@/services/products.service";
+import { getApprovedBuilds } from "@/services/builds.service";
 import { parseProductForm } from "../product-forms";
 import { getUserVotedIds } from "@/services/votes.service";
 import { db } from "@/db";
@@ -60,6 +61,9 @@ export async function GET(
     }
     const row = await fetchProductBySlug(slug);
     if (!row) throw new ApiError("NOT_FOUND", 404, "Produit introuvable.");
+    // Dernier build approuvé (D5) : le job install mobile vérifie le
+    // SHA-256 après téléchargement. Échec = pas de build (jamais bloquant).
+    const [latestBuild] = await getApprovedBuilds(row.id).catch(() => []);
     let voted = false;
     try {
       const user = await requireApiUser(req);
@@ -104,6 +108,14 @@ export async function GET(
           avatarUrl: row.makerAvatarUrl,
         },
         voted,
+        latestBuild: latestBuild
+          ? {
+              versionCode: latestBuild.versionCode,
+              versionName: latestBuild.versionName,
+              sha256: latestBuild.sha256File,
+              sizeBytes: latestBuild.sizeBytes,
+            }
+          : null,
       }),
       CACHE_PUBLIC_SHORT,
     );

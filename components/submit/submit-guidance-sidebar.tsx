@@ -77,7 +77,14 @@ function Divider() {
 // Main Sidebar
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function SubmitGuidanceSidebar() {
+export function SubmitGuidanceSidebar({
+  sticky = true,
+  support = true,
+}: {
+  sticky?: boolean;
+  /** `support=false` : la carte aide est rendue par la page (en dernier). */
+  support?: boolean;
+}) {
   // Map FIELD_EXPLANATIONS to accordion format
   const fieldAccordionItems = FIELD_EXPLANATIONS.map((f) => ({
     question: f.field,
@@ -93,7 +100,7 @@ export function SubmitGuidanceSidebar() {
   };
 
   return (
-    <div className="flex flex-col gap-12 sticky top-28">
+    <div className={`flex flex-col gap-12${sticky ? " sticky top-28" : ""}`}>
       {/* ── 1. Listings responsables ── */}
       <div className="flex flex-col gap-5">
         <div className="flex items-center gap-3">
@@ -262,21 +269,50 @@ export function SubmitGuidanceSidebar() {
 
       <Divider />
 
-      {/* ── 6. Support ── */}
-      <div className="flex flex-col gap-4 bg-muted/20 p-6 rounded-[28px] border border-border/40">
-        <div className="flex items-center gap-3">
-          <LifebuoyIcon weight="fill" className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
-          <h4 className="text-[15px] font-black tracking-tight text-foreground">
-            Besoin d&apos;aide ?
-          </h4>
+      {/* ── 6. Support (désactivable : rendu en dernier par la page) ── */}
+      {support && (
+        <div className="flex flex-col gap-4 bg-muted/20 p-6 rounded-[28px] border border-border/40">
+          <div className="flex items-center gap-3">
+            <LifebuoyIcon
+              weight="fill"
+              className="w-6 h-6 text-emerald-600 dark:text-emerald-500"
+            />
+            <h4 className="text-[15px] font-black tracking-tight text-foreground">
+              Besoin d&apos;aide ?
+            </h4>
+          </div>
+          <p className="text-[13px] font-medium text-muted-foreground leading-relaxed">
+            Notre équipe éditoriale modère chaque produit. Si vous avez une question,
+            contactez-nous.
+          </p>
+          <button className="text-[13px] font-bold text-emerald-600 dark:text-emerald-500 text-left hover:underline">
+            Contacter le support &rarr;
+          </button>
         </div>
-        <p className="text-[13px] font-medium text-muted-foreground leading-relaxed">
-          Notre équipe éditoriale modère chaque produit. Si vous avez une question, contactez-nous.
-        </p>
-        <button className="text-[13px] font-bold text-emerald-600 dark:text-emerald-500 text-left hover:underline">
-          Contacter le support &rarr;
-        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Carte aide partagée (D6) : rendue en DERNIER par les pages qui composent
+ * plusieurs sidebars (submit = guidance + binaire). Même pattern exact.
+ */
+export function GuidanceSupportCard() {
+  return (
+    <div className="flex flex-col gap-4 bg-muted/20 p-6 rounded-[28px] border border-border/40">
+      <div className="flex items-center gap-3">
+        <LifebuoyIcon weight="fill" className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
+        <h4 className="text-[15px] font-black tracking-tight text-foreground">
+          Besoin d&apos;aide ?
+        </h4>
       </div>
+      <p className="text-[13px] font-medium text-muted-foreground leading-relaxed">
+        Notre équipe éditoriale modère chaque produit. Si vous avez une question, contactez-nous.
+      </p>
+      <button className="text-[13px] font-bold text-emerald-600 dark:text-emerald-500 text-left hover:underline">
+        Contacter le support &rarr;
+      </button>
     </div>
   );
 }

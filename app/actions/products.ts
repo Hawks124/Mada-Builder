@@ -26,6 +26,7 @@ import { getUserVotedIds, toggleVote } from "@/services/votes.service";
 import { findPublishedIdBySlug, setFeaturedOverride } from "@/services/ranking.service";
 import { logAdminAction } from "@/services/admin-audit.service";
 import { notifyProductMaker } from "@/services/notifications.service";
+import { listProductBuilds } from "@/services/builds.service";
 import { requireStaffId } from "@/app/actions/admin";
 import { sendEmail } from "@/lib/email";
 import {
@@ -106,7 +107,7 @@ export async function submitProductAction(
         lifecycle: str(formData.get("lifecycle")),
         audience: str(formData.get("audience")),
         category: str(formData.get("category")),
-        categories: parseJsonArray(formData.get("categories"), "cat�gories"),
+        categories: parseJsonArray(formData.get("categories"), "catégories"),
         tags: parseJsonArray(formData.get("tags"), "tags"),
         platforms: parseJsonArray(formData.get("platforms"), "plateformes"),
         pricingModel: str(formData.get("pricing")),
@@ -177,7 +178,7 @@ export async function updateProductAction(
         categories:
           formData.get("categories") === null
             ? undefined
-            : parseJsonArray(formData.get("categories"), "cat�gories"),
+            : parseJsonArray(formData.get("categories"), "catégories"),
         tags:
           formData.get("tags") === null ? undefined : parseJsonArray(formData.get("tags"), "tags"),
         platforms:
@@ -334,6 +335,14 @@ export async function approveProductAction(input: {
     try {
       const origin = await appOrigin();
       const [row] = await fetchMyProductsForEmail(input.productId);
+      // Phrase binaire (D6) : la fiche et le binaire ont chacun leur
+      // revue — le mail fiche le dit explicitement.
+      const buildRows = await listProductBuilds(input.productId).catch(() => []);
+      const buildNote = buildRows.some((b) => b.status === "pending")
+        ? "Votre APK est encore en revue — il sera en ligne après vérification."
+        : buildRows.some((b) => b.status === "approved")
+          ? "Votre APK est en ligne."
+          : null;
       await sendEmail({
         to: email,
         subject: productApprovedSubject(productName),
@@ -345,6 +354,7 @@ export async function approveProductAction(input: {
           productUrl: `${origin}/products/${row?.slug ?? ""}`,
           origin,
           timeZone,
+          buildNote,
         }),
         text: productApprovedText({
           displayName,
@@ -352,6 +362,7 @@ export async function approveProductAction(input: {
           productUrl: `${origin}/products/${row?.slug ?? ""}`,
           origin,
           timeZone,
+          buildNote,
         }),
       });
     } catch (e) {
@@ -406,6 +417,14 @@ export async function rejectProductAction(input: {
     );
     try {
       const origin = await appOrigin();
+      // Phrase binaire (D6) : un rejet fiche ne touche pas aux builds —
+      // le maker doit le savoir (les builds en revue le restent).
+      const buildRows = await listProductBuilds(input.productId).catch(() => []);
+      const buildNote = buildRows.some((b) => b.status === "pending")
+        ? "Vos builds en revue sont conservés — ils passeront en revue avec la fiche corrigée."
+        : buildRows.some((b) => b.status === "approved")
+          ? "Votre APK approuvé sera à nouveau téléchargeable dès la fiche republiée."
+          : null;
       await sendEmail({
         to: email,
         subject: productRejectedSubject(productName),
@@ -418,6 +437,7 @@ export async function rejectProductAction(input: {
           dashboardUrl: `${origin}/dashboard`,
           origin,
           timeZone,
+          buildNote,
         }),
         text: productRejectedText({
           displayName,
@@ -426,6 +446,7 @@ export async function rejectProductAction(input: {
           dashboardUrl: `${origin}/dashboard`,
           origin,
           timeZone,
+          buildNote,
         }),
       });
     } catch (e) {
@@ -704,6 +725,24 @@ export async function getReviewItemById(productId: string) {
       throw e;
     }
     captureError(e instanceof Error ? e : new Error(String(e)), { op: "products.reviewItem" });
+    throw new Error("Dossier indisponible pour le moment.");
+  }
+}
+
+/**
+ * Dossier d'une fiche DÉJÀ TRANCHÉE, pour la revue binaire seule (D6) :
+ * null si inconnue. Le cockpit n'y montre aucun verdict fiche.
+ */
+export async function getDecidedItemForBuildReview(productId: string) {
+  try {
+    await requireStaffId();
+    return await fetchReviewItem({ isStaff: true, productId, includeDecided: true });
+  } catch (e) {
+    if (e instanceof ProfileError) {
+      if (e.code === "NOT_FOUND") return null;
+      throw e;
+    }
+    captureError(e instanceof Error ? e : new Error(String(e)), { op: "products.decidedItem" });
     throw new Error("Dossier indisponible pour le moment.");
   }
 }

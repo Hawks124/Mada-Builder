@@ -1,0 +1,581 @@
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { db } from "@/db";
+import { products, productBuilds, users } from "@/db/schema";
+import { ProfileError, assertNotBanned } from "@/services/users.service";
+import { notifyAdminsReview } from "@/services/notifications.service";
+import {
+  headR2Object,
+  deleteR2Object,
+  MAX_BUILD_BYTES,
+  PRODUCT_BUILDS_BUCKET,
+  r2SliceReader,
+} from "@/lib/r2";
+import { ApkParseError, extractApkCerts } from "@/lib/apk";
+
+/**
+ * Builds APK (D1) : enregistrement post-upload. Le binaire est déjà sur R2
+ * (PUT présigné direct, jamais via Vercel) — ici on VÉRIFIE (HEAD : objet
+ * présent, taille exacte, quota) puis on insère en `pending` (revue
+ * binaire bloquante en D4). Extraction manifest/certs = D2 (champs
+ * nullables jusque-là). Partagé web + mobile.
+ *
+ * Les métadonnées manifest/certs sont DÉCLARÉES par le client (affichage
+ * panneau admin) et re-vérifiées serveur en D3 (Range R2) — la revue
+ * humaine + l'installation réelle font foi d'ici là.
+ */
+export async function createBuild(input: {
+  viewerId: string;
+  productId: string;
+  r2Key: string;
+  sha256: string;
+  sizeBytes: number;
+  versionCode?: number | null;
+  versionName?: string | null;
+  whatsnew?: string | null;
+  package?: string | null;
+  minSdk?: number | null;
+  targetSdk?: number | null;
+  permissions?: string[] | null;
+  certSha256?: string | null;
+  certSha1?: string | null;
+  sigScheme?: string | null;
+  certSubjectCn?: string | null;
+  certSubjectO?: string | null;
+  certKeyAlg?: string | null;
+  certKeyBits?: number | null;
+  certSigAlg?: string | null;
+}): Promise<{ id: string }> {
+  await assertNotBanned(input.viewerId);
+  const [product] = await db
+    .select({ id: products.id, makerId: products.makerId })
+    .from(products)
+    .where(and(eq(products.id, input.productId), isNull(products.deletedAt)))
+    .limit(1);
+  if (!product) throw new ProfileError("NOT_FOUND", "Produit introuvable.");
+  if (product.makerId !== input.viewerId) {
+    throw new ProfileError("FORBIDDEN", "Build sur le produit d'autrui interdit.");
+  }
+  // Confinement : la clé doit vivre sous builds/{maker}/{produit}/.
+  const prefix = `builds/${input.viewerId}/${input.productId}/`;
+  if (!input.r2Key.startsWith(prefix) || input.r2Key.includes("..")) {
+    throw new ProfileError("VALIDATION", "Clé de build invalide.");
+  }
+  if (!/^[0-9a-f]{64}$/i.test(input.sha256)) {
+    throw new ProfileError("VALIDATION", "SHA-256 invalide (64 hex).");
+  }
+  if (!Number.isInteger(input.sizeBytes) || input.sizeBytes <= 0) {
+    throw new ProfileError("VALIDATION", "Taille de build illisible.");
+  }
+  if (input.sizeBytes > MAX_BUILD_BYTES) {
+    throw new ProfileError("VALIDATION", "APK trop lourd (300 Mo maximum).");
+  }
+  // Règles Update (D4) : track = ≥1 build existant. Alors versionCode
+  // (non nul) STRICTEMENT supérieur au max + notes requises (≤1000).
+  // Premier build : aucune contrainte (notes optionnelles). Échecs ici =
+  // avant HEAD : pas de purge (le cron balaye l'orphelin).
+  const existing = await db
+    .select({ versionCode: productBuilds.versionCode })
+    .from(productBuilds)
+    .where(eq(productBuilds.productId, input.productId));
+  const maxCode = existing.reduce<number | null>(
+    (m, r) => (typeof r.versionCode === "number" ? Math.max(m ?? -1, r.versionCode) : m),
+    null,
+  );
+  const hasTrack = existing.length > 0;
+  const newCode =
+    typeof input.versionCode === "number" && Number.isInteger(input.versionCode)
+      ? input.versionCode
+      : null;
+  if (maxCode !== null) {
+    if (newCode === null || newCode <= maxCode) {
+      throw new ProfileError("VALIDATION", `Le code de version doit être supérieur à ${maxCode}.`);
+    }
+  }
+  const whatsnew = typeof input.whatsnew === "string" ? input.whatsnew.trim() : "";
+  if (hasTrack && whatsnew === "") {
+    throw new ProfileError("VALIDATION", "Notes de version requises (mise à jour).");
+  }
+  if (whatsnew.length > 1000) {
+    throw new ProfileError("VALIDATION", "Notes de version trop longues (1000 signes maximum).");
+  }
+  // Métadonnées déclarées (affichage admin) : formes saines uniquement.
+  const packageName =
+    typeof input.package === "string" && /^[a-zA-Z][\w.]{0,254}$/.test(input.package)
+      ? input.package
+      : null;
+  const intOrNull = (v: unknown, max: number): number | null =>
+    typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= max ? v : null;
+  const permissions = Array.isArray(input.permissions)
+    ? input.permissions
+        .filter((p): p is string => typeof p === "string" && p.length <= 255)
+        .slice(0, 300)
+    : [];
+  const hexOrNull = (v: unknown, len: number): string | null =>
+    typeof v === "string" && new RegExp(`^[0-9a-f]{${len}}$`, "i").test(v) ? v.toLowerCase() : null;
+  const sigScheme =
+    input.sigScheme === "v1" || input.sigScheme === "v2" || input.sigScheme === "v3"
+      ? input.sigScheme
+      : null;
+  const strOrNull = (v: unknown, max: number): string | null =>
+    typeof v === "string" && v.length > 0 && v.length <= max ? v : null;
+  // Preuve, pas promesse : l'objet existe et sa taille matche.
+  const head = await headR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key);
+  if (!head) {
+    throw new ProfileError("VALIDATION", "Upload introuvable — réessayez l'envoi.");
+  }
+  if (head.size !== input.sizeBytes) {
+    await deleteR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key).catch(() => {});
+    throw new ProfileError("VALIDATION", "Taille déclarée ≠ taille réelle — objet supprimé.");
+  }
+  // Re-vérif serveur (D3) : le client ne peut pas mentir. On relit
+  // l'identité (certs) par tranches Range — jamais le fichier entier.
+  // Invariant : une ligne build ⇒ identité serveur-vérifiée.
+  // (Manifest : champs déclarés, couverts par revue + install ; le
+  // parse serveur du manifest exigerait tout le fichier — différé.)
+  const purgeAndReject = async (message: string): Promise<never> => {
+    await deleteR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key).catch(() => {});
+    throw new ProfileError("VALIDATION", message);
+  };
+  let serverCertSha: string;
+  try {
+    const reader = r2SliceReader(PRODUCT_BUILDS_BUCKET, input.r2Key, head.size);
+    const head4 = await reader.slice(0, 4);
+    if (!(head4[0] === 0x50 && head4[1] === 0x4b && head4[2] === 0x03 && head4[3] === 0x04)) {
+      await purgeAndReject("Le fichier n'est pas un APK valide — objet supprimé.");
+    }
+    const certs = await extractApkCerts(reader);
+    if (certs.some((c) => c.debug)) {
+      await purgeAndReject("APK de debug refusé — objet supprimé.");
+    }
+    serverCertSha = certs[0]!.sha256;
+  } catch (e) {
+    if (e instanceof ProfileError) throw e;
+    await purgeAndReject(
+      e instanceof ApkParseError
+        ? `${e.message} — objet supprimé.`
+        : "Signature illisible — objet supprimé.",
+    );
+  }
+  // Divergence : le cert déclaré doit être celui lu sur R2.
+  const declaredCert = hexOrNull(input.certSha256, 64);
+  if (declaredCert !== null && declaredCert !== serverCertSha!) {
+    await purgeAndReject("Divergence signature — renvoyez le fichier d'origine.");
+  }
+  // Un seul pending à la fois (garde TARDIVE, volontairement après la
+  // re-vérif : un faux ZIP doit toujours être purgé, jamais laisser
+  // d'orphelin R2 — et la re-vérif a déjà coûté ses lectures).
+  // Empiler les updates embrouille la revue et le dashboard.
+  const [stillPending] = await db
+    .select({ id: productBuilds.id })
+    .from(productBuilds)
+    .where(and(eq(productBuilds.productId, input.productId), eq(productBuilds.status, "pending")))
+    .limit(1);
+  if (stillPending) {
+    await deleteR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key).catch(() => {});
+    throw new ProfileError(
+      "VALIDATION",
+      "Un binaire est déjà en revue — attendez le verdict avant d'envoyer une nouvelle version.",
+    );
+  }
+  try {
+    const [row] = await db
+      .insert(productBuilds)
+      .values({
+        productId: input.productId,
+        versionCode: input.versionCode ?? null,
+        versionName: strOrNull(input.versionName, 64),
+        whatsnew: whatsnew === "" ? null : whatsnew,
+        package: packageName,
+        minSdk: intOrNull(input.minSdk, 50),
+        targetSdk: intOrNull(input.targetSdk, 50),
+        permissions,
+        certSha256: hexOrNull(input.certSha256, 64),
+        certSha1: hexOrNull(input.certSha1, 40),
+        sigScheme,
+        certSubjectCn: strOrNull(input.certSubjectCn, 255),
+        certSubjectO: strOrNull(input.certSubjectO, 255),
+        certKeyAlg: strOrNull(input.certKeyAlg, 64),
+        certKeyBits: intOrNull(input.certKeyBits, 16384),
+        certSigAlg: strOrNull(input.certSigAlg, 64),
+        sha256File: input.sha256.toLowerCase(),
+        sizeBytes: input.sizeBytes,
+        r2Key: input.r2Key,
+        status: "pending",
+      })
+      .returning({ id: productBuilds.id });
+    // Staff : tout build enregistré part en revue (D6). Fire-and-forget
+    // best-effort — le record n'attend pas l'email et n'en dépend pas.
+    void notifyAdminsReview({ productId: input.productId, buildId: row.id });
+    return { id: row.id };
+  } catch (e) {
+    // Doublon (produit, version) : l'objet orphelin est purgé (jamais de
+    // binaire sans ligne).
+    await deleteR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key).catch(() => {});
+    throw e instanceof ProfileError
+      ? e
+      : new ProfileError("VALIDATION", "Build déjà enregistré (produit, version).");
+  }
+}
+
+export type BuildListItem = typeof productBuilds.$inferSelect;
+
+export type AdminBuildRow = {
+  id: string;
+  productId: string;
+  productName: string;
+  slug: string;
+  productStatus: string;
+  makerDisplayName: string;
+  makerUsername: string;
+  /** Logo fiche (la tuile initiales reste le repli). */
+  iconUrl: string | null;
+  versionCode: number | null;
+  versionName: string | null;
+  sizeBytes: number;
+  status: string;
+  createdAt: Date;
+  /** Heures d'attente (SLA 24 h) — calculé service, jamais au rendu. */
+  waitingHours: number;
+};
+
+/**
+ * Tous les builds (section admin D6) : pending d'abord, puis récents.
+ * Jointure produit (slug, statut) + maker — le lien par ligne en découle :
+ * build pending → cockpit revue ; approved → fiche publique ; rejected →
+ * cockpit si fiche en revue, sinon fiche publique.
+ */
+export async function listAllBuildsForAdmin(limit = 100): Promise<AdminBuildRow[]> {
+  const rows = await db
+    .select({
+      id: productBuilds.id,
+      productId: productBuilds.productId,
+      productName: products.name,
+      slug: products.slug,
+      productStatus: products.status,
+      makerDisplayName: users.displayName,
+      makerUsername: users.username,
+      iconUrl: products.iconUrl,
+      versionCode: productBuilds.versionCode,
+      versionName: productBuilds.versionName,
+      sizeBytes: productBuilds.sizeBytes,
+      status: productBuilds.status,
+      createdAt: productBuilds.createdAt,
+    })
+    .from(productBuilds)
+    .innerJoin(products, eq(products.id, productBuilds.productId))
+    .innerJoin(users, eq(users.id, products.makerId))
+    .orderBy(
+      sql`CASE WHEN ${productBuilds.status} = 'pending' THEN 0 ELSE 1 END`,
+      desc(productBuilds.createdAt),
+    )
+    .limit(Math.max(1, Math.min(200, limit)));
+  return rows.map((r) => ({
+    ...r,
+    waitingHours: Math.max(0, Math.floor((Date.now() - r.createdAt.getTime()) / 3_600_000)),
+  }));
+}
+
+export type RecentBuildUpdate = {
+  productId: string;
+  slug: string;
+  productName: string;
+  tagline: string;
+  iconUrl: string | null;
+  categoryId: string;
+  makerUsername: string;
+  makerDisplayName: string;
+  makerAvatarUrl: string | null;
+  votes: number;
+  commentsCount: number;
+  pricing: string;
+  platforms: string[];
+  audienceId: string;
+  ratingsSum: number;
+  ratingsCount: number;
+  curated: boolean;
+  publishedAt: Date | null;
+  versionCode: number | null;
+  versionName: string | null;
+  sizeBytes: number;
+  whatsnew: string | null;
+  reviewedAt: Date;
+};
+
+/**
+ * Mises à jour récentes (D6, home) : derniers builds approuvés de
+ * fiches PUBLIÉES (jamais de pending/rejeté/dépublié en public).
+ * Jointure fiche complète : les lignes se rendent comme des cartes
+ * produit (`ProductCard`), pas comme des lignes custom.
+ */
+export async function getRecentApprovedBuilds(limit = 6): Promise<RecentBuildUpdate[]> {
+  // DISTINCT ON exige l'ordre sur la colonne distinctive d'abord : la
+  // récence globale se rejoue donc en requête externe (sous-requête),
+  // sinon LIMIT trancherait par productId, pas par date. Un produit =
+  // UNE carte (son dernier build approuvé) : sans ça, 2 builds approuvés
+  // = 2 cartes = clés React dupliquées.
+  const latestPerProduct = db
+    .selectDistinctOn([productBuilds.productId], {
+      productId: productBuilds.productId,
+      slug: products.slug,
+      productName: products.name,
+      tagline: products.tagline,
+      iconUrl: products.iconUrl,
+      categoryId: products.category,
+      makerUsername: users.username,
+      makerDisplayName: users.displayName,
+      makerAvatarUrl: users.avatarUrl,
+      votes: products.upvoteCount,
+      commentsCount: products.commentsCount,
+      pricing: products.pricingModel,
+      platforms: products.platforms,
+      audienceId: products.audience,
+      ratingsSum: products.ratingsSum,
+      ratingsCount: products.ratingsCount,
+      curated: products.curated,
+      publishedAt: products.publishedAt,
+      versionCode: productBuilds.versionCode,
+      versionName: productBuilds.versionName,
+      sizeBytes: productBuilds.sizeBytes,
+      whatsnew: productBuilds.whatsnew,
+      reviewedAt: productBuilds.reviewedAt,
+    })
+    .from(productBuilds)
+    .innerJoin(products, eq(products.id, productBuilds.productId))
+    .innerJoin(users, eq(users.id, products.makerId))
+    .where(
+      and(
+        eq(productBuilds.status, "approved"),
+        eq(products.status, "published"),
+        isNull(products.deletedAt),
+      ),
+    )
+    .orderBy(productBuilds.productId, desc(productBuilds.reviewedAt))
+    .as("latest_per_product");
+  const rows = await db
+    .select()
+    .from(latestPerProduct)
+    .orderBy(desc(latestPerProduct.reviewedAt))
+    .limit(Math.max(1, Math.min(20, limit)));
+  return rows.flatMap((r) =>
+    r.reviewedAt === null
+      ? []
+      : [
+          {
+            productId: r.productId,
+            slug: r.slug,
+            productName: r.productName,
+            tagline: r.tagline,
+            iconUrl: r.iconUrl,
+            categoryId: r.categoryId,
+            makerUsername: r.makerUsername,
+            makerDisplayName: r.makerDisplayName,
+            makerAvatarUrl: r.makerAvatarUrl,
+            votes: r.votes,
+            commentsCount: r.commentsCount,
+            pricing: r.pricing,
+            platforms: r.platforms,
+            audienceId: r.audienceId,
+            ratingsSum: r.ratingsSum,
+            ratingsCount: r.ratingsCount,
+            curated: r.curated,
+            publishedAt: r.publishedAt,
+            versionCode: r.versionCode,
+            versionName: r.versionName,
+            sizeBytes: r.sizeBytes,
+            whatsnew: r.whatsnew,
+            reviewedAt: r.reviewedAt,
+          },
+        ],
+  );
+}
+
+/**
+ * Compteurs builds (D6, shell admin) : file actionnable d'un coup d'œil.
+ */
+export async function getBuildStats(): Promise<{
+  pending: number;
+  approved: number;
+  rejected: number;
+}> {
+  const rows = await db
+    .select({ status: productBuilds.status, value: sql<number>`count(*)::int` })
+    .from(productBuilds)
+    .groupBy(productBuilds.status);
+  const out = { pending: 0, approved: 0, rejected: 0 };
+  for (const r of rows) {
+    if (r.status === "pending" || r.status === "approved" || r.status === "rejected") {
+      out[r.status] = r.value;
+    }
+  }
+  return out;
+}
+
+/**
+ * Builds APPROUVÉS d'un produit (fiche publique D5, mobile) : plus
+ * récents d'abord. `r2Key` inclus MAIS réservé serveur (jamais sérialisé
+ * client — le download passe par la route qui signe à la demande).
+ */
+export async function getApprovedBuilds(productId: string): Promise<BuildListItem[]> {
+  return db
+    .select()
+    .from(productBuilds)
+    .where(and(eq(productBuilds.productId, productId), eq(productBuilds.status, "approved")))
+    .orderBy(desc(productBuilds.createdAt));
+}
+
+/**
+ * Statut binaire par produit (dashboard : bouton Update vs rattrapage) :
+ * track existe ? + max versionCode + nombre de builds. Une requête.
+ */
+export async function getProductsBuildStatus(productIds: string[]): Promise<
+  Record<
+    string,
+    {
+      hasBuilds: boolean;
+      latestVersionCode: number | null;
+      buildCount: number;
+      hasPendingBuild: boolean;
+    }
+  >
+> {
+  const out: Record<
+    string,
+    {
+      hasBuilds: boolean;
+      latestVersionCode: number | null;
+      buildCount: number;
+      hasPendingBuild: boolean;
+    }
+  > = {};
+  for (const id of productIds)
+    out[id] = { hasBuilds: false, latestVersionCode: null, buildCount: 0, hasPendingBuild: false };
+  if (productIds.length === 0) return out;
+  const rows = await db
+    .select({
+      productId: productBuilds.productId,
+      versionCode: productBuilds.versionCode,
+      status: productBuilds.status,
+    })
+    .from(productBuilds)
+    .where(inArray(productBuilds.productId, productIds));
+  for (const r of rows) {
+    const entry = out[r.productId];
+    if (!entry) continue;
+    entry.hasBuilds = true;
+    entry.buildCount += 1;
+    if (r.status === "pending") entry.hasPendingBuild = true;
+    if (typeof r.versionCode === "number") {
+      entry.latestVersionCode = Math.max(entry.latestVersionCode ?? -1, r.versionCode);
+    }
+  }
+  return out;
+}
+
+const UPDATE_BADGE_DAYS = 14;
+
+/**
+ * Badge discovery « Mis à jour » (D6) : dernier build approuvé revu il
+ * y a < 14 j → libellé de version. Un appel pour N produits (home).
+ * Jointure `published` : la garantie ne dépend d'aucun appelant (un
+ * badge sur fiche rejetée serait un mensonge public).
+ */
+export async function getProductsUpdateBadges(
+  productIds: string[],
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (productIds.length === 0) return out;
+  const since = new Date(Date.now() - UPDATE_BADGE_DAYS * 86_400_000);
+  const dated: Record<string, { at: Date; label: string }> = {};
+  const rows = await db
+    .select({
+      productId: productBuilds.productId,
+      versionCode: productBuilds.versionCode,
+      versionName: productBuilds.versionName,
+      reviewedAt: productBuilds.reviewedAt,
+      createdAt: productBuilds.createdAt,
+    })
+    .from(productBuilds)
+    .innerJoin(products, eq(products.id, productBuilds.productId))
+    .where(
+      and(
+        inArray(productBuilds.productId, productIds),
+        eq(productBuilds.status, "approved"),
+        eq(products.status, "published"),
+        isNull(products.deletedAt),
+      ),
+    );
+  for (const r of rows) {
+    const stamped = r.reviewedAt ?? r.createdAt;
+    if (!stamped || stamped < since) continue;
+    const label =
+      r.versionCode === null && !r.versionName
+        ? "nouvelle version"
+        : `v${r.versionName ?? "?"} (${r.versionCode ?? "?"})`;
+    const prev = dated[r.productId];
+    if (!prev || stamped > prev.at) dated[r.productId] = { at: stamped, label };
+  }
+  for (const [id, v] of Object.entries(dated)) out[id] = v.label;
+  return out;
+}
+
+/**
+ * Builds d'un produit (staff : panneau revue ; maker : dashboard D6) :
+ * pending d'abord, puis plus récents. Inclut `r2Key` (le CALLER génère
+ * l'URL signée courte côté serveur — jamais exposée telle quelle).
+ */
+export async function listProductBuilds(productId: string): Promise<BuildListItem[]> {
+  return db
+    .select()
+    .from(productBuilds)
+    .where(eq(productBuilds.productId, productId))
+    .orderBy(
+      sql`CASE WHEN ${productBuilds.status} = 'pending' THEN 0 ELSE 1 END`,
+      desc(productBuilds.createdAt),
+    );
+}
+
+/**
+ * Revue binaire (staff) : pending → approved | rejected (+ motif
+ * obligatoire au rejet, emailé). Symétrique à la revue fiche — deux
+ * axes indépendants (matrice 2×2).
+ */
+export async function reviewBuild(input: {
+  buildId: string;
+  decision: "approved" | "rejected";
+  reason?: string;
+  staffId: string;
+}): Promise<{ productId: string; versionCode: number | null; versionName: string | null }> {
+  const [build] = await db
+    .select({
+      id: productBuilds.id,
+      productId: productBuilds.productId,
+      status: productBuilds.status,
+      versionCode: productBuilds.versionCode,
+      versionName: productBuilds.versionName,
+    })
+    .from(productBuilds)
+    .where(eq(productBuilds.id, input.buildId))
+    .limit(1);
+  if (!build) throw new ProfileError("NOT_FOUND", "Build introuvable.");
+  if (build.status !== "pending") {
+    throw new ProfileError("VALIDATION", "Build déjà tranché.");
+  }
+  const reason = (input.reason ?? "").trim();
+  if (input.decision === "rejected" && reason === "") {
+    throw new ProfileError("VALIDATION", "Motif requis (emailé au maker).");
+  }
+  await db
+    .update(productBuilds)
+    .set({
+      status: input.decision === "approved" ? "approved" : "rejected",
+      rejectionReason: input.decision === "rejected" ? reason : null,
+      reviewedAt: new Date(),
+      reviewedBy: input.staffId,
+    })
+    .where(eq(productBuilds.id, input.buildId));
+  return {
+    productId: build.productId,
+    versionCode: build.versionCode,
+    versionName: build.versionName,
+  };
+}

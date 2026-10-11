@@ -61,6 +61,8 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     profile.bio ??
     `Découvrez les ${totals.products} produit${totals.products === 1 ? "" : "s"} de ${profile.displayName}, maker malgache.`;
   const url = `${siteUrl()}/makers/${profile.username}`;
+  // OG générée 1200×630 (avatar + compteurs réels) — jamais l'avatar brut.
+  const ogImage = `${siteUrl()}/og/m/${profile.username}`;
   return {
     title,
     description,
@@ -70,15 +72,13 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
       description,
       url,
       type: "profile",
-      ...(profile.avatarUrl
-        ? { images: [{ url: profile.avatarUrl, alt: profile.displayName }] }
-        : {}),
+      images: [{ url: ogImage, width: 1200, height: 630, alt: profile.displayName }],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title,
       description,
-      ...(profile.avatarUrl ? { images: [profile.avatarUrl] } : {}),
+      images: [ogImage],
     },
   };
 }
@@ -125,7 +125,7 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
     totalViews7d: 0,
     pendingCount: 0,
     totalMrrCents: 0,
-    totalComments: 0,
+    totalComments: totals.comments,
     globalRating: 0,
   };
 
@@ -253,6 +253,7 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
                     votes: p.upvotes,
                     initialVoted: votedIds.has(p.id),
                     iconGradient: appGradientFor(p.id),
+                    iconUrl: p.iconUrl ?? null,
                     initials: appInitialsFor(p.name),
                     pricing: p.pricing,
                     platforms: p.platforms,
@@ -260,6 +261,7 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
                     publishedAt: p.publishedAt,
                     rating: ratingLabelOf(p.ratingAvg, p.ratingsCount),
                     curated: p.curated,
+                    comments: p.commentsCount,
                   }}
                 />
               ))}

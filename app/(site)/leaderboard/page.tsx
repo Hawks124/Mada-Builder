@@ -9,11 +9,33 @@ import { getSessionUser } from "@/lib/supabase/server";
 import { getUserVotedIds } from "@/services/votes.service";
 import { getFeatured, getLeaderboard, toFeaturedCard } from "@/services/ranking.service";
 import { itemListLd } from "@/lib/seo";
+import { siteUrl } from "@/lib/site-url";
+
+const LEADERBOARD_TITLE = "Classement de la tech malgache | Mada-Made";
+const LEADERBOARD_DESC =
+  "Découvrez les produits tech construits à Madagascar, classés par les votes de la communauté : apps, SaaS et outils des makers malgaches.";
 
 export const metadata: Metadata = {
-  title: "Classement de la tech malgache | Mada-Made",
-  description:
-    "Découvrez les produits tech construits à Madagascar, classés par les votes de la communauté : apps, SaaS et outils des makers malgaches.",
+  title: LEADERBOARD_TITLE,
+  description: LEADERBOARD_DESC,
+  // Canonical de base : les variantes ?w=&cat=&type=&page= partagent le jus
+  // (pas de noindex — le contenu reste crawlable, une seule URL fait foi).
+  alternates: { canonical: `${siteUrl()}/leaderboard` },
+  openGraph: {
+    title: "Le classement de la tech malgache",
+    description: LEADERBOARD_DESC,
+    url: `${siteUrl()}/leaderboard`,
+    type: "website",
+    images: [
+      { url: `${siteUrl()}/og/leaderboard`, width: 1200, height: 630, alt: "Classement Mada-Made" },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Le classement de la tech malgache",
+    description: LEADERBOARD_DESC,
+    images: [`${siteUrl()}/og/leaderboard`],
+  },
 };
 
 // Toujours dynamique : classement vivant (même raison que la home).

@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { SearchInput } from "@/components/ui/search-input";
+import { SearchOverlay } from "@/components/navbar/search-overlay";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ProductDropdown } from "./product-dropdown";
 import { CommunityDropdown, FACEBOOK_GROUP_URL } from "./community-dropdown";
@@ -39,7 +39,8 @@ export type NavbarUser = {
 export function NavbarShell({ user }: { user: NavbarUser }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [navQuery, setNavQuery] = React.useState("");
-  const router = useRouter();
+  const [overlayOpen, setOverlayOpen] = React.useState(false);
+  const [overlayQuery, setOverlayQuery] = React.useState("");
 
   // Block scrolling when mobile menu is open
   React.useEffect(() => {
@@ -50,8 +51,11 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
     }
   }, [isMobileMenuOpen]);
 
-  // Alt+K global : focus le search visible prioritaire (page discover > nav).
-  // Garde : jamais en cours de frappe. Le badge "Alt K" du SearchInput est réel.
+  // Alt+K global : ouvre l'overlay de recherche (standard palette).
+  // Garde : jamais en cours de frappe. Le badge "Alt K" du SearchInput
+  // reste exact (il ouvre la recherche, sur place désormais).
+  // Sur la page Explorer, le champ principal garde son comportement
+  // direct (filtre instantané) — la nav n'interfère pas.
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!e.altKey || e.metaKey || e.ctrlKey) return;
@@ -62,29 +66,24 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
         (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)
       )
         return;
-      const visible = (input: HTMLInputElement | null) =>
-        input != null && input.offsetParent !== null;
       const primary = document.querySelector<HTMLInputElement>('input[data-search-primary="true"]');
-      const target =
-        primary != null && visible(primary)
-          ? primary
-          : Array.from(document.querySelectorAll<HTMLInputElement>('input[type="search"]')).find(
-              visible,
-            );
-      if (target != null) {
-        e.preventDefault();
-        target.focus();
-        target.select?.();
-      }
+      if (primary != null && primary.offsetParent !== null) return;
+      e.preventDefault();
+      setOverlayQuery(navQuery);
+      setIsMobileMenuOpen(false);
+      setOverlayOpen(true);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [navQuery]);
 
   const submitNavSearch = () => {
-    const q = navQuery.trim();
+    // Standard command-palette : résultats sur place (overlay), jamais
+    // de redirection sèche vers Explorer. La page Explorer garde son
+    // propre champ (variante page) + le lien « tous les résultats ».
+    setOverlayQuery(navQuery);
     setIsMobileMenuOpen(false);
-    router.push(q !== "" ? `/discover?q=${encodeURIComponent(q)}` : "/discover");
+    setOverlayOpen(true);
   };
 
   return (
@@ -123,6 +122,12 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
             placeholder="Rechercher des produits"
             value={navQuery}
             onChange={(e) => setNavQuery(e.target.value)}
+            onFocus={() => {
+              // Le champ nav est un déclencheur, pas un champ : le focus
+              // ouvre la palette (résultats live sur place).
+              setOverlayQuery(navQuery);
+              setOverlayOpen(true);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") submitNavSearch();
             }}
@@ -183,6 +188,11 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
               placeholder="Rechercher des produits..."
               value={navQuery}
               onChange={(e) => setNavQuery(e.target.value)}
+              onFocus={() => {
+                setOverlayQuery(navQuery);
+                setIsMobileMenuOpen(false);
+                setOverlayOpen(true);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") submitNavSearch();
               }}
@@ -249,6 +259,9 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
             />
           </div>
         </div>
+      )}
+      {overlayOpen && (
+        <SearchOverlay initialQuery={overlayQuery} onClose={() => setOverlayOpen(false)} />
       )}
     </header>
   );

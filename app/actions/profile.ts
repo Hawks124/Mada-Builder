@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ProfileError, deleteAccount, updateAvatar, updateProfile } from "@/services/users.service";
+import { purgeUserProductObjects } from "@/services/products.service";
 import { AVATAR_BUCKET } from "@/lib/supabase/storage";
 import { withToast } from "@/lib/toast";
 import { captureError } from "@/lib/monitoring";
@@ -161,6 +162,14 @@ export async function deleteMyAccount(): Promise<void> {
     }
   } catch (e) {
     captureError(e, { op: "account.deleteStorage" });
+  }
+
+  // 2b. Objets R2 des produits (logos, captures, APKs) — sans ça, la
+  // cascade SQL laisserait des orphelins (promesse légale §suppression).
+  try {
+    await purgeUserProductObjects(user.id);
+  } catch (e) {
+    captureError(e, { op: "account.deleteProductObjects" });
   }
 
   // 3. Ligne DB (hard delete RGPD ; garde dernier-admin incluse).

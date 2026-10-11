@@ -8,7 +8,7 @@ import { db } from "../db";
 import { users } from "../db/schema";
 import { createAdminClient } from "../lib/supabase/admin";
 
-const KNOWN = new Set(["github", "google", "email"]);
+const KNOWN = new Set(["github", "google", "gitlab", "email"]);
 
 async function main() {
   const rows = await db.select({ id: users.id, providers: users.providers }).from(users);

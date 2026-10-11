@@ -1,6 +1,6 @@
 "use client";
 
-import { PRODUCT_LINK_FIELDS, hasAccessPoint } from "@/config/product-links";
+import { PRODUCT_LINK_FIELDS, downloadBannedFor, hasAccessPoint } from "@/config/product-links";
 import { useSubmitForm } from "@/components/submit/submit-form-context";
 
 /**
@@ -9,7 +9,7 @@ import { useSubmitForm } from "@/components/submit/submit-form-context";
  * Lit le contexte (valeurs + politiques constatées par les pastilles).
  */
 export function SubmitLinksSummary() {
-  const { linkValues, linkPolicies } = useSubmitForm();
+  const { linkValues, linkPolicies, platforms } = useSubmitForm();
 
   const filled = Object.entries(linkValues).filter(([, v]) => v.trim() !== "");
   if (filled.length === 0) return null;
@@ -45,7 +45,7 @@ export function SubmitLinksSummary() {
           Vérification des liens en cours…
         </p>
       )}
-      {!hasAccessPoint(linkValues) && (
+      {!hasAccessPoint(linkValues, { ignoreDownload: downloadBannedFor(platforms) }) && (
         <p className="text-[13px] font-bold text-foreground">
           Il manque un point d&apos;accès (site, store, registre ou démo).
         </p>

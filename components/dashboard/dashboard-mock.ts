@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Mock du dashboard maker — typé pour brancher Drizzle + session
  * sans changer les composants (PRD §8 : products, revenue_connections).
  */
@@ -45,6 +45,14 @@ export type DashboardApp = {
   ratingsCount: number;
   status: AppStatus;
   rejectionReason?: string;
+  /** Veille (D6) : badge + rang masqué (hors classement), stats privées gardées. */
+  curated?: boolean;
+  /** Track binaire (D4) : ≥1 build → Update (APK+notes requis), sinon CTA rattrapage. */
+  hasBuilds?: boolean;
+  /** Nombre de builds (D6) : affiché quand > 0. */
+  buildCount?: number;
+  /** Un build est en revue : bouton Update remplacé par l'état (1 pending max). */
+  hasPendingBuild?: boolean;
   revenue?: DashboardRevenue;
   iconGradient: string;
   initials: string;
@@ -252,6 +260,9 @@ export type DashboardTotals = {
   totalMrrCents: number;
   totalComments: number;
   globalRating: number;
+  /** Binaires (D6) : total + nb de produits avec track (absents en public). */
+  totalBuilds?: number;
+  appsWithApk?: number;
 };
 
 export function getDashboardTotals(apps: DashboardApp[]): DashboardTotals {
@@ -268,6 +279,8 @@ export function getDashboardTotals(apps: DashboardApp[]): DashboardTotals {
     totalMrrCents: apps.reduce((acc, a) => acc + (a.revenue?.mrrCents ?? 0), 0),
     totalComments: apps.reduce((acc, a) => acc + a.comments, 0),
     globalRating: totalRatings > 0 ? Math.round((weightedSum / totalRatings) * 10) / 10 : 0,
+    totalBuilds: apps.reduce((acc, a) => acc + (a.buildCount ?? 0), 0),
+    appsWithApk: apps.filter((a) => a.hasBuilds).length,
   };
 }
 

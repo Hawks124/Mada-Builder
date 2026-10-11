@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
+import { useMounted } from "@/lib/use-mounted";
 import { ArrowLeftIcon, ArrowRightIcon, ImagesIcon, XIcon } from "@phosphor-icons/react";
 import type { GalleryOrientation } from "@/config/product-types";
 
@@ -35,6 +37,9 @@ export function ProductGallery({
   const [index, setIndex] = React.useState(0);
   const [lightbox, setLightbox] = React.useState<number | null>(null);
   const lightboxOpen = lightbox !== null;
+  // Portail body (SSR-safe via useMounted) : même piège que les autres
+  // overlays (ancêtre en backdrop-blur = fixed calé dessus, nav devant).
+  const mounted = useMounted();
 
   const scrollTo = (i: number) => {
     if (shots.length === 0) return;
@@ -110,10 +115,21 @@ export function ProductGallery({
               aria-label={`Agrandir la capture ${i + 1}`}
               className={
                 portrait
-                  ? "shrink-0 w-[46%] sm:w-[32%] lg:w-[24%] aspect-9/16 rounded-[5px] bg-muted/30 border border-border/40 overflow-hidden snap-center relative cursor-zoom-in group"
-                  : "shrink-0 w-[85%] md:w-[65%] aspect-video rounded-[5px] bg-muted/30 border border-border/40 overflow-hidden snap-center relative cursor-zoom-in group"
+                  ? "shrink-0 w-[46%] sm:w-[32%] lg:w-[24%] aspect-9/16 rounded-[5px] border border-border/40 overflow-hidden snap-center relative cursor-zoom-in group bg-black"
+                  : "shrink-0 w-[85%] md:w-[65%] aspect-video rounded-[5px] border border-border/40 overflow-hidden snap-center relative cursor-zoom-in group bg-black"
               }
             >
+              {/* Fond flouté : remplit le slot avec l'image elle-même —
+                  zéro vide gris, zéro recadrage (le net reste en contain).
+                  Même URL = cache navigateur, coût nul. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={shot.src}
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover blur-xl brightness-50 scale-110 pointer-events-none"
+              />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={shot.src}
@@ -153,58 +169,61 @@ export function ProductGallery({
         </div>
       </div>
 
-      {lightbox !== null && shots[lightbox] && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Capture ${lightbox + 1} sur ${shots.length}`}
-          onClick={() => setLightbox(null)}
-          className="fixed inset-0 z-100 bg-black/95"
-        >
-          <button
-            type="button"
-            onClick={() => setLightbox(null)}
-            aria-label="Fermer"
-            className="absolute top-4 right-4 z-10 flex items-center justify-center h-11 w-11 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-          >
-            <XIcon weight="bold" className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setLightbox((lightbox - 1 + shots.length) % shots.length);
-            }}
-            aria-label="Capture précédente"
-            className="absolute left-2 sm:left-5 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center h-11 w-11 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-          >
-            <ArrowLeftIcon weight="bold" className="h-5 w-5" />
-          </button>
-          <div className="absolute inset-0" onClick={(e) => e.stopPropagation()}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              key={shots[lightbox].src}
-              src={shots[lightbox].src}
-              alt={shots[lightbox].alt}
-              className="absolute inset-0 h-full w-full object-contain"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setLightbox((lightbox + 1) % shots.length);
-            }}
-            aria-label="Capture suivante"
-            className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center h-11 w-11 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-          >
-            <ArrowRightIcon weight="bold" className="h-5 w-5" />
-          </button>
-          <span className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 text-[12px] font-bold text-white/60 tabular-nums">
-            {lightbox + 1} / {shots.length}
-          </span>
-        </div>
-      )}
+      {lightbox !== null && shots[lightbox] && mounted
+        ? createPortal(
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Capture ${lightbox + 1} sur ${shots.length}`}
+              onClick={() => setLightbox(null)}
+              className="fixed inset-0 z-[100] bg-black/95"
+            >
+              <button
+                type="button"
+                onClick={() => setLightbox(null)}
+                aria-label="Fermer"
+                className="absolute top-4 right-4 z-10 flex items-center justify-center h-11 w-11 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <XIcon weight="bold" className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox((lightbox - 1 + shots.length) % shots.length);
+                }}
+                aria-label="Capture précédente"
+                className="absolute left-2 sm:left-5 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center h-11 w-11 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <ArrowLeftIcon weight="bold" className="h-5 w-5" />
+              </button>
+              <div className="absolute inset-0" onClick={(e) => e.stopPropagation()}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  key={shots[lightbox].src}
+                  src={shots[lightbox].src}
+                  alt={shots[lightbox].alt}
+                  className="absolute inset-0 h-full w-full object-contain"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox((lightbox + 1) % shots.length);
+                }}
+                aria-label="Capture suivante"
+                className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center h-11 w-11 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <ArrowRightIcon weight="bold" className="h-5 w-5" />
+              </button>
+              <span className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 text-[12px] font-bold text-white/60 tabular-nums">
+                {lightbox + 1} / {shots.length}
+              </span>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

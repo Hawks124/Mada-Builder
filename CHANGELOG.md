@@ -104,6 +104,11 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   submit/update/resubmit/re-revue, lecture + tri file, backfill ;
   section 13-bis verify : draft=NULL, publish=posé, resubmit=reset ;
   122/122).
+- **D1 builds APK** : table `product_builds` (migration 0033, historique,
+  UNIQUE produit+version), bucket privé + presign PUT (quota 250 Mo,
+  15 min) + GET signées, record `pending` avec preuves HEAD (taille
+  menteuse/clé étrangère refusées + purge, jamais d'orphelin) ;
+  `docs/data/product_builds.md` + contrats ; verify hardening 29/29.
 
 - Milestone products Phase 1–2 : schéma (`products`, `product_screenshots`,
   `votes`, `product_page_views`), liens JSONB par field-id, RLS, buckets R2,

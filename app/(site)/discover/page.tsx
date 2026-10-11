@@ -4,8 +4,29 @@ import { getSessionUser } from "@/lib/supabase/server";
 import { getUserVotedIds } from "@/services/votes.service";
 import { searchProducts } from "@/services/discover.service";
 import { itemListLd } from "@/lib/seo";
+import { siteUrl } from "@/lib/site-url";
+import type { Metadata } from "next";
 
 type SearchParams = Record<string, string | string[] | undefined>;
+
+// SEO : canonical de base (les facettes partagent le jus) ; recherche
+// textuelle = noindex/follow (résultats redondants, comme /search).
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}): Promise<Metadata> {
+  const sp = await searchParams;
+  const q = typeof sp.q === "string" ? sp.q.trim() : "";
+  const base: Metadata = {
+    title: "Découvrir les produits tech malgaches | Mada-Made",
+    description:
+      "Explorez l'annuaire des produits tech construits à Madagascar : filtrez par catégorie, plateforme et prix, et soutenez les makers.",
+    alternates: { canonical: `${siteUrl()}/discover` },
+  };
+  if (q !== "") return { ...base, robots: { index: false, follow: true } };
+  return base;
+}
 
 // Toujours dynamique : résultats vivants (même raison que la home).
 export const dynamic = "force-dynamic";

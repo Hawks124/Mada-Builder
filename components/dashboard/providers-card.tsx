@@ -6,7 +6,7 @@ import { GithubLogoIcon, CheckCircleIcon, EnvelopeIcon } from "@phosphor-icons/r
 import { linkProvider, unlinkProvider } from "@/app/actions/auth";
 import { Spinner } from "@/components/ui/spinner";
 
-export type ProviderId = "github" | "google" | "email";
+export type ProviderId = "github" | "google" | "gitlab" | "email";
 
 // Lignes fournisseurs — lie/délie via Server Actions (pending par ligne,
 // promesses awaitées : jamais de clic aveugle).
@@ -43,7 +43,13 @@ export function ProvidersCard({
       <ProviderRow
         icon={<GithubLogoIcon weight="fill" className="h-6 w-6 text-foreground shrink-0" />}
         name="GitHub"
-        sub={githubHandle ? `@${githubHandle}` : "Compte GitHub lié"}
+        sub={
+          connected.includes("github")
+            ? githubHandle
+              ? `@${githubHandle}`
+              : "Compte GitHub lié"
+            : "Liez un second fournisseur pour sécuriser l'accès."
+        }
         connected={connected.includes("github")}
         isLast={isLast}
         pending={pendingId === "github"}
@@ -72,6 +78,29 @@ export function ProvidersCard({
         pending={pendingId === "google"}
         onConnect={() => run("google", () => linkProvider("google"))}
         onDisconnect={() => run("google", () => unlinkProvider("google"))}
+      />
+
+      <ProviderRow
+        icon={
+          <Image
+            src="/logos/gitlab.svg"
+            alt="GitLab"
+            width={24}
+            height={24}
+            className="h-6 w-6 shrink-0"
+          />
+        }
+        name="GitLab"
+        sub={
+          connected.includes("gitlab")
+            ? "Compte GitLab lié"
+            : "Liez un second fournisseur pour sécuriser l'accès."
+        }
+        connected={connected.includes("gitlab")}
+        isLast={isLast}
+        pending={pendingId === "gitlab"}
+        onConnect={() => run("gitlab", () => linkProvider("gitlab"))}
+        onDisconnect={() => run("gitlab", () => unlinkProvider("gitlab"))}
       />
 
       <ProviderRow

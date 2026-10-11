@@ -46,3 +46,33 @@ export function formatMoney(
     minimumFractionDigits: 0,
   }).format(cents / 100);
 }
+
+/**
+ * Attente file de revue (SLA 24 h) — même libellé file fiches et file
+ * binaires (client-safe : importable côté client comme serveur).
+ */
+export function waitingFr(createdAt: Date | string, now: Date = new Date()): string {
+  const days = Math.max(
+    0,
+    Math.floor((now.getTime() - new Date(createdAt).getTime()) / 86_400_000),
+  );
+  if (days <= 0) return "En attente depuis aujourd'hui";
+  return `En attente depuis ${days} j`;
+}
+
+/**
+ * Temps relatif court (« il y a 5 min », « hier ») — mentions « modifié »
+ * des commentaires/avis (client-safe).
+ */
+export function timeAgoFr(iso: Date | string, now: Date = new Date()): string {
+  const diff = Math.max(0, now.getTime() - new Date(iso).getTime());
+  const min = Math.floor(diff / 60_000);
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `il y a ${h} h`;
+  const d = Math.floor(h / 24);
+  if (d === 1) return "hier";
+  if (d < 7) return `il y a ${d} j`;
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}

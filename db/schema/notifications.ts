@@ -18,6 +18,8 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "product_approved",
   "product_rejected",
   "product_removed",
+  "build_approved",
+  "build_rejected",
   "review_received",
   "comment_received",
   "comment_replied",

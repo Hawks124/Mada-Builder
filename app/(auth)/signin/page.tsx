@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { SigninForm } from "@/components/auth/signin-form";
 import { LogoMark } from "@/components/ui/logo";
+import { getSessionUser } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
   title: "Connexion | Mada-Made",
@@ -30,7 +32,17 @@ export const metadata: Metadata = {
  * police (Geist), et il n'y a qu'un seul logo à l'écran — celui de la colonne
  * de gauche, à tous les breakpoints.
  */
-export default function SigninPage() {
+export default async function SigninPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ next?: string }>;
+}) {
+  // Déjà connecté : pas de formulaire inutile — retour demandé ou dashboard.
+  const sessionUser = await getSessionUser().catch(() => null);
+  if (sessionUser) {
+    const raw = (await searchParams)?.next;
+    redirect(raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard");
+  }
   return (
     <div className="min-h-screen bg-background flex overflow-hidden selection:bg-foreground selection:text-background">
       {/* ── Colonne Gauche — Le Formulaire ── */}

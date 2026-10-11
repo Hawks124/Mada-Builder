@@ -38,6 +38,8 @@
     "@supabase/supabase-js": "^2.116.0",
     "@upstash/ratelimit": "^2.1.0",
     "@upstash/redis": "^1.39.0",
+    "app-info-parser": "1.1.6",
+    "archiver": "^8.0.0",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.3",
     "jose": "^6.2.12",
@@ -59,6 +61,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/archiver": "^8.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

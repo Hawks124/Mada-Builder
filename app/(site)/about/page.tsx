@@ -140,14 +140,9 @@ export default function AproposPage() {
           <div className="absolute inset-0 bg-linear-to-t from-background via-background/25 to-background/10" />
         </div>
         <div className="container mx-auto max-w-8xl px-4 md:px-8">
-          {/* `relative z-10` : le chevauchement est voulu, mais la photo
-              précédait sans contexte d'empilement et la **première ligne du
-              titre passait dessous** — c'est ce qui dessinait un trait
-              parasites au-dessus du mot suivant.
-
-              La largeur est en rem, pas en `ch` : au corps display, `ch` vaut
-              une mesure beaucoup trop étroite et cassait la phrase sur six
-              lignes. `text-balance` équilibre les deux lignes. */}
+          {/* `z-10` obligatoire : le titre chevauche la photo, donc sans lui la
+              première ligne passe sous l'image. Largeur en rem et non en `ch` —
+              au corps display, `ch` vaut une mesure trop étroite. */}
           <h1 className="relative z-10 -mt-10 max-w-[min(100%,38rem)] pb-4 text-6xl font-black leading-[0.95] tracking-tight text-balance text-muted-foreground md:-mt-14 md:text-7xl">
             Ce que tu construis ici, on le voit ici.
           </h1>
@@ -155,20 +150,10 @@ export default function AproposPage() {
       </section>
 
       {/* ── État des lieux ──
-          **Le chiffre ne nous appartient pas, et n'est pas écrit comme s'il
-          nous appartenait.** Une version précédente de cette page disait
-          « La communauté de Mada-Made est un groupe public » : c'était faux.
-          Mada-Made n'a pas de communauté, et le groupe en question n'est pas
-          le nôtre. Mada-Made est un projet en cours, sans contributeurs et
-          sans communauté établie — tant qu'il n'en a pas, la page ne peut pas
-          en inventer une.
-
-          Le nombre est donc présenté pour ce qu'il mesure réellement : la
-          taille d'un public malgache qui existe déjà, et qu'aucun annuaire
-          malgache n'a jamais servi. C'est un fait sur le marché, pas une
-          revendication. Le groupe n'est pas nommé : tant que l'usage n'est
-          pas autorisé, le nom n'apparaît pas publiquement.
-        */}
+          Chiffre présenté comme **taille de marché**, jamais comme une
+          revendication : Mada-Made n'a pas de communauté, et le groupe en
+          question n'est pas le nôtre. Son nom n'apparaît pas tant que l'usage
+          n'est pas autorisé. */}
       <section className="container mx-auto max-w-7xl px-4 md:px-8">
         <div className="border-y border-border/60 py-8">
           <p className="max-w-[56ch] text-[15px] font-medium leading-relaxed text-muted-foreground">

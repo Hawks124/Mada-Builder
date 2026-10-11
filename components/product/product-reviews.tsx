@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { StarIcon } from "@phosphor-icons/react";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { EmptyState } from "@/components/ui/empty-state";
-import { cn } from "@/lib/utils";
+import { cn, timeAgoFr } from "@/lib/utils";
+import { toast } from "@/components/ui/toast";
+import { Spinner } from "@/components/ui/spinner";
 import type { ReviewItem } from "@/services/feedback.service";
 import {
   deleteReviewAction,
@@ -77,7 +79,8 @@ function ReviewForm({
             aria-checked={rating === i}
             aria-label={`${i} étoile${i > 1 ? "s" : ""}`}
             onClick={() => setRating(i)}
-            className="cursor-pointer transition-transform hover:scale-110"
+            disabled={pending}
+            className="cursor-pointer transition-transform hover:scale-110 disabled:cursor-wait disabled:opacity-60"
           >
             <StarIcon
               weight="fill"
@@ -91,8 +94,9 @@ function ReviewForm({
         onChange={(e) => setBody(e.target.value)}
         rows={4}
         maxLength={2000}
+        disabled={pending}
         placeholder="Ce que ce produit change pour vous (10 caractères minimum)…"
-        className="w-full rounded-2xl border border-border/60 bg-background px-4 py-3 text-[14px] font-medium text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-foreground/40 resize-y"
+        className="w-full rounded-2xl border border-border/60 bg-background px-4 py-3 text-[14px] font-medium text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-foreground/40 resize-y disabled:opacity-60"
       />
       <div className="flex items-center justify-between gap-3">
         <span className="text-[11px] font-bold tabular-nums text-muted-foreground/70">
@@ -102,8 +106,9 @@ function ReviewForm({
           type="button"
           onClick={send}
           disabled={pending}
-          className="rounded-full bg-foreground px-6 py-2.5 text-[13px] font-bold text-background hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+          className="flex items-center gap-2 rounded-full bg-foreground px-6 py-2.5 text-[13px] font-bold text-background hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
         >
+          {pending && <Spinner size="xs" />}
           {pending ? "Envoi…" : existing ? "Mettre à jour" : "Publier mon avis"}
         </button>
       </div>
@@ -164,16 +169,18 @@ function MakerResponseForm({
         onChange={(e) => setBody(e.target.value)}
         rows={2}
         maxLength={1000}
+        disabled={pending}
         placeholder="Réponse officielle du maker…"
-        className="w-full rounded-2xl border border-amber-500/30 bg-background px-4 py-3 text-[14px] font-medium text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-amber-500/60 resize-y"
+        className="w-full rounded-2xl border border-amber-500/30 bg-background px-4 py-3 text-[14px] font-medium text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-amber-500/60 resize-y disabled:opacity-60"
       />
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={send}
           disabled={pending}
-          className="rounded-full bg-foreground px-5 py-2 text-[12px] font-bold text-background hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+          className="flex items-center gap-2 rounded-full bg-foreground px-5 py-2 text-[12px] font-bold text-background hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
         >
+          {pending && <Spinner size="xs" />}
           {pending ? "Envoi…" : "Répondre"}
         </button>
         <button
@@ -213,97 +220,119 @@ export function ProductReviews({
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = React.useState<string | null>(null);
+  const [goneIds, setGoneIds] = React.useState<Set<string>>(new Set());
   const own = initial.items.find((r) => r.own) ?? null;
   const { distribution } = initial;
 
+  // Delete optimiste : retrait immédiat, retour + toast si échec.
   const remove = async (reviewId: string) => {
+    if (deleting) return;
     setDeleting(reviewId);
-    await deleteReviewAction({ productId, slug, reviewId });
+    setGoneIds((prev) => new Set(prev).add(reviewId));
+    const res = await deleteReviewAction({ productId, slug, reviewId });
     setDeleting(null);
+    if (!res.ok) {
+      setGoneIds((prev) => {
+        const next = new Set(prev);
+        next.delete(reviewId);
+        return next;
+      });
+      toast("err", res.message ?? "Suppression impossible.");
+      return;
+    }
     router.refresh();
   };
 
+  const visibleItems = initial.items.filter((r) => !goneIds.has(r.id));
+
   return (
     <div id={id} className="flex flex-col pt-10 border-t border-border/40">
-      <h2 className="text-2xl font-extrabold tracking-tight mb-10">Avis utilisateurs</h2>
-
-      {distribution.count === 0 ? (
-        <EmptyState
-          size="sm"
-          title="Aucun avis pour le moment."
-          description="Soyez le premier à noter ce produit."
-        />
-      ) : (
-        <>
-          <div className="flex flex-col md:flex-row gap-10 md:gap-20 items-end mb-16 w-full">
-            <div className="flex flex-col gap-0 shrink-0">
-              <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground mb-2">
-                Excellence globale
-              </span>
-              <div className="flex items-baseline gap-3">
-                <span className="text-[7rem] md:text-[9rem] font-black tracking-tighter leading-none text-foreground -ml-1 tabular-nums">
-                  {distribution.avg.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}
-                </span>
-                <span className="text-2xl font-bold text-muted-foreground/25 mb-2">/&nbsp;5</span>
-              </div>
-              <div className="flex items-center gap-1.5 mt-3">
-                <Stars value={distribution.avg} />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4 w-full flex-1 pb-3">
-              {[5, 4, 3, 2, 1].map((stars) => {
-                const n = distribution.stars[5 - stars] ?? 0;
-                const pct = distribution.count > 0 ? Math.round((n / distribution.count) * 100) : 0;
-                return (
-                  <div key={stars} className="flex items-center gap-5 w-full group">
-                    <div className="flex items-center gap-1.5 shrink-0 w-7 opacity-35 group-hover:opacity-100 transition-opacity duration-200">
-                      <span className="text-[13px] font-bold text-foreground tabular-nums">
-                        {stars}
-                      </span>
-                      <StarIcon weight="fill" className="w-3 h-3 text-amber-500" />
-                    </div>
-                    <div className="flex-1 h-[1.5px] bg-border/50 overflow-hidden relative rounded-full">
-                      <div
-                        className="absolute top-0 left-0 h-full bg-amber-500 rounded-full transition-all duration-1000 ease-[cubic-bezier(0.2,1,0.2,1)]"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="text-[12px] font-bold text-muted-foreground w-4 text-right tabular-nums opacity-35 group-hover:opacity-100 transition-opacity duration-200">
-                      {n}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <p className="text-[13px] font-medium text-muted-foreground mb-10">
-            Sur la base de <strong className="text-foreground">{distribution.count} avis</strong>.
-            Seuls les utilisateurs enregistrés peuvent noter ce produit.
-          </p>
-        </>
-      )}
-
+      <h2 className="text-2xl font-extrabold tracking-tight">Avis utilisateurs</h2>
       {curated ? (
-        <p className="text-[14px] font-medium text-muted-foreground rounded-2xl border border-border/40 bg-muted/20 px-5 py-4">
-          Produit en veille : les avis sont désactivés — les commentaires restent ouverts
-          ci-dessous.
+        // Veille : l'indication vit dans le sous-titre, pas dans un bloc
+        // séparé (fini le double vide : EmptyState + boîte).
+        <p className="text-[13px] font-medium text-muted-foreground mt-1 mb-10">
+          Avis désactivés pour les produits en veille — les commentaires restent ouverts ci-dessous.
         </p>
-      ) : signedIn ? (
-        <ReviewForm productId={productId} slug={slug} existing={own} />
       ) : (
-        <p className="text-[14px] font-medium text-muted-foreground">
-          <Link href="/signin" className="font-bold text-foreground underline underline-offset-4">
-            Connectez-vous
-          </Link>{" "}
-          pour donner votre avis.
-        </p>
+        <div className="mb-10" />
       )}
 
-      {initial.items.length > 0 && (
+      {!curated &&
+        (distribution.count === 0 ? (
+          <EmptyState
+            size="sm"
+            title="Aucun avis pour le moment."
+            description="Soyez le premier à noter ce produit."
+          />
+        ) : (
+          <>
+            <div className="flex flex-col md:flex-row gap-10 md:gap-20 items-end mb-16 w-full">
+              <div className="flex flex-col gap-0 shrink-0">
+                <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground mb-2">
+                  Excellence globale
+                </span>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-[7rem] md:text-[9rem] font-black tracking-tighter leading-none text-foreground -ml-1 tabular-nums">
+                    {distribution.avg.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}
+                  </span>
+                  <span className="text-2xl font-bold text-muted-foreground/25 mb-2">/&nbsp;5</span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-3">
+                  <Stars value={distribution.avg} />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-4 w-full flex-1 pb-3">
+                {[5, 4, 3, 2, 1].map((stars) => {
+                  const n = distribution.stars[5 - stars] ?? 0;
+                  const pct =
+                    distribution.count > 0 ? Math.round((n / distribution.count) * 100) : 0;
+                  return (
+                    <div key={stars} className="flex items-center gap-5 w-full group">
+                      <div className="flex items-center gap-1.5 shrink-0 w-7 opacity-35 group-hover:opacity-100 transition-opacity duration-200">
+                        <span className="text-[13px] font-bold text-foreground tabular-nums">
+                          {stars}
+                        </span>
+                        <StarIcon weight="fill" className="w-3 h-3 text-amber-500" />
+                      </div>
+                      <div className="flex-1 h-[1.5px] bg-border/50 overflow-hidden relative rounded-full">
+                        <div
+                          className="absolute top-0 left-0 h-full bg-amber-500 rounded-full transition-all duration-1000 ease-[cubic-bezier(0.2,1,0.2,1)]"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="text-[12px] font-bold text-muted-foreground w-4 text-right tabular-nums opacity-35 group-hover:opacity-100 transition-opacity duration-200">
+                        {n}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <p className="text-[13px] font-medium text-muted-foreground mb-10">
+              Sur la base de <strong className="text-foreground">{distribution.count} avis</strong>.
+              Seuls les utilisateurs enregistrés peuvent noter ce produit.
+            </p>
+          </>
+        ))}
+
+      {!curated &&
+        (signedIn ? (
+          <ReviewForm productId={productId} slug={slug} existing={own} />
+        ) : (
+          <p className="text-[14px] font-medium text-muted-foreground">
+            <Link href="/signin" className="font-bold text-foreground underline underline-offset-4">
+              Connectez-vous
+            </Link>{" "}
+            pour donner votre avis.
+          </p>
+        ))}
+
+      {!curated && visibleItems.length > 0 && (
         <div className="flex flex-col gap-10 mt-14">
-          {initial.items.map((review) => (
+          {visibleItems.map((review) => (
             <div key={review.id} className="flex flex-col gap-0 group/review">
               <div className="flex items-start gap-4">
                 <Link
@@ -332,6 +361,13 @@ export function ProductReviews({
                         day: "numeric",
                         month: "short",
                       })}
+                      {new Date(review.updatedAt).getTime() >
+                        new Date(review.createdAt).getTime() && (
+                        <span title="Avis modifié après publication">
+                          {" "}
+                          · modifié {timeAgoFr(review.updatedAt)}
+                        </span>
+                      )}
                     </span>
                   </div>
                   <p className="text-[15px] text-foreground font-medium mt-3 leading-relaxed">
@@ -342,8 +378,9 @@ export function ProductReviews({
                       type="button"
                       onClick={() => remove(review.id)}
                       disabled={deleting === review.id}
-                      className="mt-2 self-start text-[11px] font-bold text-muted-foreground hover:text-red-600 transition-colors cursor-pointer disabled:opacity-50"
+                      className="mt-2 self-start flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-red-600 transition-colors cursor-pointer disabled:opacity-70"
                     >
+                      {deleting === review.id && <Spinner size="xs" />}
                       {deleting === review.id ? "Suppression…" : "Supprimer mon avis"}
                     </button>
                   )}

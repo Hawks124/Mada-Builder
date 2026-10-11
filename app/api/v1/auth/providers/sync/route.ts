@@ -12,7 +12,7 @@ export const PATCH = async () => methodNotAllowed(["POST"]);
 export const DELETE = async () => methodNotAllowed(["POST"]);
 export const PUT = async () => methodNotAllowed(["POST"]);
 
-const KNOWN = ["github", "google", "email"] as const;
+const KNOWN = ["github", "google", "gitlab", "email"] as const;
 type Known = (typeof KNOWN)[number];
 
 /**
@@ -22,8 +22,8 @@ type Known = (typeof KNOWN)[number];
  * périmé (source de vérité partagée web/mobile).
  *
  * Idempotent et auto-limitée : ne touche QUE soi (id du token, jamais
- * du body — pas d'IDOR par construction), ne connaît que le trio
- * github/google/email (le reste est ignoré, jamais persisté), ne
+ * du body — pas d'IDOR par construction), ne connaît que github /
+ * google / gitlab / email (le reste est ignoré, jamais persisté), ne
  * remplit l'avatar que s'il est NULL (jamais d'écrasement d'upload).
  * À appeler après chaque login OAuth et après chaque liaison
  * (supabase_flutter `linkIdentity`), best-effort côté client.

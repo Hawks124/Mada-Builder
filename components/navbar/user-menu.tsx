@@ -231,12 +231,25 @@ function UserMenuItem({
 }
 
 // Icône du VRAI provider (jamais hardcodée — cf. bug "logo GitHub sur
-// session Google"). Google = logo officiel, GitHub = mark, Email = enveloppe.
+// session Google"). Google/GitLab = logos officiels, GitHub = mark,
+// Email = enveloppe.
 function ProviderMark({ provider }: { provider: string }) {
   if (provider === "Google") {
     return (
       <Image
         src="/logos/google.svg"
+        alt=""
+        aria-hidden="true"
+        width={14}
+        height={14}
+        className="h-3.5 w-3.5 shrink-0"
+      />
+    );
+  }
+  if (provider === "GitLab") {
+    return (
+      <Image
+        src="/logos/gitlab.svg"
         alt=""
         aria-hidden="true"
         width={14}

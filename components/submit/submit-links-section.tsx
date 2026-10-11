@@ -4,6 +4,7 @@ import {
   BASE_LINK_FIELDS,
   PRODUCT_LINKS_BY_TYPE,
   PRODUCT_LINK_FIELDS,
+  downloadBannedFor,
   hasAccessPoint,
   requiredFor,
 } from "@/config/product-links";
@@ -20,14 +21,20 @@ import { FieldBadge } from "@/components/ui/field-badge";
  * (almost). Chaque champ porte sa pastille de vérification à la volée.
  */
 export function SubmitLinksSection() {
-  const { productType, audience, pricing, linkValues } = useSubmitForm();
+  const { productType, audience, pricing, linkValues, platforms } = useSubmitForm();
   const isKids = audience === "kids";
   const monetized = isMonetizedPricing(pricing);
+  // Android : lien direct interdit (anti-contournement revue binaire).
+  // Champ masqué s'il est vide ; s'il est rempli (édition), il reste
+  // visible pour pouvoir être SUPPRIMÉ (jamais de donnée piégée).
+  const dlBanned = downloadBannedFor(platforms);
+  const dlFilled = (linkValues.download ?? "").trim() !== "";
 
   const specific = PRODUCT_LINKS_BY_TYPE[productType] ?? PRODUCT_LINKS_BY_TYPE.other ?? [];
   const visible = [...BASE_LINK_FIELDS, ...specific]
     .map((id) => PRODUCT_LINK_FIELDS[id])
-    .filter((f): f is NonNullable<typeof f> => Boolean(f));
+    .filter((f): f is NonNullable<typeof f> => Boolean(f))
+    .filter((f) => f.id !== "download" || !dlBanned || dlFilled);
 
   const badgeFor = (id: string): "required" | "recommended" | "optional" => {
     const field = PRODUCT_LINK_FIELDS[id];
@@ -39,7 +46,7 @@ export function SubmitLinksSection() {
     return "optional";
   };
 
-  const hasAccess = hasAccessPoint(linkValues);
+  const hasAccess = hasAccessPoint(linkValues, { ignoreDownload: dlBanned });
 
   // Miroirs des valeurs hors-champ (changement de type) : sans eux, les
   // liens du type précédent seraient silencieusement supprimés au submit
@@ -72,6 +79,15 @@ export function SubmitLinksSection() {
       {!hasAccess && (
         <p className="text-[13px] text-center font-bold text-amber-600 dark:text-amber-400">
           Ajoutez au moins un point d&apos;accès (site, store, registre ou démo) pour soumettre.
+        </p>
+      )}
+      {dlBanned && dlFilled && (
+        <p
+          role="alert"
+          className="text-[13px] text-center font-bold text-red-600 dark:text-red-400"
+        >
+          Téléchargement direct interdit pour Android — supprimez ce lien (Play Store ou APK soumis
+          à la revue). La publication est bloquée tant qu&apos;il est rempli.
         </p>
       )}
 

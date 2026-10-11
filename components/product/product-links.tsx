@@ -38,6 +38,7 @@ export function ProductLinks({
   unverifiedCount = 0,
   productId,
   trackOutbound = false,
+  hideDirectDownload = false,
 }: {
   productType: string;
   /** field-id (matrice) → URL. */
@@ -50,6 +51,8 @@ export function ProductLinks({
   productId?: string;
   /** Trace les clics sortants (jamais en revue admin). */
   trackOutbound?: boolean;
+  /** Android : lien direct interdit (anti-contournement revue binaire). */
+  hideDirectDownload?: boolean;
 }) {
   const [copied, setCopied] = React.useState(false);
 
@@ -63,7 +66,7 @@ export function ProductLinks({
   const registry = access.find((f) => f.id === "registry");
   const rest = access.filter((f) => f.id !== "registry");
   const [primary, ...others] = rest;
-  const downloadUrl = (links.download ?? "").trim() || null;
+  const downloadUrl = hideDirectDownload === true ? null : (links.download ?? "").trim() || null;
 
   const copyInstall = async () => {
     if (!installCommand) return;
@@ -182,12 +185,17 @@ export function ProductLinks({
           </p>
           <Link
             href={downloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={() => track("download")}
             className="flex items-center justify-center gap-2 h-11 rounded-full bg-foreground text-background text-[14px] font-bold hover:opacity-90 transition-all active:scale-[0.98]"
           >
             <DownloadSimpleIcon weight="bold" className="w-4 h-4 shrink-0" />
             Télécharger
           </Link>
+          <p className="text-[11px] font-medium text-muted-foreground leading-relaxed">
+            Lien direct du maker — non vérifié par la revue.
+          </p>
         </div>
       )}
 

@@ -11,6 +11,7 @@ import {
   CaretDoubleLeftIcon,
   CaretDoubleRightIcon,
   ListIcon,
+  DownloadSimpleIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,13 @@ const NAV_ITEMS = [
     badgeKey: "pending" as const,
   },
   {
+    href: "/admin/builds",
+    label: "Binaires",
+    icon: DownloadSimpleIcon,
+    match: (pathname: string) => pathname.startsWith("/admin/builds"),
+    badgeKey: "builds" as const,
+  },
+  {
     href: "/admin/rejected",
     label: "Rejetés",
     icon: XIcon,
@@ -61,12 +69,15 @@ export default function AdminShell({
   children,
   pendingCount,
   rejectedCount,
+  buildsPendingCount,
 }: {
   children: React.ReactNode;
   /** File de revue réelle (layout serveur, jamais de mock). */
   pendingCount: number;
   /** Rejetés en attente de correction (layout serveur). */
   rejectedCount?: number;
+  /** Binaires en attente de revue (layout serveur). */
+  buildsPendingCount: number;
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = React.useState(false);
@@ -122,6 +133,7 @@ export default function AdminShell({
           onToggle={toggle}
           pendingCount={pendingCount}
           rejectedCount={rejectedCount}
+          buildsPendingCount={buildsPendingCount}
         />
       </aside>
 
@@ -141,6 +153,7 @@ export default function AdminShell({
               onNavigate={() => setMobileOpen(false)}
               pendingCount={pendingCount}
               rejectedCount={rejectedCount}
+              buildsPendingCount={buildsPendingCount}
             />
           </div>
         </div>
@@ -177,6 +190,7 @@ function AdminSidebarBody({
   onNavigate,
   pendingCount,
   rejectedCount,
+  buildsPendingCount,
 }: {
   pathname: string;
   collapsed: boolean;
@@ -185,6 +199,7 @@ function AdminSidebarBody({
   onNavigate?: () => void;
   pendingCount: number;
   rejectedCount?: number;
+  buildsPendingCount: number;
 }) {
   return (
     <>
@@ -254,7 +269,9 @@ function AdminSidebarBody({
             "badgeKey" in item
               ? item.badgeKey === "pending"
                 ? pendingCount
-                : (rejectedCount ?? 0)
+                : item.badgeKey === "builds"
+                  ? buildsPendingCount
+                  : (rejectedCount ?? 0)
               : 0;
           return (
             <Link

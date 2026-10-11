@@ -9,21 +9,10 @@ import { ActionButton } from "@/components/ui/action-button";
 import { type ActivityItem } from "@/components/admin/admin-mock";
 import { getRecentActivity } from "@/services/activity.service";
 import { FeaturedOverrideForm } from "@/components/admin/featured-override-form";
-import { getMakersCount } from "@/services/users.service";
-import {
-  getBannedCount,
-  getFeedbackStats,
-  getHomepageViews,
-  getOutboundClicksTotal,
-  getPendingCountCached,
-  getProductsCountByStatus,
-  getProductViewsTotal,
-  getTotalUpvotes,
-  getUsersTotal,
-  getVisitsTotal,
-} from "@/services/stats.service";
-import { getEmailStats } from "@/services/emails.service";
+import { getPendingCountCached, getProductsCount } from "@/services/stats.service";
 import { getFeatured } from "@/services/ranking.service";
+import { getBuildStats } from "@/services/builds.service";
+import { getAdminAnalyticsCached, withTimeout } from "@/services/stats.service";
 
 // noindex strict — jamais indexé, même au backend (robots + middleware).
 export const metadata: Metadata = {
@@ -57,13 +46,34 @@ const STATS_FALLBACK: AdminStat[] = [
 async function getStats(): Promise<AdminStat[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return STATS_FALLBACK;
   try {
-    const [
+    // Split décisionnel vs analytique (perf overview) : la file et les
+    // builds restent FRAIS (jamais de décision sur du daté), avec timeout
+    // 8 s et repli « — » par item (plus de tout-ou-rien). Le reste vient
+    // du cache 90 s.
+    const [pending, builds, a] = await Promise.all([
+      withTimeout(
+        getProductsCount("pending").catch(() => -1),
+        8000,
+        -1,
+      ),
+      withTimeout(
+        getBuildStats().catch(() => null),
+        8000,
+        null,
+      ),
+      getAdminAnalyticsCached(),
+    ]);
+    const {
       visits,
+      visits30,
+      visitsTotal,
       homeViews,
       makers,
       users,
       banned,
-      byStatus,
+      published,
+      drafts,
+      rejected,
       upvotes,
       views,
       views7,
@@ -72,33 +82,26 @@ async function getStats(): Promise<AdminStat[]> {
       emails,
       emails7,
       feedback,
-    ] = await Promise.all([
-      getVisitsTotal(7),
-      getHomepageViews(7),
-      getMakersCount(),
-      getUsersTotal(),
-      getBannedCount(),
-      getProductsCountByStatus(),
-      getTotalUpvotes(),
-      getProductViewsTotal(),
-      getProductViewsTotal(7),
-      getOutboundClicksTotal(),
-      getOutboundClicksTotal(7),
-      getEmailStats(),
-      getEmailStats(7),
-      getFeedbackStats(),
-    ]);
-    const total = byStatus.draft + byStatus.pending + byStatus.published + byStatus.rejected;
-    const published = byStatus.published;
-    const pending = byStatus.pending;
-    const drafts = byStatus.draft;
-    const rejected = byStatus.rejected;
+    } = a;
+    const total = drafts + (pending >= 0 ? pending : 0) + published + rejected;
     const n = (v: number): string => v.toLocaleString("fr-FR");
     return [
       {
         label: "Visites (7 j)",
         value: n(visits),
         delta: `dont ${n(homeViews)} accueil`,
+        tone: visits > 0 ? ("up" as const) : ("neutral" as const),
+      },
+      {
+        label: "Visites (30 j)",
+        value: n(visits30),
+        delta: `dont ${n(visits)} (7 j)`,
+        tone: visits30 > 0 ? ("up" as const) : ("neutral" as const),
+      },
+      {
+        label: "Visites totales",
+        value: n(visitsTotal),
+        delta: "cumulé, tous chemins",
         tone: "neutral" as const,
       },
       {
@@ -121,7 +124,29 @@ async function getStats(): Promise<AdminStat[]> {
         delta: "en ligne",
         tone: "neutral" as const,
       },
-      { label: "En revue", value: n(pending), delta: "file pending", tone: "neutral" as const },
+      {
+        label: "En revue",
+        value: pending >= 0 ? n(pending) : "—",
+        delta: "file pending",
+        tone: "neutral" as const,
+      },
+      {
+        label: "Binaires en revue",
+        value: builds ? n(builds.pending) : "—",
+        delta: builds
+          ? `${n(builds.approved)} approuvés · ${n(builds.rejected)} rejetés`
+          : "indisponible",
+        tone: "neutral" as const,
+      },
+      {
+        label: "Binaires total",
+        value: builds ? n(builds.pending + builds.approved + builds.rejected) : "—",
+        delta: "APK envoyés, tous statuts",
+        tone:
+          builds && builds.pending + builds.approved + builds.rejected > 0
+            ? ("up" as const)
+            : ("neutral" as const),
+      },
       {
         label: "Brouillons",
         value: n(drafts),
@@ -139,13 +164,13 @@ async function getStats(): Promise<AdminStat[]> {
         label: "Vues fiches",
         value: n(views),
         delta: `dont ${n(views7)} (7 j)`,
-        tone: "neutral" as const,
+        tone: views7 > 0 ? ("up" as const) : ("neutral" as const),
       },
       {
         label: "Clics sortants",
         value: n(clicks),
         delta: `dont ${n(clicks7)} (7 j)`,
-        tone: "neutral" as const,
+        tone: clicks7 > 0 ? ("up" as const) : ("neutral" as const),
       },
       {
         label: "Notes moyennes",
@@ -154,19 +179,19 @@ async function getStats(): Promise<AdminStat[]> {
             ? feedback.avgRating.toLocaleString("fr-FR", { maximumFractionDigits: 1 })
             : "—",
         delta: `${n(feedback.reviews)} avis`,
-        tone: "neutral" as const,
+        tone: feedback.reviews > 0 ? ("up" as const) : ("neutral" as const),
       },
       {
         label: "Commentaires",
         value: n(feedback.comments),
         delta: "visibles",
-        tone: "neutral" as const,
+        tone: feedback.comments > 0 ? ("up" as const) : ("neutral" as const),
       },
       {
         label: "Emails envoyés",
         value: n(emails.sent + emails.delivered),
         delta: `dont ${n(emails7.sent + emails7.delivered)} (7 j)`,
-        tone: "neutral" as const,
+        tone: emails7.sent + emails7.delivered > 0 ? ("up" as const) : ("neutral" as const),
       },
       {
         label: "Échecs emails",

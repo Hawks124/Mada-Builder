@@ -226,6 +226,8 @@ export type AdminProduct = {
   revenue?: { provider: "stripe" | "revenuecat"; mrrCents: number };
   iconGradient: string;
   initials: string;
+  /** Logo réel si fourni (D6) — sinon tuile initiales. */
+  iconUrl?: string | null;
   maker: AdminProductMaker;
 };
 
@@ -233,6 +235,7 @@ export type AdminProduct = {
 export const PRICING_ORDER: Record<string, number> = {
   Gratuit: 0,
   Freemium: 1,
+  "Open Source / Dons": 1,
   Abonnement: 2,
   Payant: 3,
 };

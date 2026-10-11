@@ -8,9 +8,11 @@ import {
   AppleLogoIcon,
   AndroidLogoIcon,
   ChatCircleTextIcon,
+  DownloadSimpleIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
+import { getPricingById } from "@/config/pricing";
 import { getRatingById } from "@/config/ratings";
 import { VoteButton } from "@/components/votes/vote-button";
 import { AgeBadge } from "@/components/ui/age-badge";
@@ -34,7 +36,9 @@ export type ProductCardProps = {
   initialVoted?: boolean;
   iconGradient: string;
   initials: string;
-  /** Id pricing (free|freemium|…) — label affiché : Freemium si non-free. */
+  /** Logo réel si fourni (D6) — sinon tuile initiales. */
+  iconUrl?: string | null;
+  /** Id pricing (config/pricing) — label + accent via la config, jamais codé en dur. */
   pricing: string;
   /** Note moyenne — vide = bloc masqué (avis en V1.5, jamais de faux chiffre). */
   rating?: string;
@@ -50,45 +54,75 @@ export type ProductCardProps = {
   publishedAt?: string | null;
   /** Veille internationale : badge + vote désactivé (hors jeu). */
   curated?: boolean;
+  /** Build approuvé < 14 j (D6) : libellé version — badge « Mis à jour ». */
+  updatedLabel?: string | null;
+  /** Variante install (lignes « Mises à jour ») : remplace le cluster
+      vote+comment par le bouton Installer vers ce chemin stable. */
+  installPath?: string | null;
 };
 
 export function ProductCard({ product }: { product: ProductCardProps }) {
   const category = getCategoryById(product.categoryId);
   const rating = getRatingById(product.audienceId);
+  const pricing = getPricingById(product.pricing);
 
   return (
     <div className="group flex flex-col p-6 rounded-[10px] bg-muted/40 hover:bg-muted/70 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:hover:shadow-black/50 border border-transparent hover:border-border/50 h-full relative">
       {/* CARD TOP: Icon & Vote */}
       <div className="flex items-start justify-between w-full mb-5">
-        <div
-          className={cn(
-            "w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg bg-linear-to-br shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3 group-hover:shadow-[0_0_15px_rgba(0,0,0,0.15)] dark:group-hover:shadow-[0_0_15px_rgba(255,255,255,0.15)]",
-            product.iconGradient,
-          )}
-        >
-          {product.initials}
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Comment Count Pill */}
-          <Link
-            href={`/products/${product.slug}#comments`}
-            className="flex items-center gap-1.5  text-muted-foreground transition-colors z-10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ChatCircleTextIcon weight="fill" className="w-[14px] h-[14px]" />
-            <span className="text-[12px] font-bold leading-none">{product.comments ?? 0}</span>
-          </Link>
-
-          <VoteButton
-            productId={product.id}
-            productName={product.name}
-            votes={product.votes}
-            initialVoted={product.initialVoted ?? false}
-            variant="pill"
-            disabledReason={
-              product.curated ? "Produit en veille : hors classement, votes désactivés." : undefined
-            }
+        {product.iconUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.iconUrl}
+            alt=""
+            className="w-12 h-12 md:w-14 md:h-14 rounded-2xl object-cover shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3 bg-muted/20"
           />
+        ) : (
+          <div
+            className={cn(
+              "w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg bg-linear-to-br shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3 group-hover:shadow-[0_0_15px_rgba(0,0,0,0.15)] dark:group-hover:shadow-[0_0_15px_rgba(255,255,255,0.15)]",
+              product.iconGradient,
+            )}
+          >
+            {product.initials}
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          {product.installPath ? (
+            <Link
+              href={product.installPath}
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-[13px] font-bold text-background hover:opacity-90 transition-opacity z-10"
+            >
+              <DownloadSimpleIcon weight="bold" className="w-3.5 h-3.5" />
+              Installer
+            </Link>
+          ) : (
+            <>
+              {/* Comment Count Pill */}
+              <Link
+                href={`/products/${product.slug}#comments`}
+                className="flex items-center gap-1.5  text-muted-foreground transition-colors z-10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ChatCircleTextIcon weight="fill" className="w-[14px] h-[14px]" />
+                <span className="text-[12px] font-bold leading-none">{product.comments ?? 0}</span>
+              </Link>
+
+              <VoteButton
+                productId={product.id}
+                productName={product.name}
+                votes={product.votes}
+                initialVoted={product.initialVoted ?? false}
+                variant="pill"
+                disabledReason={
+                  product.curated
+                    ? "Produit en veille : hors classement, votes désactivés."
+                    : undefined
+                }
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -108,6 +142,14 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
               Veille
             </span>
           )}
+          {product.updatedLabel && (
+            <span
+              title={`Mis à jour récemment : ${product.updatedLabel}`}
+              className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400"
+            >
+              {product.updatedLabel}
+            </span>
+          )}
         </div>
         <p className="text-[14px] leading-snug font-medium text-muted-foreground line-clamp-2 h-11">
           {product.tagline}
@@ -115,7 +157,8 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
 
         {/* Meta Line: Rating, Platforms, Classification, Pricing */}
         <div className="flex items-center gap-2.5 mt-3 flex-wrap">
-          {product.rating != null && product.rating !== "" && (
+          {/* Veille : hors jeu (avis désactivés) → pas de note affichée. */}
+          {!product.curated && product.rating != null && product.rating !== "" && (
             <div className="flex items-center gap-1 text-[11px] font-bold text-foreground">
               <StarIcon weight="fill" className="w-3.5 h-3.5 text-yellow-500" />
               {product.rating}
@@ -145,11 +188,13 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
           <div className="w-0.75 h-0.75 rounded-full bg-border" />
           <AgeBadge value={rating.badge} size="xs" />
 
-          {product.pricing !== "free" && (
+          {pricing && pricing.id !== "free" && (
             <>
               <div className="w-0.75 h-0.75 rounded-full bg-border" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-[#B58A43]">
-                {product.pricing === "paid" ? "Payant" : "Freemium"}
+              <span
+                className={`text-[9px] font-black uppercase tracking-widest ${pricing.accentClass}`}
+              >
+                {pricing.label}
               </span>
             </>
           )}

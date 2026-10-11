@@ -1,5 +1,6 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
+import { remoteImagePatterns } from "./lib/remote-images";
 
 const nextConfig: NextConfig = {
   // Dev téléphone sur le LAN (HMR cross-origin) — ignoré en prod.
@@ -14,15 +15,10 @@ const nextConfig: NextConfig = {
     },
   },
   images: {
-    // Avatars distants (OAuth, storage) + placeholders de démo.
+    // Source unique lib/remote-images (statiques + domaines customs R2
+    // lus depuis l'env au build — zéro changement de code au deploy).
     // SVG locaux (/logos) passent tels quels (non optimisés, sans warning).
-    remotePatterns: [
-      { protocol: "https", hostname: "i.pravatar.cc" },
-      { protocol: "https", hostname: "picsum.photos" },
-      { protocol: "https", hostname: "*.supabase.co" },
-      { protocol: "https", hostname: "lh3.googleusercontent.com" },
-      { protocol: "https", hostname: "avatars.githubusercontent.com" },
-    ],
+    remotePatterns: remoteImagePatterns(),
   },
 };
 

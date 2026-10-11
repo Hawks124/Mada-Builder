@@ -333,12 +333,28 @@ export function linkIdsForType(productType: string): string[] {
  * Règle "au moins un point d'accès" : site OU store OU registre OU démo
  * OU téléchargement. Le formulaire exige UN point d'accès, jamais un
  * champ précis (anti-friction : un CLI npm-only ou un bot Telegram n'a
- * pas de site web).
+ * pas de site web). `ignoreDownload` (Android) : le lien direct y est
+ * interdit — il ne compte plus comme point d'accès.
  */
-export function hasAccessPoint(values: Record<string, string | undefined>): boolean {
+export function hasAccessPoint(
+  values: Record<string, string | undefined>,
+  opts?: { ignoreDownload?: boolean },
+): boolean {
   return Object.values(PRODUCT_LINK_FIELDS).some(
-    (f) => f.accessPoint && (values[f.id] ?? "").trim() !== "",
+    (f) =>
+      f.accessPoint &&
+      !(opts?.ignoreDownload === true && f.id === "download") &&
+      (values[f.id] ?? "").trim() !== "",
   );
+}
+
+/**
+ * Téléchargement direct interdit : Android. Un binaire distribué hors
+ * revue contourne tout le circuit binaire (matrice 2×2) — distribution
+ * Android = Play Store ou APK soumis à la revue (/regles).
+ */
+export function downloadBannedFor(platforms: string[]): boolean {
+  return platforms.includes("android");
 }
 
 /** Nom d'affichage d'un registre depuis son host (bouton dynamique). */

@@ -106,6 +106,8 @@ export function productApprovedText(input: {
   productUrl: string;
   origin: string;
   timeZone: string | null;
+  /** Phrase binaire (D6) : état des builds au moment du verdict, ou null. */
+  buildNote?: string | null;
 }): string {
   return [
     "BuilderPlatform",
@@ -114,6 +116,7 @@ export function productApprovedText(input: {
     "",
     `Bonne nouvelle : ${input.productName} est publié sur l'annuaire.`,
     "",
+    ...(input.buildNote ? [input.buildNote, ""] : []),
     `Fiche : ${input.productUrl}`,
     "",
     "Partagez votre fiche pour collecter des votes — chaque vote compte pour le leaderboard du jour.",
@@ -131,10 +134,13 @@ export function productApprovedHtml(input: {
   productUrl: string;
   origin: string;
   timeZone: string | null;
+  /** Phrase binaire (D6) : état des builds au moment du verdict, ou null. */
+  buildNote?: string | null;
 }): string {
   const name = escapeHtml(input.displayName);
   const product = escapeHtml(input.productName);
   const url = escapeHtml(input.productUrl);
+  const buildNote = input.buildNote ? `<p class="text">${escapeHtml(input.buildNote)}</p>` : "";
 
   return shell(
     "Produit publié",
@@ -143,7 +149,7 @@ export function productApprovedHtml(input: {
     "Publié.",
     `<p class="greeting">${emailGreeting(input.timeZone)} ${name},</p>
     <p class="text">Votre produit est en ligne sur l'annuaire et entre dans le classement du jour dès maintenant.</p>
-
+    ${buildNote}
     <div class="context-block">
       <p class="label">Produit publié</p>
       <p class="context-name">${product}</p>
@@ -171,6 +177,8 @@ export function productRejectedText(input: {
   dashboardUrl: string;
   origin: string;
   timeZone: string | null;
+  /** Phrase binaire (D6) : état des builds au moment du verdict, ou null. */
+  buildNote?: string | null;
 }): string {
   return [
     "BuilderPlatform",
@@ -179,6 +187,7 @@ export function productRejectedText(input: {
     "",
     `${input.productName} n'est pas publié en l'état.`,
     "",
+    ...(input.buildNote ? [input.buildNote, ""] : []),
     "MOTIF :",
     input.reason,
     "",
@@ -200,12 +209,15 @@ export function productRejectedHtml(input: {
   dashboardUrl: string;
   origin: string;
   timeZone: string | null;
+  /** Phrase binaire (D6) : état des builds au moment du verdict, ou null. */
+  buildNote?: string | null;
 }): string {
   const name = escapeHtml(input.displayName);
   const product = escapeHtml(input.productName);
   const reason = escapeHtml(input.reason);
   const dashboard = escapeHtml(input.dashboardUrl);
   const rulesUrl = escapeHtml(`${input.origin}/regles`);
+  const buildNote = input.buildNote ? `<p class="text">${escapeHtml(input.buildNote)}</p>` : "";
 
   return shell(
     "Modifications requises",
@@ -214,7 +226,7 @@ export function productRejectedHtml(input: {
     "Pas encore.",
     `<p class="greeting">${emailGreeting(input.timeZone)} ${name},</p>
     <p class="text"><strong>${product}</strong> n'est pas publié en l'état. Voici le point à corriger :</p>
-
+    ${buildNote}
     <div class="context-block">
       <p class="label">Motif du refus</p>
       <p class="context-name" style="font-size:18px;">${reason}</p>

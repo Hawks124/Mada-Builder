@@ -1,13 +1,19 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { SubmitGuidanceSidebar } from "@/components/submit/submit-guidance-sidebar";
+import { useRouter } from "next/navigation";
+import {
+  SubmitGuidanceSidebar,
+  GuidanceSupportCard,
+} from "@/components/submit/submit-guidance-sidebar";
+import { MakerGuidanceSidebar } from "@/components/guidance/maker-guidance-sidebar";
 import { SubmitBasicsSection } from "@/components/submit/submit-basics-section";
 import { SubmitCategoriesSection } from "@/components/submit/submit-categories-section";
 import { SubmitMetadataSection } from "@/components/submit/submit-metadata-section";
 import { SubmitMarketsSection } from "@/components/submit/submit-markets-section";
 import { InlineErrorSummary } from "@/components/submit/inline-error-summary";
 import { SubmitMediaSection } from "@/components/submit/submit-media-section";
+import { SubmitApkSection, type PendingApk } from "@/components/submit/submit-apk-section";
 import { SubmitLinksSection } from "@/components/submit/submit-links-section";
 import { SubmitLinksSummary } from "@/components/submit/submit-links-summary";
 import { SubmitFormProvider, useSubmitForm } from "@/components/submit/submit-form-context";
@@ -19,7 +25,21 @@ import { ActionButton } from "@/components/ui/action-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 function SubmitForm() {
-  const { isEditing, editApp, productType, lifecycle, audience, pricing } = useSubmitForm();
+  const { isEditing, editApp, productType, lifecycle, audience, pricing, platforms, hasTrack } =
+    useSubmitForm();
+  const router = useRouter();
+  const hasAndroid = platforms.includes("android");
+  // First-upload (D2-UI) : création + Android uniquement (édition = flow
+  // Update D4). Le fichier part APRÈS le submit (presign exige productId).
+  const [pendingApk, setPendingApk] = React.useState<PendingApk | null>(null);
+  const [apkBusy, setApkBusy] = React.useState(false);
+  const apkInputRef = React.useRef<HTMLInputElement | null>(null);
+  // Bannière anti-oubli (non bloquante) : publish sans APK sur Android.
+  const [nudgeOpen, setNudgeOpen] = React.useState(false);
+  const skipNudge = React.useRef(false);
+  // Cible de sortie du garde anti-perte : null = back navigateur (go(-2)),
+  // string = navigation in-app (lien binaire). Même modale, deux sorties.
+  const leaveTarget = React.useRef<string | null>(null);
   // Brouillon auto (création) : chaque frappe persiste (debounce 800 ms),
   // restaurée au retour. Jamais en édition (la fiche DB fait foi).
   // Garde anti-perte : le moindre input/clic salit le formulaire.
@@ -34,14 +54,19 @@ function SubmitForm() {
   const [leaveOpen, setLeaveOpen] = React.useState(false);
   const confirmedLeave = React.useRef(false);
   React.useEffect(() => {
-    if (!dirty) return;
+    // Garde active si saisie sale OU analyse/envoi APK en cours (D6) :
+    // quitter pendant la chaîne post-submit tuerait l'upload R2.
+    // returnValue requis (sans lui Chrome n'affiche aucun prompt).
+    if (!dirty && !apkBusy) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
+      e.returnValue = "";
     };
     const onPopState = () => {
       if (confirmedLeave.current) return;
       // Le back a consommé la factice (URL inchangée) : réarmer + demander.
       window.history.pushState({ submitGuard: true }, "");
+      leaveTarget.current = null;
       setLeaveOpen(true);
     };
     window.history.pushState({ submitGuard: true }, "");
@@ -51,16 +76,42 @@ function SubmitForm() {
       window.removeEventListener("beforeunload", onBeforeUnload);
       window.removeEventListener("popstate", onPopState);
     };
-  }, [dirty]);
+  }, [dirty, apkBusy]);
   const confirmLeave = () => {
     confirmedLeave.current = true;
     setLeaveOpen(false);
-    window.history.go(-2);
+    const target = leaveTarget.current;
+    leaveTarget.current = null;
+    if (target) router.push(target);
+    else window.history.go(-2);
+  };
+  // Lien binaire (D6) : form propre → direct ; modifs → même modale.
+  const goUpdate = (target: string) => {
+    if (dirty) {
+      leaveTarget.current = target;
+      setLeaveOpen(true);
+      return;
+    }
+    router.push(target);
   };
   const intentRef = React.useRef<"publish" | "draft">("draft");
   const saveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const formRef = React.useRef<HTMLFormElement | null>(null);
-  const { phase, sending, serverMessage, activeIntent, send } = useSubmitXhr(formRef);
+  const { phase, sending, serverMessage, activeIntent, send } = useSubmitXhr(formRef, {
+    // Android seul conditionne (plus isEditing : la chaîne décide via
+    // intent publish OU édition — le !isEditing ici effaçait le fichier
+    // en rattrapage édition, bug perte APK silencieuse).
+    pendingApk: hasAndroid ? pendingApk : null,
+  });
+  const publish = () => {
+    // Anti-oubli : Android sans APK → proposer, jamais bloquer.
+    if (!isEditing && hasAndroid && !pendingApk && !skipNudge.current) {
+      setNudgeOpen(true);
+      return;
+    }
+    intentRef.current = "publish";
+    formRef.current?.requestSubmit();
+  };
   // Entrée clavier = standard HTML (premier bouton = brouillon) : après
   // chaque tentative, l'intention retombe à "draft" (jamais de publish
   // surprise suite à un échec publish précédent).
@@ -138,6 +189,38 @@ function SubmitForm() {
             <div className="w-full h-px bg-border/40" />
 
             <SubmitMediaSection />
+            {/* First-upload inline ssi Android SANS track (création ou
+                rattrapage en édition) ; avec track → lien Update (verrou). */}
+            {hasAndroid && !hasTrack && (
+              <>
+                <div className="w-full h-px bg-border/40" />
+                <SubmitApkSection
+                  fileInputRef={apkInputRef}
+                  pending={pendingApk}
+                  onParsed={setPendingApk}
+                  onClear={() => setPendingApk(null)}
+                  onBusyChange={setApkBusy}
+                />
+              </>
+            )}
+            {isEditing && hasAndroid && hasTrack && editApp && (
+              <>
+                <div className="w-full h-px bg-border/40" />
+                <div className="flex items-center justify-between gap-4 rounded-2xl border border-border/40 bg-muted/20 px-5 py-4">
+                  <p className="text-[14px] font-medium text-muted-foreground leading-relaxed">
+                    <span className="font-bold text-foreground">Binaire Android : </span>
+                    les mises à jour se gèrent sur la page dédiée (versions verrouillées).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => goUpdate(`/dashboard/products/${editApp.id}/update`)}
+                    className="shrink-0 text-[14px] font-bold text-foreground underline decoration-border/60 underline-offset-4 hover:decoration-foreground transition-colors cursor-pointer"
+                  >
+                    Gérer le binaire →
+                  </button>
+                </div>
+              </>
+            )}
 
             {/* Bottom Actions */}
             <SubmitLinksSummary />
@@ -162,10 +245,7 @@ function SubmitForm() {
                 className="h-12 px-8"
                 actionType="button"
                 disabled={sending}
-                onClick={() => {
-                  intentRef.current = "publish";
-                  formRef.current?.requestSubmit();
-                }}
+                onClick={publish}
               >
                 {sending
                   ? "Envoi…"
@@ -176,9 +256,17 @@ function SubmitForm() {
             </div>
           </form>
 
-          {/* Sticky Sidebar (30%) */}
+          {/* Sticky Sidebar (30%) : guidance fiche + bloc binaire partagé */}
           <div className="lg:col-span-4 hidden lg:block">
-            <SubmitGuidanceSidebar />
+            {/* UN seul sticky (le wrapper) : deux sticky imbriqués se
+                chevauchent au scroll (QA : texte sur texte). */}
+            <div className="sticky top-28 flex flex-col gap-12">
+              <SubmitGuidanceSidebar sticky={false} support={false} />
+              {/* Complément binaire sans chrome (pas de 2e hero/support). */}
+              <MakerGuidanceSidebar sticky={false} chrome={false} />
+              {/* Aide TOUJOURS en dernier (D6). */}
+              <GuidanceSupportCard />
+            </div>
           </div>
         </div>
       </div>
@@ -191,7 +279,29 @@ function SubmitForm() {
         confirmLabel="Quitter sans enregistrer"
         cancelLabel="Rester"
         onConfirm={confirmLeave}
-        onCancel={() => setLeaveOpen(false)}
+        onCancel={() => {
+          leaveTarget.current = null;
+          setLeaveOpen(false);
+        }}
+      />
+      {/* Anti-oubli APK (D2-UI) : chaleureux, non bloquant — rattrapage dashboard. */}
+      <ConfirmDialog
+        open={nudgeOpen}
+        tone="default"
+        title="Publier sans APK ?"
+        description="Votre fiche part en revue, c'est très bien. Avec l'APK, la communauté peut installer et vérifier votre app — et la fiche gagne le badge. Ajout possible à tout moment depuis le dashboard."
+        confirmLabel="Publier quand même"
+        cancelLabel="Ajouter l'APK"
+        onConfirm={() => {
+          skipNudge.current = true;
+          setNudgeOpen(false);
+          intentRef.current = "publish";
+          formRef.current?.requestSubmit();
+        }}
+        onCancel={() => {
+          setNudgeOpen(false);
+          apkInputRef.current?.click();
+        }}
       />
     </main>
   );
@@ -205,6 +315,7 @@ export function SubmitClient({
   editId,
   editApp,
   editMedia,
+  hasTrack,
 }: {
   editId: string | null;
   editApp: DashboardApp | null;
@@ -212,6 +323,7 @@ export function SubmitClient({
     iconUrl: string | null;
     shots: { url: string; width: number | null; height: number | null }[];
   } | null;
+  hasTrack?: boolean;
 }) {
   // Hook AVANT tout return (règles des hooks) — inactif en édition.
   const initialDraft = useInitialDraft(editId);
@@ -247,6 +359,7 @@ export function SubmitClient({
       editApp={editApp}
       initialDraft={initialDraft}
       existingMedia={editMedia}
+      hasTrack={hasTrack}
       key={`${editId ?? "new"}:${restored ? "restored" : "fresh"}`}
     >
       <SubmitForm />

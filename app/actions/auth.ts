@@ -23,7 +23,7 @@ import { withToast } from "@/lib/toast";
 import { exchangeHashForSession } from "@/lib/supabase/exchange";
 import { captureError } from "@/lib/monitoring";
 
-type LinkableProvider = "github" | "google";
+type LinkableProvider = "github" | "google" | "gitlab";
 
 /**
  * Log serveur dev-only : en prod, Sentry prend le relais (captureError)
@@ -185,7 +185,7 @@ export async function syncMyProviders(): Promise<void> {
   const { data: identities } = await supabase.auth.getUserIdentities();
   for (const identity of identities?.identities ?? []) {
     const p = identity.provider;
-    if (p === "github" || p === "google" || p === "email") {
+    if (p === "github" || p === "google" || p === "gitlab" || p === "email") {
       try {
         await addAuthProvider(user.id, p);
       } catch {

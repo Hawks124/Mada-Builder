@@ -19,7 +19,7 @@ public est `username` (immuable) — **jamais l'id dans les URLs**.
 | `country`              | `text` NULL                           | max 60                                                                                          |
 | `city`                 | `text` NULL                           | max 60                                                                                          |
 | `time_zone`            | `text` NULL                           | IANA réel (`Intl…`), NULL = repli UTC                                                           |
-| `providers`            | `text[]` NOT NULL DEFAULT `{}`        | Miroir : `["google","github","email"]` (vérité = Supabase identities)                           |
+| `providers`            | `text[]` NOT NULL DEFAULT `{}`        | Miroir : `["google","github","gitlab","email"]` (vérité = Supabase identities)                  |
 | `role`                 | `user_role` NOT NULL DEFAULT `'user'` | `user` \| `moderateur` \| `admin` (grade admin = SQL only, jamais UI)                           |
 | `onboarding_completed` | `boolean` NOT NULL DEFAULT `false`    |                                                                                                 |
 | `ban_reason`           | `text` NULL                           | Motif écrit (jamais de ban sans motif)                                                          |

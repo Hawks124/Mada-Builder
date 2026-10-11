@@ -14,6 +14,7 @@ import type { NewProduct } from "@/db/schema";
 import type { DashboardApp } from "@/components/dashboard/dashboard-mock";
 import type { ReviewItem } from "@/components/admin/admin-mock";
 import { ProfileError, assertNotBanned, getUserProfile } from "@/services/users.service";
+import { notifyAdminsReview } from "@/services/notifications.service";
 import { PRODUCT_TYPES, type GalleryOrientation } from "@/config/product-types";
 import { getProductTypeById } from "@/config/product-types";
 import { PRODUCT_CATEGORIES } from "@/config/categories";
@@ -21,12 +22,15 @@ import { PLATFORMS } from "@/config/platforms";
 import { PRICING_MODELS } from "@/config/pricing";
 import { AGE_RATINGS } from "@/config/ratings";
 import { PRODUCT_LINK_FIELDS } from "@/config/product-links";
-import { hasAccessPoint, requiredFor } from "@/config/product-links";
+import { hasAccessPoint, requiredFor, downloadBannedFor } from "@/config/product-links";
 import { isMonetizedPricing } from "@/config/pricing";
 import { isCurationAccount } from "@/config/curation";
 import { checkUrl, classifyForSubmit, matchStorePattern } from "@/services/url-check.service";
 import { checkLimit } from "@/lib/ratelimit";
 import { isUniqueViolation } from "@/lib/api/idempotency";
+import { waitingFr } from "@/lib/utils";
+
+export { waitingFr };
 import {
   ImageRejectedError,
   classifyShotOrientation,
@@ -37,6 +41,7 @@ import {
 import type { ShotOrientation } from "@/lib/images";
 import { sanitizeImportedMarkdown } from "@/lib/readme-import";
 import {
+  PRODUCT_BUILDS_BUCKET,
   PRODUCT_LOGOS_BUCKET,
   PRODUCT_SHOTS_BUCKET,
   assertR2Public,
@@ -47,6 +52,58 @@ import {
   r2Configured,
   r2Key,
 } from "@/lib/r2";
+
+/**
+ * Purge best-effort des APK d'un produit (D6) : les lignes builds
+ * partent en cascade SQL avec la fiche, les objets R2 partent ici
+ * (jamais d'APK orphelin facturé). Échec silencieux : le balayeur
+ * `sweepR2Orphans` repasse (bucket builds couvert).
+ */
+async function purgeProductBuildObjects(makerId: string, productId: string): Promise<void> {
+  try {
+    const keys = await listR2Keys(PRODUCT_BUILDS_BUCKET, 500, `builds/${makerId}/${productId}/`);
+    await Promise.all(keys.map((k) => deleteR2Object(PRODUCT_BUILDS_BUCKET, k).catch(() => {})));
+  } catch {
+    // Best-effort : le balayeur repassera.
+  }
+}
+
+/**
+ * Purge R2 de TOUS les produits d'un maker (delete compte, §legal) :
+ * logos, captures, APKs. Lignes DB partent en cascade SQL ; SANS cet
+ * appel, elles laisseraient des orphelins R2 (la promesse « les copies
+ * sur le stockage suivent la purge » serait rompue). Best-effort :
+ * le balayeur `sweepR2Orphans` repasse. Exportée pour les actions de
+ * suppression de compte (jamais dans users.service : cycle d'imports).
+ */
+export async function purgeUserProductObjects(makerId: string): Promise<void> {
+  try {
+    const owned = await db
+      .select({ id: products.id, iconUrl: products.iconUrl })
+      .from(products)
+      .where(eq(products.makerId, makerId));
+    await Promise.all(
+      owned.map(async (p) => {
+        const shots = await db
+          .select({ url: productScreenshots.url })
+          .from(productScreenshots)
+          .where(eq(productScreenshots.productId, p.id))
+          .catch(() => []);
+        for (const s of shots) {
+          const key = r2KeyFromUrl(s.url);
+          if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+        }
+        if (p.iconUrl) {
+          const key = r2KeyFromUrl(p.iconUrl);
+          if (key) await deleteR2Object(PRODUCT_LOGOS_BUCKET, key).catch(() => {});
+        }
+        await purgeProductBuildObjects(makerId, p.id);
+      }),
+    );
+  } catch {
+    // Best-effort : le balayeur repassera.
+  }
+}
 import { captureError } from "@/lib/monitoring";
 
 /**
@@ -287,9 +344,21 @@ export function assertLinkRules(opts: {
   productType: string;
   audience: string;
   pricingModel: string;
+  /** Absent = pas de ban (tests purs historiques). */
+  platforms?: string[];
   links: Record<string, string>;
 }): void {
-  if (!hasAccessPoint(opts.links)) {
+  const dlBanned = downloadBannedFor(opts.platforms ?? []);
+  // Anti-contournement revue binaire : aucun lien direct sur Android
+  // (ni au submit ni à l'édition — l'API mobile ne doit pas contourner
+  // le masquage du formulaire).
+  if (dlBanned && (opts.links.download ?? "").trim() !== "") {
+    throw new ProfileError(
+      "VALIDATION",
+      "Téléchargement direct interdit pour Android : distribuez via le Play Store ou soumettez l'APK à la revue.",
+    );
+  }
+  if (!hasAccessPoint(opts.links, { ignoreDownload: dlBanned })) {
     throw new ProfileError(
       "VALIDATION",
       "Au moins un point d'accès requis : site, store, registre ou démo.",
@@ -664,6 +733,7 @@ export async function submitProduct(input: {
       productType: data.productType,
       audience: data.audience,
       pricingModel: data.pricingModel,
+      platforms: data.platforms,
       links,
     });
     await assertLinksReachable(links);
@@ -756,7 +826,16 @@ export async function submitProduct(input: {
       throw e;
     }
   }
+  // Staff : création en file (jamais les brouillons).
+  if (row.status === "pending") notifyReviewAsync(row.id);
   return { id: row.id, slug: row.slug, status: row.status };
+}
+
+function notifyReviewAsync(productId: string, buildId?: string): void {
+  // Staff : fiche qui entre en pending / build enregistré (D6). Fire-
+  // and-forget best-effort (le helper ne throw jamais) — la soumission
+  // n'attend pas l'email et n'en dépend pas.
+  void notifyAdminsReview({ productId, buildId: buildId ?? null });
 }
 
 // ── Lectures ──────────────────────────────────────────────────────────────
@@ -1096,12 +1175,6 @@ function monthYearFr(d: Date): string {
   return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(d);
 }
 
-function waitingFr(createdAt: Date, now: Date = new Date()): string {
-  const days = Math.max(0, Math.floor((now.getTime() - createdAt.getTime()) / 86_400_000));
-  if (days <= 0) return "En attente depuis aujourd'hui";
-  return `En attente depuis ${days} j`;
-}
-
 /**
  * Ligne DB → DashboardApp (overview + pré-remplissage édition :
  * description + linkValues inclus). `views/clicks/comments/rating/revenue`
@@ -1137,6 +1210,7 @@ export function toDashboardApp(
     ratingsCount: row.ratingsCount ?? 0,
     status,
     rejectionReason: row.rejectionReason ?? undefined,
+    curated: row.curated ?? false,
     revenue: undefined,
     linkValues: row.links,
     categoryIds: row.categories.length > 0 ? row.categories : [row.category],
@@ -1172,7 +1246,12 @@ export function toEditApp(row: DashboardRow): DashboardApp {
  * maker + compteurs (produits en ligne, bans). Non-pending → NOT_FOUND
  * (la file ne connaît que les pending).
  */
-export async function fetchReviewItem(input: { isStaff: boolean; productId: string }) {
+export async function fetchReviewItem(input: {
+  isStaff: boolean;
+  productId: string;
+  /** Revue binaire seule (D6) : dossier d'une fiche déjà tranchée. */
+  includeDecided?: boolean;
+}) {
   if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
   const [row] = await db
     .select({
@@ -1188,7 +1267,7 @@ export async function fetchReviewItem(input: { isStaff: boolean; productId: stri
     .innerJoin(users, eq(products.makerId, users.id))
     .where(and(eq(products.id, input.productId), isNull(products.deletedAt)))
     .limit(1);
-  if (!row || row.status !== "pending")
+  if (!row || (row.status !== "pending" && !input.includeDecided))
     throw new ProfileError("NOT_FOUND", "Soumission introuvable.");
   const shots = await db
     .select({
@@ -1499,6 +1578,7 @@ export async function updateProduct(
       productType: data.productType ?? row.productType,
       audience: data.audience ?? row.audience,
       pricingModel: data.pricingModel ?? row.pricingModel,
+      platforms: data.platforms ?? row.platforms,
       links: mergedLinks,
     });
   }
@@ -1508,6 +1588,7 @@ export async function updateProduct(
       productType: data.productType ?? row.productType,
       audience: data.audience ?? row.audience,
       pricingModel: data.pricingModel ?? row.pricingModel,
+      platforms: data.platforms ?? row.platforms,
       links: row.links as Record<string, string>,
     });
   }
@@ -1591,6 +1672,11 @@ export async function updateProduct(
       }
     }
     await cleanupStaged(staged.stagedKeys);
+  }
+  // Staff : entrée en file uniquement (un edit qui reste pending ne
+  // re-notifie pas — pas de spam à chaque sauvegarde).
+  if (updated.status === "pending" && row.status !== "pending") {
+    notifyReviewAsync(productId);
   }
   return { slug: updated.slug, status: updated.status, rereview };
 }
@@ -1694,6 +1780,8 @@ export async function deleteMyProduct(viewerId: string, productId: string): Prom
     const key = r2KeyFromUrl(row.iconUrl);
     if (key) await deleteR2Object(PRODUCT_LOGOS_BUCKET, key).catch(() => {});
   }
+  // Builds : lignes parties en cascade, objets R2 purgés ici (D6).
+  await purgeProductBuildObjects(row.makerId, productId);
   return { ok: true };
 }
 
@@ -1740,6 +1828,8 @@ export async function deleteProductAsAdmin(input: {
     const key = r2KeyFromUrl(row.iconUrl);
     if (key) await deleteR2Object(PRODUCT_LOGOS_BUCKET, key).catch(() => {});
   }
+  // Builds : lignes parties en cascade, objets R2 purgés ici (D6).
+  await purgeProductBuildObjects(row.makerId, input.productId);
   return {
     ok: true,
     email: maker?.email ?? "",
@@ -1862,6 +1952,36 @@ export async function sweepR2Orphans(input: { maxDelete?: number } = {}): Promis
       // Format attendu uniquement (jamais de suppression aveugle).
       if (!/^[0-9a-f-]{36}\/(logo|shot-\d+)-/.test(key)) continue;
       await deleteR2Object(bucket, key).catch(() => {});
+      deleted++;
+    }
+  }
+  // Builds APK (D6) : `builds/{maker}/{produit}/{stamp}-{rand}.apk` —
+  // orphelin si la fiche n'existe plus (même garde-fous : format strict,
+  // existence DB par lot, plafond global).
+  {
+    const buildKeys = await listR2Keys(PRODUCT_BUILDS_BUCKET);
+    scanned += buildKeys.length;
+    const pids = [
+      ...new Set(
+        buildKeys
+          .map((k) => k.match(/^builds\/[0-9a-f-]{36}\/([0-9a-f-]{36})\/\d+-[a-z0-9]+\.apk$/i)?.[1])
+          .filter((p): p is string => Boolean(p)),
+      ),
+    ];
+    const existingBuilds = new Set<string>();
+    for (let i = 0; i < pids.length; i += 500) {
+      const chunk = pids.slice(i, i + 500);
+      const rows = await db
+        .select({ id: products.id })
+        .from(products)
+        .where(inArray(products.id, chunk));
+      for (const r of rows) existingBuilds.add(r.id);
+    }
+    for (const key of buildKeys) {
+      if (deleted >= maxDelete) return { scanned, deleted };
+      const m = key.match(/^builds\/[0-9a-f-]{36}\/([0-9a-f-]{36})\/\d+-[a-z0-9]+\.apk$/i);
+      if (!m || existingBuilds.has(m[1]!)) continue;
+      await deleteR2Object(PRODUCT_BUILDS_BUCKET, key).catch(() => {});
       deleted++;
     }
   }
@@ -1996,6 +2116,7 @@ export type MakerPublicProduct = {
   platforms: string[];
   audienceId: string;
   upvotes: number;
+  commentsCount: number;
   ratingAvg: number;
   ratingsCount: number;
   curated: boolean;
@@ -2023,7 +2144,7 @@ export async function getMakerPublicProfile(username: string): Promise<{
     banned: boolean;
   };
   products: MakerPublicProduct[];
-  totals: { products: number; upvotes: number };
+  totals: { products: number; upvotes: number; comments: number };
 } | null> {
   const row = await getUserProfile(username.toLowerCase());
   if (!row) return null;
@@ -2043,6 +2164,7 @@ export async function getMakerPublicProfile(username: string): Promise<{
       platforms: products.platforms,
       audienceId: products.audience,
       upvotes: products.upvoteCount,
+      commentsCount: products.commentsCount,
       ratingsSum: products.ratingsSum,
       ratingsCount: products.ratingsCount,
       curated: products.curated,
@@ -2080,6 +2202,7 @@ export async function getMakerPublicProfile(username: string): Promise<{
     totals: {
       products: items.length,
       upvotes: items.reduce((a, p) => a + p.upvotes, 0),
+      comments: items.reduce((a, p) => a + p.commentsCount, 0),
     },
   };
 }

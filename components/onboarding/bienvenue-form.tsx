@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { AvatarImage } from "@/components/ui/avatar-image";
 import { GithubLogoIcon, Check, EnvelopeSimpleIcon } from "@phosphor-icons/react";
 import { GridBackground } from "@/components/ui/grid-background";
 import { InputField } from "@/components/ui/input-field";
@@ -44,7 +45,13 @@ export function BienvenueForm({
   } as OnboardingState);
   const needsEmail = missing.includes("email");
   const providerLabel =
-    provider === "github" ? "GitHub" : provider === "google" ? "Google" : "Email";
+    provider === "github"
+      ? "GitHub"
+      : provider === "google"
+        ? "Google"
+        : provider === "gitlab"
+          ? "GitLab"
+          : "Email";
 
   return (
     <div className="relative min-h-screen bg-background flex flex-col justify-between p-6 sm:p-10 lg:p-12 max-w-7xl mx-auto overflow-hidden">
@@ -58,13 +65,9 @@ export function BienvenueForm({
         {identity && (
           <div className="flex items-center gap-2.5 rounded-full border border-border/60 bg-muted/20 pl-1.5 pr-3.5 py-1">
             {identity.avatarUrl ? (
-              <Image
-                src={identity.avatarUrl}
-                alt={identity.name}
-                width={24}
-                height={24}
-                className="h-6 w-6 rounded-full object-cover"
-              />
+              // AvatarImage (jamais next/image direct) : un avatar OAuth
+              // au host inattendu donne des initiales, jamais un crash.
+              <AvatarImage src={identity.avatarUrl} name={identity.name} size={24} />
             ) : (
               <span
                 aria-hidden="true"
@@ -88,6 +91,14 @@ export function BienvenueForm({
             ) : provider === "google" ? (
               <Image
                 src="/logos/google.svg"
+                alt=""
+                width={16}
+                height={16}
+                className="w-4 h-4 shrink-0"
+              />
+            ) : provider === "gitlab" ? (
+              <Image
+                src="/logos/gitlab.svg"
                 alt=""
                 width={16}
                 height={16}

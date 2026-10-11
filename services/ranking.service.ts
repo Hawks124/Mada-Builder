@@ -40,8 +40,7 @@ function dateLabelFr(d: Date): string {
 
 /**
  * Slot DB → carte hero (même mapping home + /leaderboard, source unique).
- * Chiffres honnêtes : commentaires/avis à 0 (V1.5), pas de pricingDetail
- * inventé, âges via config/ratings.
+ * Chiffres réels : commentaires (compteur) + avis (ratingsCount).
  */
 export function toFeaturedCard(
   slot: FeaturedSlot,
@@ -59,7 +58,7 @@ export function toFeaturedCard(
     productUuid: slot.productId,
     initialVoted: opts?.initialVoted ?? false,
     votes: slot.votes,
-    comments: 0,
+    comments: slot.commentsCount,
     initials: slot.initials,
     dateLabel: `Édition du ${dateLabelFr(opts?.now ?? new Date())}`,
     platforms: slot.platforms.map((p) => PLATFORM_LABEL.get(p) ?? p),
@@ -68,7 +67,7 @@ export function toFeaturedCard(
     ageRating: rating.badge,
     ageLabel: rating.label,
     rating: "",
-    reviewsCount: 0,
+    reviewsCount: slot.ratingsCount,
   };
 }
 
@@ -192,6 +191,8 @@ export type LeaderboardItem = {
   pricingId: string;
   pricingLabel: string;
   publishedAt: string;
+  /** Build approuvé < 14 j (D6) : libellé version — badge « Mis à jour ». */
+  updatedLabel?: string | null;
 };
 
 export type LeaderboardResult = {
@@ -291,6 +292,8 @@ export async function getLeaderboard(input: {
       makerDisplayName: users.displayName,
       makerAvatarUrl: users.avatarUrl,
       upvoteCount: products.upvoteCount,
+      commentsCount: products.commentsCount,
+      ratingsCount: products.ratingsCount,
       iconUrl: products.iconUrl,
       pricingModel: products.pricingModel,
       publishedAt: products.publishedAt,
@@ -430,6 +433,7 @@ export type NewestItem = {
   ratingAvg: number;
   ratingsCount: number;
   curated: boolean;
+  commentsCount: number;
 };
 
 /**
@@ -460,6 +464,7 @@ export async function getNewest(limit = 6): Promise<NewestItem[]> {
       makerDisplayName: users.displayName,
       makerAvatarUrl: users.avatarUrl,
       upvoteCount: products.upvoteCount,
+      commentsCount: products.commentsCount,
       iconUrl: products.iconUrl,
       pricingModel: products.pricingModel,
       ratingsSum: products.ratingsSum,
@@ -495,6 +500,7 @@ export async function getNewest(limit = 6): Promise<NewestItem[]> {
     ratingAvg: ratingsAvgOf(r.ratingsSum, r.ratingsCount),
     ratingsCount: r.ratingsCount,
     curated: r.curated,
+    commentsCount: r.commentsCount,
   }));
 }
 
@@ -511,6 +517,8 @@ export type FeaturedSlot = {
   makerDisplayName: string;
   makerAvatarUrl: string | null;
   votes: number;
+  commentsCount: number;
+  ratingsCount: number;
   iconUrl: string | null;
   iconGradient: string;
   initials: string;
@@ -538,6 +546,9 @@ function toFeaturedSlot(
     makerDisplayName: string;
     makerAvatarUrl: string | null;
     upvoteCount: number;
+    commentsCount: number;
+    ratingsCount: number;
+    curated: boolean;
     iconUrl: string | null;
     pricingModel: string;
     platforms: string[];
@@ -561,6 +572,8 @@ function toFeaturedSlot(
     makerDisplayName: r.makerDisplayName,
     makerAvatarUrl: r.makerAvatarUrl,
     votes: r.upvoteCount,
+    commentsCount: r.commentsCount,
+    ratingsCount: r.ratingsCount,
     iconUrl: r.iconUrl,
     iconGradient: appGradientFor(r.id),
     initials: appInitialsFor(r.name),
@@ -587,6 +600,9 @@ const FEATURED_SELECT = {
   makerDisplayName: users.displayName,
   makerAvatarUrl: users.avatarUrl,
   upvoteCount: products.upvoteCount,
+  commentsCount: products.commentsCount,
+  ratingsCount: products.ratingsCount,
+  curated: products.curated,
   iconUrl: products.iconUrl,
   pricingModel: products.pricingModel,
   platforms: products.platforms,
@@ -621,7 +637,11 @@ export async function getFeatured(now: Date = new Date()): Promise<FeaturedSlot 
     )
     .limit(1);
   if (existing) {
-    return toFeaturedSlot(existing, existing.pinned ? "pinned" : "top");
+    // Veille marquée APRÈS featuring (ou ligne héritée) : jamais de
+    // curated en vitrine — on ignore et on recalcule (souvent null).
+    if (!existing.curated) {
+      return toFeaturedSlot(existing, existing.pinned ? "pinned" : "top");
+    }
   }
   const computed = await computeFeatured(now);
   if (!computed) return null;
@@ -647,10 +667,18 @@ type ComputedFeatured = {
 };
 
 async function publishedCount(): Promise<number> {
+  // Catalogue ÉLIGIBLE (veille exclue — le seuil des paliers porte sur les
+  // fiches pouvant être featurées, pas sur le total brut).
   const [{ value }] = await db
     .select({ value: sql<number>`count(*)::int` })
     .from(products)
-    .where(and(eq(products.status, "published"), isNull(products.deletedAt)));
+    .where(
+      and(
+        eq(products.status, "published"),
+        isNull(products.deletedAt),
+        eq(products.curated, false),
+      ),
+    );
   return value;
 }
 

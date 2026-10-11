@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
   SealCheckIcon,
+  DownloadSimpleIcon,
   GlobeIcon,
   AppleLogoIcon,
   CheckCircleIcon,
@@ -101,6 +102,14 @@ export type ProductSidebarData = {
   iconUrl: string | null;
   initials: string;
   iconGradient: string;
+  /** Dernier build approuvé (carte sidebar) — null si aucun. */
+  latestBuild?: {
+    versionCode: number | null;
+    versionName: string | null;
+    sizeBytes: number;
+  } | null;
+  /** Chemin stable du binaire vérifié (bouton Installer). */
+  downloadPath?: string | null;
 };
 
 function dateFr(iso: string): string {
@@ -125,6 +134,36 @@ export function ProductSidebar({ product }: { product: ProductSidebarData }) {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* ── BINAIRE VÉRIFIÉ (sidebar) ────────────────────────────────────
+          Second téléchargement : le vérifié, compact. Le lien direct maker
+          (non revu) reste dans les blocs liens — sauf Android où il est
+          interdit (politique anti-contournement, voir /regles).
+      ─────────────────────────────────────────────────────────────────── */}
+      {product.latestBuild && product.downloadPath && (
+        <div className="flex flex-col gap-3 p-5 rounded-2xl border border-emerald-500/25 bg-emerald-500/5">
+          <span className="inline-flex w-fit items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+            <SealCheckIcon weight="fill" className="w-3 h-3" />
+            Vérifié par la revue
+          </span>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-[15px] font-extrabold tracking-tight text-foreground">
+              {product.latestBuild.versionCode === null && !product.latestBuild.versionName
+                ? "Version initiale"
+                : `v${product.latestBuild.versionName ?? "?"} (${product.latestBuild.versionCode ?? "?"})`}
+            </span>
+            <span className="text-[12px] font-medium text-muted-foreground tabular-nums">
+              {(product.latestBuild.sizeBytes / 1048576).toFixed(1)} Mo
+            </span>
+          </div>
+          <a
+            href={product.downloadPath}
+            className="flex items-center justify-center gap-2 h-11 rounded-full bg-foreground text-background text-[14px] font-bold hover:opacity-90 transition-opacity"
+          >
+            <DownloadSimpleIcon weight="bold" className="w-4 h-4" />
+            Installer l&apos;APK
+          </a>
+        </div>
+      )}
       {/* ── PRIMARY ACTION ─────────────────────────────────────────────────
           Blocs liens par type (matrice product-links) — données réelles.
       ─────────────────────────────────────────────────────────────────── */}
@@ -137,6 +176,7 @@ export function ProductSidebar({ product }: { product: ProductSidebarData }) {
         unverifiedCount={product.unverifiedCount}
         productId={product.productId}
         trackOutbound
+        hideDirectDownload={product.platforms.includes("android")}
       />
       <ShareDialog
         open={shareOpen}
@@ -353,7 +393,7 @@ export function ProductSidebar({ product }: { product: ProductSidebarData }) {
             label="Public"
             value={<span className="text-foreground font-medium">{rating.label}</span>}
           />
-          <MetaRow label="Âge" value={<AgeBadge value={rating.badge} size="sm" />} />
+          <MetaRow label="âge" value={<AgeBadge value={rating.badge} size="sm" />} />
           {product.targetCountries.length > 0 && (
             <MetaRow
               label="Pays cibles"

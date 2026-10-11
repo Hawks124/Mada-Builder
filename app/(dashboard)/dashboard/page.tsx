@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { OverviewHeader } from "@/components/dashboard/overview-header";
 import { OverviewStats } from "@/components/dashboard/overview-stats";
+import { OverviewCharts } from "@/components/dashboard/overview-charts";
 import { getDashboardTotals } from "@/components/dashboard/dashboard-mock";
 import { getSessionUser } from "@/lib/supabase/server";
 import { fetchOwnProfile } from "@/services/users.service";
@@ -24,9 +25,12 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const sessionUser = await getSessionUser();
   if (!sessionUser) redirect("/signin?next=/dashboard");
+  // Résilience (D6) : un hoquet pooler (Supabase cloud) ne doit jamais
+  // écran blanc — comme la home, chaque source dégrade (profil absent =
+  // re-login, apps vides = états honnêtes).
   const [profile, apps, bell] = await Promise.all([
-    fetchOwnProfile(sessionUser.id),
-    getMakerAppsDashboard(sessionUser.id),
+    fetchOwnProfile(sessionUser.id).catch(() => null),
+    getMakerAppsDashboard(sessionUser.id).catch(() => []),
     getNotifications(sessionUser.id, { limit: 5 }).catch(() => ({ items: [], unreadCount: 0 })),
   ]);
   if (!profile) redirect("/signin?next=/dashboard");
@@ -50,8 +54,7 @@ export default async function DashboardPage() {
         unreadCount={bell.unreadCount}
       />
       <OverviewStats totals={totals} />
-      {/* Les produits vivent sur /dashboard/products — ici : stats puis
-          futurs graphes, jamais de liste. */}
+      <OverviewCharts />
     </div>
   );
 }

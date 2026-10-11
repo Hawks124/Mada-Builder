@@ -60,7 +60,13 @@ async function toNavbarUser(
     avatarUrl,
     banned,
     provider:
-      provider === "github" ? "GitHub" : provider === "google" ? "Google" : (provider ?? "Email"),
+      provider === "github"
+        ? "GitHub"
+        : provider === "google"
+          ? "Google"
+          : provider === "gitlab"
+            ? "GitLab"
+            : (provider ?? "Email"),
   };
 }
 

@@ -16,6 +16,15 @@
   --primary: #18181b; /* zinc-900 */
   --primary-foreground: #fafafa;
 
+  /* Graphiques. Une seule famille de données : vert/ambre/rouge = statut, le
+     seul bleu sert aux clics, la seule série qui croise une autre dans la même
+     aire. Les autres tracés restent sur `--foreground` — une teinte par série
+     répéterait le titre du panneau. Le zinc porte le chrome : axes, filets. */
+  --chart-clicks: #2563eb; /* blue-600 */
+  --chart-live: #16a34a; /* green-600 */
+  --chart-pending: #d97706; /* amber-600 */
+  --chart-rejected: #dc2626; /* red-600 */
+
   --radius: 0.5rem;
 }
 
@@ -32,6 +41,13 @@
 
   --primary: #fafafa;
   --primary-foreground: #18181b;
+
+  /* Mêmes familles qu'en clair, sur les shades -400 : sur fond zinc-950, un -600
+     ne se distingue plus du chrome. */
+  --chart-clicks: #60a5fa; /* blue-400 */
+  --chart-live: #4ade80; /* green-400 */
+  --chart-pending: #fbbf24; /* amber-400 */
+  --chart-rejected: #f87171; /* red-400 */
 }
 
 @theme inline {
