@@ -245,6 +245,26 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   parité auto SQL↔TS (statique 4 gardes + dynamique même-gagnant ;
   a attrapé la fonction dev obsolète) (`verify-votes-ranking` 35/35) ;
   note seuils d'optimisation (`docs/featured-produit-du-jour-v1.md`).
+- **Binaires APK D2–D6** : extraction locale 38/38 (package, version,
+  icône, permissions), re-vérification SHA + Range avant mise en ligne,
+  flow Update dédié (APK + notes, 1 pending max par produit),
+  téléchargement direct (302 signé, QR, `downloadUrl` JSON-LD), section
+  Mises à jour + badges « Mis à jour » 14 j, upload multipart resumable
+  (parts 8 Mo, quota 300 Mo, offline-first + retry/reprise, watchdog),
+  `download` interdit sur Android hors revue (matrice fiche×binaire 2×2,
+  règle dans `/regles`), file + cockpit binaires admin (queue, cockpit
+  `#binaire`, historique), RLS deny-all `product_builds`
+  (`verify-apk-extract` 38/38, hardening 51/51).
+- **Auth GitLab** : bouton + OAuth (scopes openid/profile/email/
+  read_user), liaison multi-provider stricte (auto-link si email
+  vérifié), mentions légales à jour.
+- **Compte RGPD** : suppression avec purge réelle des objets
+  (produits+médias+builds) + export ZIP immédiat (données, médias,
+  builds tous statuts, appels, MANIFEST).
+- **Recherche** : suggestions overlay (produits + makers + catégories,
+  120 ms debounce, Alt+K, portail).
+- **Images distantes** : allowlist centralisée (`lib/remote-images.ts`,
+  R2 + GitLab + customs), avatars résilients (repli initiales).
 
 ## [0.1.0] — 2026-09-24 — Fondations, identité & modération
 
