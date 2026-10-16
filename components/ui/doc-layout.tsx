@@ -1,5 +1,7 @@
+import Image from "next/image";
 import Link from "next/link";
 import { LegalToc } from "@/components/legal/legal-toc";
+import { cn } from "@/lib/utils";
 
 /**
  * Coquille d'un document long — sommaire collant, colonne de lecture, renvois.
@@ -38,7 +40,7 @@ export function DocLayout({
   children: React.ReactNode;
   /** Bloc après le contenu (contact, appel à l'action). */
   footer?: React.ReactNode;
-  siblings?: { href: string; label: string }[];
+  siblings?: { href: string; label: string; logo?: string; logoDarkInvert?: boolean }[];
 }) {
   return (
     <main className="w-full bg-background">
@@ -86,8 +88,21 @@ export function DocLayout({
               <Link
                 key={s.href}
                 href={s.href}
-                className="rounded-full border border-border/60 px-5 py-2.5 text-[14px] font-bold text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-muted/50 hover:text-foreground"
+                className="inline-flex items-center gap-2 rounded-full border border-border/60 px-5 py-2.5 text-[14px] font-bold text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-muted/50 hover:text-foreground"
               >
+                {s.logo && (
+                  <Image
+                    src={s.logo}
+                    alt=""
+                    aria-hidden="true"
+                    width={20}
+                    height={20}
+                    className={cn(
+                      "h-4 w-4 shrink-0 object-contain",
+                      s.logoDarkInvert && "dark:brightness-0 dark:invert",
+                    )}
+                  />
+                )}
                 {s.label}
               </Link>
             ))}

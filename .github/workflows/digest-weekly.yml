@@ -1,0 +1,30 @@
+# Digest hebdo (Phase 2 newsletter).
+#
+# Convention crons du repo (.env.example) : POST /api/cron/* en Bearer.
+# Secrets requis (repo Settings → Secrets → Actions) : SITE_URL (origine
+# exacte de la prod, sans slash final), CRON_SECRET (même valeur qu'en
+# prod). Lundi 7 h Tana = 04:00 UTC (UTC+3, pas de DST).
+# Le digest boucle les inscrits un par un : timeout large, mais le job
+# reste best-effort (un digest en échec n'empêche pas les autres).
+name: digest-weekly
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Digest hebdo (lundi 7 h Tana)
+        run: |
+          code=$(curl -s --max-time 600 -o /tmp/digest.json -w "%{http_code}" -X POST \
+            "$SITE_URL/api/cron/digest" \
+            -H "Authorization: Bearer $CRON_SECRET")
+          cat /tmp/digest.json
+          test "$code" = "200"
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

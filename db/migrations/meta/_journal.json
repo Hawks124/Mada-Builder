@@ -253,6 +253,55 @@
       "when": 1791646556290,
       "tag": "0037_product_builds_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791794307511,
+      "tag": "0038_requirements_array",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791838970681,
+      "tag": "0039_revenue_verified",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791839629438,
+      "tag": "0040_revenue_failing_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791870000000,
+      "tag": "0041_revenue_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791968956092,
+      "tag": "0042_legal_updated_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791972000000,
+      "tag": "0043_contact_messages",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1791975600000,
+      "tag": "0044_users_lock_sensitive",
+      "breakpoints": true
     }
   ]
 }

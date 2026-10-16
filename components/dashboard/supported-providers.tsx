@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import Link from "next/link";
 import type { ApiConnection, RevenueProvider } from "@/components/dashboard/api-connections";
 
 type ProviderStatus = "connected" | "soon";
@@ -55,11 +56,11 @@ const PROVIDERS: SupportedProvider[] = [
       height: 56,
       className: "w-6 h-7 text-foreground",
     },
-    status: "soon",
-    note: "V1.5",
+    status: "connected",
+    note: "",
   },
   {
-    id: "lemon-squeezy",
+    id: "lemon_squeezy",
     label: "Lemon Squeezy",
     logo: {
       src: "/logos/lemon-squeezy.svg",
@@ -68,8 +69,8 @@ const PROVIDERS: SupportedProvider[] = [
       className: "w-6 h-6",
       darkClass: "dark:brightness-0 dark:invert",
     },
-    status: "soon",
-    note: "V1.5",
+    status: "connected",
+    note: "",
   },
   {
     id: "paddle",
@@ -81,8 +82,8 @@ const PROVIDERS: SupportedProvider[] = [
       className: "w-6 h-6",
       darkClass: "dark:brightness-0 dark:invert",
     },
-    status: "soon",
-    note: "V1.5",
+    status: "connected",
+    note: "",
   },
 ];
 
@@ -96,8 +97,14 @@ export function SupportedProviders({ connections }: { connections: ApiConnection
           Fournisseurs supportés
         </h2>
         <p className="text-[14px] font-medium text-muted-foreground leading-relaxed">
-          Même connexion en lecture seule pour tous. Polar, Lemon Squeezy et Paddle arrivent en
-          V1.5.
+          Même connexion en lecture seule pour tous — clé vérifiée puis chiffrée, jamais
+          ré-affichée.{" "}
+          <Link
+            href="/guides/revenus-verifies"
+            className="font-bold text-foreground underline underline-offset-4"
+          >
+            Mode d&apos;emploi par provider
+          </Link>
         </p>
       </div>
 

@@ -29,6 +29,7 @@ import {
 } from "@/services/products.service";
 import { siteUrl } from "@/lib/site-url";
 import { itemListLd } from "@/lib/seo";
+import { getMakerRevenueTotals, getRevenueViewsForProducts } from "@/services/revenue/views";
 
 // Profil public maker (PRD §6D, 4C) : avatar, nom, bio, liens, produits
 // publiés, total votes reçus. Vues = privées (dashboard). MRR : phase
@@ -97,6 +98,9 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
     sessionUser?.id ?? null,
     products.map((p) => p.id),
   );
+  const cardRevenues = await getRevenueViewsForProducts(products.map((p) => p.id)).catch(
+    () => new Map<string, never>(),
+  );
 
   const occupation = getOccupationById(profile.occupation) ?? getOccupationById("maker")!;
   const location = [profile.city, profile.country].filter(Boolean).join(", ");
@@ -114,8 +118,13 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
     .map((w) => w[0]!.toUpperCase())
     .join("");
 
-  // Stats publiques réelles (§6D strict) : upvotes + produits (+ MRR à 0,
-  // réel : aucune connexion). Champs privés à 0 = non rendus en mode public.
+  // Stats publiques réelles (§6D strict) : upvotes + produits (+ MRR
+  // dominant si connexions full — jamais de somme multi-devises ; que du
+  // badge_only → « montant masqué », jamais « 0 + revenus prouvés » ; un
+  // vrai 0 en full s'affiche (honnête), pas comme un masque.
+  const makerRevenue = await getMakerRevenueTotals(profile.makerId).catch(() => null);
+  const revenueDisplay =
+    makerRevenue == null ? "none" : makerRevenue.hasFull ? "full" : "badge_only";
   const publicTotals: DashboardTotals = {
     totalUpvotes: totals.upvotes,
     liveCount: totals.products,
@@ -124,7 +133,8 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
     totalClicks: 0,
     totalViews7d: 0,
     pendingCount: 0,
-    totalMrrCents: 0,
+    totalMrrCents: makerRevenue?.totalCents ?? 0,
+    mrrCurrency: makerRevenue?.currency ?? "USD",
     totalComments: totals.comments,
     globalRating: 0,
   };
@@ -219,7 +229,7 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
         </div>
 
         {/* Stats publiques réelles — jamais de mock */}
-        <OverviewStats totals={publicTotals} mode="public" revenueDisplay="full" />
+        <OverviewStats totals={publicTotals} mode="public" revenueDisplay={revenueDisplay} />
 
         <div className="w-full h-px bg-border/40" />
 
@@ -262,6 +272,7 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
                     rating: ratingLabelOf(p.ratingAvg, p.ratingsCount),
                     curated: p.curated,
                     comments: p.commentsCount,
+                    revenue: cardRevenues.get(p.id) ?? null,
                   }}
                 />
               ))}

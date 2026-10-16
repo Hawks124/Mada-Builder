@@ -5,7 +5,7 @@
 import "./_env";
 import { SignJWT } from "jose";
 import { db } from "@/db";
-import { products, users } from "@/db/schema";
+import { productBuilds, products, users } from "@/db/schema";
 import { deleteR2Object, putR2Object, r2Configured } from "@/lib/r2";
 import { PRODUCT_LOGOS_BUCKET, presignStagingUpload } from "@/lib/r2";
 import { withIdempotency } from "@/lib/api/idempotency";
@@ -668,6 +668,157 @@ async function main(): Promise<void> {
     await db.delete(productBuilds).where(eq(productBuilds.productId, buildProduct.id));
     await db.delete(products).where(eq(products.id, buildProduct.id));
   }
+
+  // 7. Lecture mobile (checklist squad) : download v1, updates/check,
+  // historique builds, latestBuild enrichi. Handlers invoqués direct
+  // (offline pur) ; presign réel R2-gated pour le 200 download.
+  const { GET: dlGet, POST: dlPost } = await import("@/app/api/v1/products/[id]/download/route");
+  const { POST: updatesPost } = await import("@/app/api/v1/updates/check/route");
+  const { GET: buildsHistoryGet } = await import("@/app/api/v1/products/[id]/builds/route");
+  const { GET: detailGet } = await import("@/app/api/v1/products/[id]/route");
+  const withId = (id: string) => ({ params: Promise.resolve({ id }) });
+  const dl405 = await dlPost();
+  check("download v1 POST = 405 JSON", dl405.status === 405 && (await dl405.json()).ok === false);
+  const dl404 = await dlGet(
+    new Request("https://x.test/"),
+    withId("00000000-0000-0000-0000-000000000000"),
+  );
+  const dl404j = (await dl404.json()) as { ok: boolean; code?: string };
+  check(
+    "download v1 404 inconnu",
+    dl404.status === 404 && dl404j.ok === false && dl404j.code === "NOT_FOUND",
+  );
+  const [readProduct] = await db
+    .insert(products)
+    .values({
+      slug: `verify-read-${Date.now()}`,
+      makerId: maker,
+      name: "Produit Lecture Mobile",
+      tagline: "Tagline.",
+      description: "Description assez longue pour passer la validation.",
+      category: "dev-tools",
+      productType: "app_web",
+      pricingModel: "free",
+      status: "published",
+      publishedAt: new Date(),
+    })
+    .returning({ id: products.id, slug: products.slug });
+  await db.insert(productBuilds).values({
+    productId: readProduct.id,
+    versionCode: 5,
+    versionName: "5.0",
+    package: "com.example.lecture",
+    minSdk: 26,
+    targetSdk: 34,
+    permissions: ["android.permission.INTERNET"],
+    certSha256: "aa".repeat(32),
+    sha256File: "bb".repeat(32),
+    sizeBytes: 123456,
+    r2Key: `builds/${maker}/${readProduct.id}/lecture.apk`,
+    whatsnew: "Nouveautés de test",
+    status: "approved",
+    reviewedAt: new Date(),
+  });
+  const badBody = async (body: unknown, code: number, name: string) => {
+    const r = await updatesPost(
+      new Request("https://x.test/", { method: "POST", body: JSON.stringify(body) }),
+    );
+    check(name, r.status === code && ((await r.json()) as { ok: boolean }).ok === false);
+  };
+  await badBody({}, 422, "updates/check sans installed = 422");
+  await badBody({ installed: "x" }, 422, "updates/check installed non-tableau = 422");
+  await badBody(
+    { installed: Array.from({ length: 51 }, (_, i) => ({ productId: `p${i}`, versionCode: 1 })) },
+    422,
+    "updates/check >50 = 422",
+  );
+  await badBody(
+    { installed: [{ productId: "", versionCode: 1 }] },
+    422,
+    "updates/check entrée vide = 422",
+  );
+  const postUpdates = async (installed: unknown) =>
+    (await (
+      await updatesPost(
+        new Request("https://x.test/", { method: "POST", body: JSON.stringify({ installed }) }),
+      )
+    ).json()) as {
+      ok: boolean;
+      data: {
+        updates: {
+          productId: string;
+          updateAvailable: boolean;
+          latestBuild: Record<string, unknown> | null;
+        }[];
+      };
+    };
+  const upOld = await postUpdates([{ productId: readProduct.id, versionCode: 4 }]);
+  check(
+    "updates/check MAJ dispo + whatsnew",
+    upOld.ok === true &&
+      upOld.data.updates[0]?.updateAvailable === true &&
+      (upOld.data.updates[0]?.latestBuild as { whatsnew?: string })?.whatsnew ===
+        "Nouveautés de test" &&
+      (upOld.data.updates[0]?.latestBuild as { versionCode?: number })?.versionCode === 5,
+  );
+  const upSame = await postUpdates([
+    { productId: readProduct.slug, versionCode: 5 },
+    { productId: "00000000-0000-0000-0000-000000000000", versionCode: 1 },
+  ]);
+  check(
+    "updates/check slug + à jour + inconnu",
+    upSame.ok === true &&
+      upSame.data.updates[0]?.updateAvailable === false &&
+      upSame.data.updates[1]?.updateAvailable === false &&
+      upSame.data.updates[1]?.latestBuild === null,
+  );
+  const histUnknown = await buildsHistoryGet(
+    new Request("https://x.test/"),
+    withId("00000000-0000-0000-0000-000000000000"),
+  );
+  check("builds GET 404 inconnu", histUnknown.status === 404);
+  const hist = await buildsHistoryGet(new Request("https://x.test/"), withId(readProduct.slug));
+  const histJ = (await hist.json()) as { ok: boolean; data: { builds: Record<string, unknown>[] } };
+  check(
+    "builds GET historique (champs changelog)",
+    histJ.ok === true &&
+      histJ.data.builds.length === 1 &&
+      histJ.data.builds[0]?.versionCode === 5 &&
+      typeof histJ.data.builds[0]?.reviewedAt === "string" &&
+      typeof histJ.data.builds[0]?.sha256 === "string",
+  );
+  const detail = await detailGet(new Request("https://x.test/"), withId(readProduct.slug));
+  const detailJ = (await detail.json()) as {
+    ok: boolean;
+    data: { latestBuild: Record<string, unknown> | null };
+  };
+  const lb = detailJ.data.latestBuild;
+  check(
+    "detail latestBuild enrichi (natif non-aveugle)",
+    detailJ.ok === true &&
+      lb !== null &&
+      lb.package === "com.example.lecture" &&
+      lb.minSdk === 26 &&
+      lb.targetSdk === 34 &&
+      Array.isArray(lb.permissions) &&
+      typeof lb.certSha256 === "string" &&
+      typeof lb.whatsnew === "string" &&
+      typeof lb.reviewedAt === "string",
+  );
+  if (r2Configured()) {
+    const dl200 = await dlGet(new Request("https://x.test/"), withId(readProduct.slug));
+    const dl200j = (await dl200.json()) as {
+      ok: boolean;
+      data: { url?: string; expiresIn?: number };
+    };
+    check(
+      "download v1 200 JSON (R2)",
+      dl200.status === 200 && typeof dl200j.data.url === "string" && dl200j.data.expiresIn === 300,
+    );
+  } else {
+    console.log("SKIP: download v1 200 sans stockage");
+  }
+  await db.delete(products).where(eq(products.id, readProduct.id));
 
   // 6. Nettoyage maker.
   const [stale] = await db

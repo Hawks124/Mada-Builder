@@ -75,7 +75,7 @@ export function RevenueBlock({
                 Revenu mensuel récurrent
               </span>
               <span className="text-5xl md:text-6xl font-black tracking-tighter tabular-nums text-emerald-600 dark:text-emerald-400 leading-none">
-                {formatMoney(revenue.mrrCents, "USD", { maximumFractionDigits: 0 })}
+                {formatMoney(revenue.mrrCents, revenue.currency, { maximumFractionDigits: 0 })}
               </span>
             </div>
             <RevenueSparkline points={revenue.history} height={88} />
@@ -85,7 +85,7 @@ export function RevenueBlock({
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-6 md:gap-x-12 pt-8 mt-8 border-t border-border/20">
             <Metric
               label="Run rate annuel"
-              value={formatMoney(revenue.arrCents, "USD", { compact: true })}
+              value={formatMoney(revenue.arrCents, revenue.currency, { compact: true })}
             />
             <Metric
               label="Abonnés actifs"

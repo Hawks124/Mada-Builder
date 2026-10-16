@@ -110,7 +110,7 @@ export function productApprovedText(input: {
   buildNote?: string | null;
 }): string {
   return [
-    "BuilderPlatform",
+    "Mada-Made",
     "---",
     `${emailGreeting(input.timeZone)} ${input.displayName},`,
     "",
@@ -160,7 +160,7 @@ export function productApprovedHtml(input: {
     <p class="text-muted">Astuce : connectez vos revenus Stripe ou RevenueCat depuis votre dashboard. Le badge <strong>Revenus vérifiés</strong> renforce la crédibilité de votre fiche et améliore son référencement dans notre classement dédié.</p>
 
     <div style="margin-bottom:40px;"><a href="${url}" class="cta"><span>Voir ma fiche →</span></a></div>`,
-    `Notification produit &bull; BuilderPlatform &copy; ${new Date().getFullYear()}<br>${emailLegalHtml(input.origin)}`,
+    `Notification produit &bull; Mada-Made &copy; ${new Date().getFullYear()}<br>${emailLegalHtml(input.origin)}`,
   );
 }
 
@@ -181,7 +181,7 @@ export function productRejectedText(input: {
   buildNote?: string | null;
 }): string {
   return [
-    "BuilderPlatform",
+    "Mada-Made",
     "---",
     `${emailGreeting(input.timeZone)} ${input.displayName},`,
     "",
@@ -236,6 +236,6 @@ export function productRejectedHtml(input: {
     <p class="text">Relisez la <a href="${rulesUrl}" class="charte-link">charte de la communauté</a> si vous avez un doute sur un critère.</p>
 
     <div style="margin-bottom:40px;"><a href="${dashboard}" class="cta"><span>Modifier ma fiche →</span></a></div>`,
-    `Notification produit &bull; BuilderPlatform &copy; ${new Date().getFullYear()}<br>${emailLegalHtml(input.origin)}`,
+    `Notification produit &bull; Mada-Made &copy; ${new Date().getFullYear()}<br>${emailLegalHtml(input.origin)}`,
   );
 }

@@ -6,6 +6,111 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **Revenus vérifiés, finitions BÊTA** : slide-over « Quel prestataire ? »
+  (soumission — 5 providers, format de clé, lien `#creer-la-cle`, choix
+  direct) ; profil maker distingue vrai 0 en full (affiché) du masqué
+  (`hasFull`, jamais « montant masqué » à tort) ; revue admin branchée sur
+  la vue réelle (devise native, vrai label provider, mention « masqué au
+  public ») ; stat admin « Clés revenus » (compte réel, fini « milestone
+  revenue ») ; types admin élargis aux 5 providers ; home : section
+  revenus rendue `null` si top vide (pas de CTA fantôme, `/revenue`
+  porte son vide honnête).
+- **Emails marque Mada-Made** : header = wordmark seul (~140 px, dual-img
+  conservé, convention `mm_logo_*` vérifiée par pixels — suffixe = thème
+  cible), table rase tuile + texte ; 26 occurrences « BuilderPlatform » →
+  « Mada-Made » (12 fichiers, display seul).
+- **Footer** : « Guides makers » (Explorer), « Signaler un problème »
+  (`/issues/new`) + « Contribuer » (`CONTRIBUTING.md`) dans Le projet,
+  copie digest corrigée (Mada-Made hebdomadaire).
+- **Newsletter Phase 2** : cron `POST /api/cron/digest` (même garde
+  Bearer que revenus, `?dryRun=1` pour contrôler sans envoyer) +
+  workflow `digest-weekly.yml` (lundi 7 h Tana) ; audience Resend
+  synchronisée depuis les inscrits (`services/newsletter.service.ts`,
+  `run-jobs audience`, diff pur testé — ajouts dashboard conservés) ;
+  webhook `contact.updated` → opt-out local ; `DigestForm` réservé aux
+  membres (plus de champ fantôme) ; légal aligné sur le vrai contenu du
+  digest ; runbook `docs/newsletter-operations.md`. Suite
+  `verify-notifications` 24/24.
+- **Veille internationale documentée** : section charte (ce que
+  c'est, badge, hors jeu, retrait si équivalent local sans préavis) +
+  clause opposable aux conditions (retrait ≠ sanction, pas de recours) ;
+  `/confidentialite` inchangée (aucune donnée perso) ; +1 ligne
+  contrats mobile. Bonus : emails de modération disaient « 4 règles »
+  en n'en nommant que 3 — alignés sur les 5 réelles (+ assert suite).
+- **FAILLE escalation clôturée (signalement équipe mobile, merci)** :
+  `users_update_own` filtrait la ligne mais aucune colonne — tout client
+  authentifié pouvait `SET role = 'admin'` (panel complet, la garde
+  « vérité DB » contournée par construction). Trigger `BEFORE UPDATE`
+  (migration 0044 + `setup.sql`) : `role`, `banned_at`, `email`,
+  `username`, `providers` verrouillés sauf identités de service ;
+  champs profil modifiables. Suite `verify-profile-backend` 23/23
+  (escalade/slug/email refusés, bio OK). Bonus : teardown `$client`
+  réparé (le Proxy liait le client postgres-js et perdait `.end()` —
+  la suite sortait 1 malgré 0 échec).
+- **Guides MRR corrigés** : chips providers avec logos (`DocLayout`
+  `siblings.logo` + inversion dark, source unique
+  `REVENUE_LOGO_DARK_INVERT`) ; table « Les 5 providers » en composant
+  piloté par les specs (table markdown supprimée — fini la duplication
+  des formats de clé) ; phrases de connexion réécrites au vrai chemin
+  (hub + 5 fiches : submit/édition → « Détails techniques & modèle » →
+  toggle) ; bloc « Déclinaisons » wordmark sur `/about` (polarité webp
+  vérifiée par pixels).
+- **`occupation` auteur avis/commentaires** : +1 colonne aux JOINs
+  existants (`getProductReviews`, `getProductComments` — id brut, label
+  via `GET /meta`, jamais d'email), web inchangé, contrats mobile à
+  jour, suite étendue.
+- **Footer digest honnête** : paragraphe consentement orphelin supprimé
+  (décrivait un champ inexistant), CTA → `/settings` (« Gérer mes
+  emails », le proxy gère le retour post-login — fini le détour
+  dashboard incompréhensible).
+- **Incident `/admin` instrumenté** : sonde jetable → toutes les
+  dépendances data répondent (2,5 s max, aucune ne pend : le stream ne
+  meurt pas d'une stat). Ajoutés : boundary `app/(admin)/error.tsx`
+  (fini la boucle retry aveugle — page d'erreur stable + digest +
+  Sentry), logs `[admin]` dev (gate, overview), compteur CTA borné 8 s
+  (`-1` = bouton sans chiffre, jamais « (0) » mensonger).
+- **Fan-out analytique réduit (cause du timeout 8 s)** : l'overview
+  lançait 16+ requêtes concurrentes sur un pool à 10 slots — le mur des
+  files d'attente, pas les tables. `getPageViewStats()` fusionne les 4
+  compteurs `page_views` en 1 requête (FILTER, chiffres prouvés
+  identiques aux comptages indépendants) ; fonctions unitaires
+  supprimées (usage unique).
+- **Admin indestructible par ses stats** : le stream `/admin` mourait en
+  plein vol (retry navigateur en boucle) dès qu'une stat pendait — les
+  compteurs vivaient dans le layout. Pastilles découplées : endpoint
+  batché `GET /api/admin/badges` (`allSettled` par clé, contrat
+  `{value, ok, at}` — un nombre ne s'affiche que sur `ok`, sinon « — »
+  avec heure de tentative, jamais de 0 mensonger), shell en lazy
+  (mount + changement de page + focus, retry auto des clés en échec
+  seules ×2 espacés, puis stop silencieux — zéro re-clic), layout
+  réduit au gate session+rôle. Suite `verify-admin-badges` 5/5.
+- **Contact Phase 3** : migration 0043 (`contact_messages`, 5 motifs,
+  statuts new/read/replied/archived, RLS deny-all, rétention 2 ans) ;
+  page `/contact` indexable (Select partagé, honeypot, succès honnête «
+  5 jours ouvrés ») + nav desktop/mobile débloquées ; inbox
+  `/admin/contact` (file par statut, pastille `new`, réponse via client
+  mail, message échappé) + email staff `contact-notify` ; mobile `POST
+/api/v1/contact` (422 `VALIDATION`, jamais de 200 déguisé) ; légal
+  (finalité + 2 ans) ; fiche `docs/data/contact_messages.md`. Suite
+  `verify-contact` 16/16.
+- **Hero makers mobile** : `GET /api/v1/makers?limit&sort` (`recent`
+  par défaut — makers publiés, inscription récente ; `trending` — votes
+  pondérés reçus sur 30 j glissants, `score` inclus = « + combien » ;
+  `total` = vivier du tri, cache 60 s, rate-limit IP, 422 si tri
+  inconnu). Même allowlist que le détail, bannis/supprimés exclus.
+  Contrats en `docs/mobile-contrats.md`. Suite `verify-api-v1` 38/38.
+- **Index docs rafraîchi** (`docs/README.md`) : les 35 fichiers classés
+  vivant vs archive + règle « un nouveau `.md` = une ligne dans
+  l'index ». Pas de plateforme docs façon Vercel : pas de lecteurs
+  pour l'instant, le drift est le vrai problème, pas le format.
+- **Préavis légal outillé** : le toggle settings pilote bien digest +
+  audience (même `digest_opt_out`), mais aucun mécanisme ne prévenait la
+  newsletter d'un changement de politique — promesse des 15 jours
+  intenable. Ajouté : kind `legal_updated` (migration 0042),
+  `announceLegalUpdate` (in-app + email direct à tous les membres actifs,
+  opt-out ignoré = préavis contractuel), `run-jobs announce --doc
+--summary --effective`, gabarit `legal-notice`, textes légaux alignés.
+  Suite `verify-notifications` 26/26.
 - Curation mobile : `isCuration` dans `GET /makers/[username]` (badge
   profil, clause en bio — jamais de hardcode côté app) ; lecture directe
   documentée en voie première (`docs/mobile-contrats.md` §1-bis,
@@ -105,7 +210,7 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   section 13-bis verify : draft=NULL, publish=posé, resubmit=reset ;
   122/122).
 - **D1 builds APK** : table `product_builds` (migration 0033, historique,
-  UNIQUE produit+version), bucket privé + presign PUT (quota 250 Mo,
+  UNIQUE produit+version), bucket privé + presign PUT (quota 300 Mo,
   15 min) + GET signées, record `pending` avec preuves HEAD (taille
   menteuse/clé étrangère refusées + purge, jamais d'orphelin) ;
   `docs/data/product_builds.md` + contrats ; verify hardening 29/29.
@@ -265,6 +370,25 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   120 ms debounce, Alt+K, portail).
 - **Images distantes** : allowlist centralisée (`lib/remote-images.ts`,
   R2 + GitLab + customs), avatars résilients (repli initiales).
+- **Config requise en pastilles** : `requirements` passe de texte brut à
+  `text[]` (miroir tags — Entrée pour ajouter, max 8 × 80, texte libre),
+  migration 0038 + backfill (découpe retours ligne, zéro perte) ; fiche
+  en liste, revue en ligne `·`, API v1 en tableau JSON (contrat mobile à
+  jour — breaking `string` → `string[]`).
+- **README** : lien code de conduite réparé (fragment brut), statut v1
+  à jour (listings, leaderboard, APK, avis livrés — reste MRR), stack
+  - GitLab, `db:setup` 64 instructions, carte docs (SECURITY, DESIGN,
+    STACK, `docs/data/`).
+- **Revenus vérifiés BÊTA (Phase 2)** : 5 adaptateurs (Stripe `rk_`,
+  RevenueCat v2, Paddle metrics, Polar OAT, Lemon Squeezy — essais et
+  impayés exclus partout, devise native jamais convertie), tables
+  `revenue_connections`/`snapshots` (migrations 0039/0040, RLS deny-all),
+  clés AES-256-GCM (jamais ré-affichées/loggées), sync horaire séquentielle
+  (idempotente, `failing` à 2 échecs + notif + Sentry, cron Actions),
+  bascule UI réelle (fiche, `/revenue` par devise, hero, dashboard, badges
+  cartes), BÊTA sur submit/api/méthodologie, guides `/guides` indexables
+  (hub + 5 fiches 2026 + deep-links), legal (clés 5 providers, clause bêta,
+  fraude), mobile (`GET revenue`, `revenue-connections` ×3).
 
 ## [0.1.0] — 2026-09-24 — Fondations, identité & modération
 

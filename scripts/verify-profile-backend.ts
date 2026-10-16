@@ -151,6 +151,33 @@ async function main() {
   const seesOther = (crossRead.data ?? []).some((r) => r.id === u2.user.id);
   check("autre user invisible", !seesOther);
 
+  // 6-bis. Escalade refusée (signalement équipe mobile) : un authentifié
+  // ne peut ni se promouvoir ni renommer son slug — trigger BEFORE
+  // UPDATE (l'erreur PostgREST est un bonus, l'état final fait foi).
+  // Le champ profil légitime (bio) reste modifiable (non-régression).
+  const beforeUsername = (await db.select().from(users).where(eqId(u1.user.id)))[0]?.username;
+  await userClient.from("users").update({ role: "admin" }).eq("id", u1.user.id);
+  await userClient
+    .from("users")
+    .update({ username: `${testTag}-hacked` })
+    .eq("id", u1.user.id);
+  await userClient
+    .from("users")
+    .update({ email: `${testTag}-evil@mail.com` })
+    .eq("id", u1.user.id);
+  const legitBio = await userClient
+    .from("users")
+    .update({ bio: "bio légitime" })
+    .eq("id", u1.user.id);
+  const afterEscalation = (await db.select().from(users).where(eqId(u1.user.id)))[0];
+  check("escalade role refusée", afterEscalation?.role === "user");
+  check("slug immuable", afterEscalation?.username === beforeUsername);
+  check("email intouché", afterEscalation?.email === email1);
+  check(
+    "champ profil modifiable (bio)",
+    legitBio.error === null && afterEscalation?.bio === "bio légitime",
+  );
+
   // 7. Règles username (pures, sans DB).
   check("username valide", usernameSchema.safeParse("kaliana-r").success);
   // Les majuscules sont NORMALISÉES (pas rejetées) : meilleure UX, même

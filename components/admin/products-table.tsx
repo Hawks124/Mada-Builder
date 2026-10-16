@@ -215,9 +215,7 @@ export function ProductsTable({ initialApps }: { initialApps: AdminProduct[] }) 
             ? [
                 `${formatCompactCount(deleteTarget.votes)} votes`,
                 `${formatCompactCount(deleteTarget.views)} vues cumulées`,
-                deleteTarget.revenue
-                  ? `MRR ${formatMoney(deleteTarget.revenue.mrrCents, "USD", { compact: true })} déconnecté`
-                  : "Aucun revenu connecté",
+                "Connexion revenus révoquée avec la fiche (si présente)",
               ]
             : []
         }

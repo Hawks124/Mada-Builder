@@ -62,6 +62,10 @@ export const db: PostgresJsDatabase<typeof schema> = new Proxy(
       if (prop === "then") return undefined;
       const client = getDb();
       const value = Reflect.get(client, prop, receiver);
+      // `$client` est le client postgres-js LUI-MÊME (une fonction-tag
+      // avec ses props : `.end`, `.options`). Le binder copierait une
+      // fonction liée SANS ses props — `.end()` cassé (teardown suites).
+      if (prop === "$client") return value;
       return typeof value === "function" ? value.bind(client) : value;
     },
   },

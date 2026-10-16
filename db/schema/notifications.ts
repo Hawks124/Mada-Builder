@@ -27,8 +27,10 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "view_milestone",
   "appeal_decided",
   "role_changed",
+  "revenue_failing",
   "banned",
   "unbanned",
+  "legal_updated",
 ]);
 
 export const notifications = pgTable(

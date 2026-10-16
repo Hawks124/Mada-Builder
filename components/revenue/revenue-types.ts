@@ -10,7 +10,7 @@
  * d'adoption principal de la feature (PRD §6) — il doit être respecté partout,
  * y compris sur la fiche du produit lui-même.
  */
-export type RevenueProvider = "stripe" | "revenuecat";
+export type RevenueProvider = "stripe" | "revenuecat" | "paddle" | "polar" | "lemon_squeezy";
 export type RevenueDisplayMode = "full" | "badge_only";
 
 export type RevenueView = {
@@ -21,8 +21,12 @@ export type RevenueView = {
   /** Run rate annuel = mrrCents × 12, en centimes. */
   arrCents: number;
   activeSubscribers: number;
+  /** ISO 4217 native du provider — jamais convertie. */
+  currency: string;
   /** ISO 8601 — sert au libellé « vérifié il y a N h », calculé côté serveur. */
   lastSyncedAt: string;
+  /** Libellé FR pré-calculé côté serveur (règle purity : pas de Date en rendu). */
+  lastSyncedLabel: string;
   /** MRR en centimes, du plus ancien au plus récent (90 j). */
   history: number[];
 };
@@ -33,4 +37,7 @@ export const REVENUE_PROVIDERS: Record<
 > = {
   stripe: { label: "Stripe", logo: "/logos/stripe.svg", brand: "#635BFF" },
   revenuecat: { label: "RevenueCat", logo: "/logos/revenuecat.svg", brand: "#F5820D" },
+  paddle: { label: "Paddle", logo: "/logos/paddle.svg", brand: "#F5D90A" },
+  polar: { label: "Polar", logo: "/logos/polar.svg", brand: "#0062FF" },
+  lemon_squeezy: { label: "Lemon Squeezy", logo: "/logos/lemon-squeezy.svg", brand: "#FFC233" },
 };

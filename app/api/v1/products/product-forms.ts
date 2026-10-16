@@ -96,7 +96,7 @@ export function parseProductForm(fd: FormData) {
       license: str(fd, "license"),
       installCommand: str(fd, "installCommand"),
       version: str(fd, "version"),
-      requirements: str(fd, "requirements"),
+      requirements: jsonArr(fd, "requirements"),
       changelogUrl: str(fd, "changelogUrl"),
       hasAds: fd.get("hasAds") === null ? undefined : fd.get("hasAds") === "true",
       sharesData: fd.get("hasThirdParty") === null ? undefined : fd.get("hasThirdParty") === "true",

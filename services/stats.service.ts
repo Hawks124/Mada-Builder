@@ -44,31 +44,27 @@ export async function logPageView(rawPath: string): Promise<void> {
   }
 }
 
-async function countSince(days: number, onlyPath?: string): Promise<number> {
-  const conditions = [gte(pageViews.createdAt, daysAgo(days))];
-  if (onlyPath) conditions.push(eq(pageViews.path, onlyPath));
-  const [{ value }] = await db
-    .select({ value: count() })
-    .from(pageViews)
-    .where(and(...conditions));
-  return value;
-}
-
-/** Hits tous chemins (7 j par défaut) — anonymes, connectés indistingués. */
-export async function getVisitsTotal(days = 7): Promise<number> {
-  return countSince(days);
-}
-
-/** Hits tous chemins, sans borne de date — le VRAI total (getVisitsTotal
-    est fenêtré, 7 j par défaut : l'afficher comme « total » mentait). */
-export async function getVisitsAllTime(): Promise<number> {
-  const [{ value }] = await db.select({ value: count() }).from(pageViews);
-  return value;
-}
-
-/** Hits homepage (7 j par défaut) — la stat "vitrine" demandée. */
-export async function getHomepageViews(days = 7): Promise<number> {
-  return countSince(days, "/");
+/**
+ * Les 4 compteurs `page_views` en UNE requête (FILTER aggregates) :
+ * 4 round-trips → 1. L'overview lançait 16+ requêtes concurrentes sur
+ * un pool à 10 slots — le mur des files d'attente (8 s + timeout)
+ * venait du fan-out, pas des tables. Même chiffres, même fenêtres.
+ */
+export async function getPageViewStats(): Promise<{
+  v7: number;
+  v30: number;
+  total: number;
+  home7: number;
+}> {
+  const [row] = await db
+    .select({
+      total: sql<number>`count(*)::int`,
+      v7: sql<number>`count(*) filter (where ${pageViews.createdAt} >= ${daysAgo(7).toISOString()}::timestamptz)::int`,
+      v30: sql<number>`count(*) filter (where ${pageViews.createdAt} >= ${daysAgo(30).toISOString()}::timestamptz)::int`,
+      home7: sql<number>`count(*) filter (where ${pageViews.createdAt} >= ${daysAgo(7).toISOString()}::timestamptz and ${pageViews.path} = '/')::int`,
+    })
+    .from(pageViews);
+  return { v7: row?.v7 ?? 0, v30: row?.v30 ?? 0, total: row?.total ?? 0, home7: row?.home7 ?? 0 };
 }
 
 /** Total comptes non supprimés (dénominateur "X sur Y" du panel). */
@@ -291,10 +287,7 @@ const ZERO_EMAILS: EmailCounters = { sent: 0, delivered: 0, failed: 0 };
 
 async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: boolean }> {
   const [
-    visits,
-    visits30,
-    visitsTotal,
-    homeViews,
+    pageViewStats,
     makers,
     users,
     banned,
@@ -308,10 +301,7 @@ async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: bool
     emails7,
     feedback,
   ] = await Promise.all([
-    stat("visits", getVisitsTotal(7), 0),
-    stat("visits30", getVisitsTotal(30), 0),
-    stat("visitsTotal", getVisitsAllTime(), 0),
-    stat("homeViews", getHomepageViews(7), 0),
+    stat("pageViews", getPageViewStats(), { v7: 0, v30: 0, total: 0, home7: 0 }),
     stat("makers", getMakersCount(), 0),
     stat("users", getUsersTotal(), 0),
     stat("banned", getBannedCount(), 0),
@@ -331,10 +321,7 @@ async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: bool
     stat("feedback", getFeedbackStats(), { reviews: 0, comments: 0, avgRating: null }),
   ]);
   const parts = [
-    visits,
-    visits30,
-    visitsTotal,
-    homeViews,
+    pageViewStats,
     makers,
     users,
     banned,
@@ -350,10 +337,10 @@ async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: bool
   ];
   const ok = parts.every((s) => s.ok);
   const data: AdminAnalytics = {
-    visits: visits.v,
-    visits30: visits30.v,
-    visitsTotal: visitsTotal.v,
-    homeViews: homeViews.v,
+    visits: pageViewStats.v.v7,
+    visits30: pageViewStats.v.v30,
+    visitsTotal: pageViewStats.v.total,
+    homeViews: pageViewStats.v.home7,
     makers: makers.v,
     users: users.v,
     banned: banned.v,

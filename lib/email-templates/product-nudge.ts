@@ -95,7 +95,7 @@ export function productNudgeText(input: {
   timeZone: string | null;
 }): string {
   return [
-    "BuilderPlatform",
+    "Mada-Made",
     "---",
     `${emailGreeting(input.timeZone)} ${input.displayName},`,
     "",
@@ -144,6 +144,6 @@ export function productNudgeHtml(input: {
     <p class="text-muted">Aucun délai imposé, aucune pression — votre fiche reste en attente aussi longtemps qu'il faut. Quand c'est prêt, corrigez et resoumettez : un humain relit chaque soumission.</p>
 
     <div style="margin-bottom:40px;"><a href="${dashboard}" class="cta"><span>Corriger ma fiche →</span></a></div>`,
-    `Notification produit &bull; BuilderPlatform &copy; ${new Date().getFullYear()}<br>${emailLegalHtml(input.origin)}`,
+    `Notification produit &bull; Mada-Made &copy; ${new Date().getFullYear()}<br>${emailLegalHtml(input.origin)}`,
   );
 }

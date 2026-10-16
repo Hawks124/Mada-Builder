@@ -87,9 +87,11 @@ Un vote acheté, un compte créé pour voter, ou un anneau détecté entraînent
 
 ## Les revenus vérifiés
 
-Les chiffres sont lus **en lecture seule** auprès de votre prestataire, puis agrégés. Nous ne garantissons pas leur exactitude : votre prestataire fait foi. Nous ne publions jamais de donnée client, ni le détail de vos ventes.
+Les chiffres sont lus **en lecture seule** auprès de votre prestataire (Stripe, RevenueCat, Paddle, Polar, Lemon Squeezy), puis agrégés : MRR actif, devise native (jamais convertie), nombre d'abonnés. Essais, impayés et résiliations exclus, sync horaire. Nous ne garantissons pas leur exactitude : votre prestataire fait foi. Nous ne publions jamais de donnée client, ni le détail de vos ventes.
 
 C'est vous qui choisissez l'affichage : le chiffre complet, ou le badge seul. Le mode change à tout moment, et le chiffre seul n'est jamais une obligation.
+
+**Fonctionnalité en bêta.** La sync est réelle mais jeune : en cas d'échec répété, le badge passe « en échec » au lieu d'afficher un vieux chiffre, et vous êtes notifié. Signalez tout écart constaté : c'est comme ça qu'elle durcit.
 
 ## La modération est motivée, et le recours est ouvert
 
@@ -111,6 +113,8 @@ Aucune sanction ne peut être prononcée sur la base d'une règle qui n'est pas 
 
 Le spam et les doublons, les faux comptes, les anneaux de vote, le scraping abusif et le contournement des limitations, toute atteinte aux mineurs, et la publication de contenus illégaux. Un contenu illicite est retiré et, s'il est grave, le compte est suspendu.
 
+Connecter la clé d'un compte qui n'est pas le vôtre, falsifier une source de revenus, ou contourner la sync (fausses clés, faux stores) vaut retrait du badge et, en cas de fraude organisée, suspension définitive.
+
 Un produit non conforme peut être retiré manuellement, avec motif.
 
 ## Contribuer au code, et les fiches non réclamées
@@ -118,6 +122,8 @@ Un produit non conforme peut être retiré manuellement, avec motif.
 Le dépôt est public et les contributions sont attendues. Une contribution soumise devient partie du projet sous licence MIT, sauf accord contraire explicite.
 
 Nous pouvons créer une fiche produit **pour un maker** qui ne s'est pas encore inscrit, afin de ne pas perdre un travail réel. Dans ce cas, la fiche appartient toujours au maker : il la réclame en prouvant qu'il en est l'auteur, par l'adresse email correspondante ou par la propriété du dépôt. **Sans réclamation dans un délai de 12 mois, la fiche est retirée de l'annuaire.** Nous ne la publions pas sous un autre compte et nous ne la vendons pas.
+
+Fiches « veille » : l'équipe peut référencer des produits hors scène comme références utiles ; ces fiches sont hors classement et hors votes, et peuvent être retirées à tout moment, notamment dès qu'une solution locale équivalente existe. Ce retrait n'est pas une sanction et n'ouvre pas de recours.
 
 ## Le niveau payant
 
@@ -165,6 +171,4 @@ Droit malgache. En cas de litige, cherchons d'abord une solution amiable : écri
 
 ## Modifications de ces conditions
 
-Ces conditions sont modifiables, et toute modification substantielle est annoncée **au moins 15 jours avant son entrée en vigueur**. La date de mise à jour figure en haut de cette page.
-
-Nous n'avons pas de liste de diffusion : le canal fiable, c'est l'email. Écrivez-nous si vous voulez être prévenu des changements.
+Ces conditions sont modifiables, et toute modification substantielle est annoncée **au moins 15 jours avant son entrée en vigueur** : notification in-app + email direct à tous les membres (préavis contractuel — il part même si vous avez coupé le récap hebdo). La date de mise à jour figure en haut de cette page.

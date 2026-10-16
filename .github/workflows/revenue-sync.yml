@@ -1,0 +1,28 @@
+# Sync horaire revenus vérifiés (Phase 2 MRR).
+#
+# Convention crons du repo (.env.example) : POST /api/cron/* en Bearer.
+# Secrets requis (repo Settings → Secrets → Actions) : SITE_URL (origine
+# exacte de la prod, sans slash final), CRON_SECRET (même valeur qu'en
+# prod). La clé maître REVENUE_KEY vit côté prod (Vercel env), jamais ici.
+# Double-run sans danger (snapshots uniques heure/produit — le 2e est no-op).
+name: revenue-sync
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync revenus (horaire)
+        run: |
+          code=$(curl -s --max-time 120 -o /tmp/revenue.json -w "%{http_code}" -X POST \
+            "$SITE_URL/api/cron/revenue" \
+            -H "Authorization: Bearer $CRON_SECRET")
+          cat /tmp/revenue.json
+          test "$code" = "200"
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

@@ -2,19 +2,87 @@ import {
   ApiError,
   apiCatch,
   apiOk,
+  CACHE_PUBLIC_SHORT,
   corsPreflight,
+  iso,
   methodNotAllowed,
   readJson,
+  withCache,
 } from "@/lib/api/response";
 import { requireApiUser } from "@/lib/api/auth";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
-import { createBuild } from "@/services/builds.service";
+import { createBuild, getApprovedBuilds } from "@/services/builds.service";
+import { db } from "@/db";
+import { products } from "@/db/schema";
+import { and, eq, isNull } from "drizzle-orm";
 
 export const OPTIONS = async () => corsPreflight();
-export const GET = async () => methodNotAllowed(["POST"]);
-export const PATCH = async () => methodNotAllowed(["POST"]);
-export const PUT = async () => methodNotAllowed(["POST"]);
-export const DELETE = async () => methodNotAllowed(["POST"]);
+export const PATCH = async () => methodNotAllowed(["GET", "POST"]);
+export const PUT = async () => methodNotAllowed(["GET", "POST"]);
+export const DELETE = async () => methodNotAllowed(["GET", "POST"]);
+
+/**
+ * Historique binaires (écran « Nouveautés » natif) : builds approuvés
+ * d'une fiche publiée, plus récents d'abord (20 max). Public, cache
+ * court — jamais de pending/rejected, jamais la clé R2.
+ */
+export async function GET(
+  req: Request,
+  context: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  try {
+    const forwarded = req.headers.get("x-forwarded-for");
+    const ip = forwarded?.split(",")[0]?.trim() || null;
+    if (ip) {
+      await apiLimit("api:builds:history", ip, { window: "60 s", max: 300 });
+    }
+    const { id: raw } = await context.params;
+    const key = (raw ?? "").toLowerCase().slice(0, 128);
+    if (key === "") throw new ApiError("NOT_FOUND", 404, "Produit introuvable.");
+    let productId = key;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(key)) {
+      const [found] = await db
+        .select({ id: products.id })
+        .from(products)
+        .where(
+          and(eq(products.slug, key), eq(products.status, "published"), isNull(products.deletedAt)),
+        )
+        .limit(1);
+      if (!found) throw new ApiError("NOT_FOUND", 404, "Produit introuvable.");
+      productId = found.id;
+    } else {
+      // UUID direct : même garde (pas de fuite pre-revue).
+      const [product] = await db
+        .select({ id: products.id })
+        .from(products)
+        .where(
+          and(
+            eq(products.id, productId),
+            eq(products.status, "published"),
+            isNull(products.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!product) throw new ApiError("NOT_FOUND", 404, "Produit introuvable.");
+    }
+    const builds = await getApprovedBuilds(productId);
+    return withCache(
+      apiOk({
+        builds: builds.slice(0, 20).map((b) => ({
+          versionCode: b.versionCode,
+          versionName: b.versionName,
+          whatsnew: b.whatsnew,
+          sizeBytes: b.sizeBytes,
+          sha256: b.sha256File,
+          reviewedAt: iso(b.reviewedAt),
+        })),
+      }),
+      CACHE_PUBLIC_SHORT,
+    );
+  } catch (e) {
+    return apiCatch(e, "api.builds.history");
+  }
+}
 
 /**
  * Enregistrement d'un build APK (D1) : le binaire est DÉJÀ sur R2 (PUT

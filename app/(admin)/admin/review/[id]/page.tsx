@@ -36,6 +36,8 @@ import {
   isProductDecided,
 } from "@/app/actions/products";
 import { toReviewItem } from "@/services/products.service";
+import { getProductRevenueView } from "@/services/revenue/views";
+import { REVENUE_CONFIG_SPECS } from "@/services/revenue/types";
 import { formatMoney } from "@/lib/utils";
 
 // noindex strict — jamais indexé, même au backend.
@@ -77,10 +79,21 @@ export default async function AdminReviewDetailPage({
     dossier = decided;
     preloadedBuilds = allBuilds;
   }
+  // Preuve revenus réelle (staff) : la vue DB, jamais de montant en dur.
+  // Échec backend = pas de bloc (jamais de faux « pas de revenus »).
+  const revenueView = await getProductRevenueView(dossier.id).catch(() => null);
   const item = toReviewItem(dossier, {
     shotCount: dossier.shots.length,
     makerLive: dossier.makerLiveCount,
     makerBans: dossier.makerBans,
+    revenue: revenueView
+      ? {
+          provider: revenueView.provider,
+          mrrCents: revenueView.mrrCents,
+          currency: revenueView.currency,
+          displayMode: revenueView.displayMode,
+        }
+      : undefined,
   });
 
   const categories = item.categoryIds
@@ -142,7 +155,7 @@ export default async function AdminReviewDetailPage({
     { label: "Licence", filled: !!item.license },
     { label: "Commande d'installation", filled: !!item.installCommand },
     { label: "Vidéo", filled: !!item.videoUrl },
-    { label: "Config requise", filled: !!item.requirements },
+    { label: "Config requise", filled: (item.requirements?.length ?? 0) > 0 },
     { label: "Changelog", filled: !!item.changelogUrl },
     ...(item.audienceId === "kids"
       ? [
@@ -337,8 +350,12 @@ export default async function AdminReviewDetailPage({
               />
               <TechRow
                 label="Configuration requise"
-                value={item.requirements ?? "Non fournie"}
-                muted={!item.requirements}
+                value={
+                  item.requirements && item.requirements.length > 0
+                    ? item.requirements.join(" · ")
+                    : "Non fournie"
+                }
+                muted={!item.requirements || item.requirements.length === 0}
               />
               <TechRow
                 label="Changelog"
@@ -438,9 +455,10 @@ export default async function AdminReviewDetailPage({
                 <p className="text-[14px] font-medium text-muted-foreground">
                   Clé connectée —{" "}
                   <span className="font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
-                    {formatMoney(item.revenue.mrrCents, "USD", { compact: true })}
+                    {formatMoney(item.revenue.mrrCents, item.revenue.currency, { compact: true })}
                   </span>{" "}
-                  via {item.revenue.provider === "stripe" ? "Stripe" : "RevenueCat"}
+                  via {REVENUE_CONFIG_SPECS[item.revenue.provider].label}
+                  {item.revenue.displayMode === "badge_only" && " (masqué au public)"}
                 </p>
               </div>
             </ProofSection>

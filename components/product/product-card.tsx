@@ -17,7 +17,6 @@ import { getRatingById } from "@/config/ratings";
 import { VoteButton } from "@/components/votes/vote-button";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { LifecyclePill } from "@/components/ui/lifecycle-pill";
-import { deriveRevenueView } from "@/components/revenue/revenue-derive";
 import { RevenueBadge } from "@/components/revenue/verified-revenue-badge";
 import Link from "next/link";
 
@@ -48,8 +47,13 @@ export type ProductCardProps = {
   audienceId: string;
   lifecycle?: string;
   comments?: number;
-  /** MRR vérifié en centimes — null/absent = pas de badge (jamais de faux chiffre). */
-  mrrCents?: number | null;
+  /** Revenus vérifiés réels — absent = pas de badge (jamais de faux chiffre). */
+  revenue?: {
+    provider: "stripe" | "revenuecat" | "paddle" | "polar" | "lemon_squeezy";
+    displayMode: "full" | "badge_only";
+    mrrCents: number;
+    currency: string;
+  } | null;
   /** Date ISO de publication — sert au badge "Nouveau" du tri récent. */
   publishedAt?: string | null;
   /** Veille internationale : badge + vote désactivé (hors jeu). */
@@ -198,10 +202,23 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
               </span>
             </>
           )}
-          {product.mrrCents != null && product.mrrCents > 0 && (
+          {product.revenue != null && (
             <>
               <div className="w-0.75 h-0.75 rounded-full bg-border" />
-              <RevenueBadge revenue={deriveRevenueView(product.id, product.mrrCents)} size="sm" />
+              <RevenueBadge
+                revenue={{
+                  provider: product.revenue.provider,
+                  displayMode: product.revenue.displayMode,
+                  mrrCents: product.revenue.mrrCents,
+                  arrCents: product.revenue.mrrCents * 12,
+                  activeSubscribers: 0,
+                  currency: product.revenue.currency,
+                  lastSyncedAt: "",
+                  lastSyncedLabel: "",
+                  history: [],
+                }}
+                size="sm"
+              />
             </>
           )}
         </div>

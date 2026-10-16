@@ -18,7 +18,7 @@ export function appealNotifyText(input: {
   evidenceLinks: string[];
 }): string {
   return [
-    "BuilderPlatform — Modération",
+    "Mada-Made — Modération",
     "---",
     `Nouvel appel de ${input.displayName} (@${input.username}) :`,
     "",
@@ -96,7 +96,7 @@ export function appealNotifyHtml(input: {
     <hr class="divider" />
     <div class="footer">
       Décision requise dans <strong>/admin/users</strong> (filtre Appels).<br>
-      BuilderPlatform
+      Mada-Made
     </div>
   </div>
 </body>

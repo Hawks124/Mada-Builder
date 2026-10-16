@@ -660,6 +660,64 @@ export async function getFeatured(now: Date = new Date()): Promise<FeaturedSlot 
   );
 }
 
+/**
+ * Slot d'un produit désigné par son id — aperçu admin avant épinglage.
+ *
+ * Miroir de `getFeatured` sur un produit précis : même projection, même
+ * conversion, donc la carte rendue est exactement celle du hero. Mêmes
+ * filtres que `setFeaturedOverride` (publié, hors veille, non supprimé) pour
+ * que l'aperçu ne montre jamais un produit que l'épinglage refuserait.
+ */
+export async function getFeaturedSlotByProductId(productId: string): Promise<FeaturedSlot | null> {
+  const [row] = await db
+    .select({
+      ...FEATURED_SELECT,
+      featuredOn: sql<string>`to_char(coalesce(${products.publishedAt}, ${products.createdAt}), 'YYYY-MM-DD')`,
+      pinned: sql<boolean>`true`,
+    })
+    .from(products)
+    .innerJoin(users, eq(products.makerId, users.id))
+    .where(
+      and(
+        eq(products.id, productId),
+        eq(products.status, "published"),
+        eq(products.curated, false),
+        isNull(products.deletedAt),
+      ),
+    )
+    .limit(1);
+  return row ? toFeaturedSlot(row, "top") : null;
+}
+
+export type FeaturedHistoryRow = {
+  featuredOn: string;
+  pinned: boolean;
+  slug: string;
+  name: string;
+};
+
+/**
+ * Historique des produits du jour, du plus récent au plus ancien.
+ *
+ * `getFeatured` insère la ligne du jour même quand le cron n'a pas tourné :
+ * la table est donc un journal quotidien complet, pas seulement la liste des
+ * épinglages. `pinned` distingue ce que l'équipe a choisi de ce que le palier
+ * automatique a pris — l'info utile quand on est seul à administrer.
+ */
+export async function getFeaturedHistory(limit = 30): Promise<FeaturedHistoryRow[]> {
+  return db
+    .select({
+      featuredOn: featuredProducts.featuredOn,
+      pinned: featuredProducts.pinned,
+      slug: products.slug,
+      name: products.name,
+    })
+    .from(featuredProducts)
+    .innerJoin(products, eq(products.id, featuredProducts.productId))
+    .orderBy(desc(featuredProducts.featuredOn))
+    .limit(limit);
+}
+
 type ComputedFeatured = {
   row: Omit<Parameters<typeof toFeaturedSlot>[0], "featuredOn" | "pinned">;
   tier: "top" | "rotation" | "latest";
@@ -876,6 +934,36 @@ export async function findPublishedIdBySlug(slug: string): Promise<string | null
     )
     .limit(1);
   return row?.id ?? null;
+}
+
+/**
+ * Pourquoi un slug n'est pas pinnable — staff uniquement.
+ *
+ * `setFeaturedOverride` renvoie un 404 volontairement indistinct (« pas
+ * d'oracle »), ce qui est juste côté public mais frustrant pour l'admin qui a
+ * tapé un slug. Réservé aux appelants déjà gardés par le rôle staff : rien
+ * n'est révélé que le rôle ne voit déjà dans la liste produits.
+ */
+export type FeaturedSlugState =
+  | { state: "ok"; productId: string }
+  | { state: "missing" }
+  | { state: "watch" }
+  | { state: "notPublished" };
+
+export async function resolveFeaturedSlug(slug: string): Promise<FeaturedSlugState> {
+  const [row] = await db
+    .select({
+      id: products.id,
+      status: products.status,
+      curated: products.curated,
+    })
+    .from(products)
+    .where(and(eq(products.slug, slug.toLowerCase()), isNull(products.deletedAt)))
+    .limit(1);
+  if (!row) return { state: "missing" };
+  if (row.curated) return { state: "watch" };
+  if (row.status !== "published") return { state: "notPublished" };
+  return { state: "ok", productId: row.id };
 }
 
 /**

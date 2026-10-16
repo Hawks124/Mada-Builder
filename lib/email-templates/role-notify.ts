@@ -26,9 +26,7 @@ export function roleNotifyText(input: {
   const body = input.promoted
     ? "Vous êtes désormais modérateur de la plateforme. Reconnectez-vous pour activer vos accès."
     : "Votre rôle modérateur a pris fin. Votre compte maker reste inchangé : profil, produits et votes sont conservés.";
-  return ["BuilderPlatform", "---", base, "", body, "", "---", emailLegalText(input.origin)].join(
-    "\n",
-  );
+  return ["Mada-Made", "---", base, "", body, "", "---", emailLegalText(input.origin)].join("\n");
 }
 
 export function roleNotifyHtml(input: {
@@ -106,7 +104,7 @@ export function roleNotifyHtml(input: {
     <hr class="divider" />
     
     <div class="footer">
-      Notification automatique &bull; BuilderPlatform &copy; ${new Date().getFullYear()}<br>
+      Notification automatique &bull; Mada-Made &copy; ${new Date().getFullYear()}<br>
       ${emailLegalHtml(input.origin)}
     </div>
   </div>

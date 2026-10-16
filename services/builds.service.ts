@@ -424,6 +424,81 @@ export async function getApprovedBuilds(productId: string): Promise<BuildListIte
 }
 
 /**
+ * Dernier build approuvé par produit (check-update mobile : 1 requête quel
+ * que soit le lot). `DISTINCT ON` : versionCode max d'abord (NULL en
+ * dernier = enregistrements bruts D1), départage création. Fiches non
+ * publiées exclues (jamais de fuite pre-revue). Sous-ensemble sérialisable
+ * (jamais la clé R2).
+ */
+export type LatestApprovedBuild = Pick<
+  BuildListItem,
+  | "productId"
+  | "versionCode"
+  | "versionName"
+  | "package"
+  | "minSdk"
+  | "targetSdk"
+  | "sha256File"
+  | "sizeBytes"
+  | "whatsnew"
+  | "reviewedAt"
+>;
+
+export async function getLatestApprovedBuilds(
+  productIds: string[],
+): Promise<Map<string, LatestApprovedBuild>> {
+  const map = new Map<string, LatestApprovedBuild>();
+  const ids = [...new Set(productIds)].slice(0, 50);
+  if (ids.length === 0) return map;
+  // `db.execute` brut = snake_case : mapping explicite vers BuildListItem
+  // (seuls les champs lus par le mobile sont repris, jamais la clé R2).
+  const rows = (await db.execute(sql`
+    SELECT DISTINCT ON (b.product_id)
+      b.product_id, b.version_code, b.version_name, b.package, b.min_sdk,
+      b.target_sdk, b.sha256_file, b.size_bytes, b.whatsnew, b.reviewed_at
+    FROM product_builds b
+    JOIN products p ON p.id = b.product_id
+    WHERE b.product_id IN (${sql.join(
+      ids.map((id) => sql`${id}::uuid`),
+      sql`, `,
+    )})
+      AND b.status = 'approved'
+      AND p.status = 'published'
+      AND p.deleted_at IS NULL
+    ORDER BY b.product_id, b.version_code DESC NULLS LAST, b.created_at DESC
+  `)) as unknown as {
+    product_id: string;
+    version_code: number | null;
+    version_name: string | null;
+    package: string | null;
+    min_sdk: number | null;
+    target_sdk: number | null;
+    sha256_file: string;
+    size_bytes: number;
+    whatsnew: string | null;
+    reviewed_at: Date | null;
+  }[];
+  for (const row of rows) {
+    // `db.execute` brut : timestamptz arrive en string — normalisé en Date
+    // ici (jamais de `.toISOString` sauvage chez les appelants).
+    const reviewedAt = row.reviewed_at ? new Date(row.reviewed_at as unknown as string) : null;
+    map.set(row.product_id, {
+      productId: row.product_id,
+      versionCode: row.version_code,
+      versionName: row.version_name,
+      package: row.package,
+      minSdk: row.min_sdk,
+      targetSdk: row.target_sdk,
+      sha256File: row.sha256_file,
+      sizeBytes: Number(row.size_bytes),
+      whatsnew: row.whatsnew,
+      reviewedAt,
+    });
+  }
+  return map;
+}
+
+/**
  * Statut binaire par produit (dashboard : bouton Update vs rattrapage) :
  * track existe ? + max versionCode + nombre de builds. Une requête.
  */

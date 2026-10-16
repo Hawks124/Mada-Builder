@@ -2,7 +2,7 @@ import { BRAND_CSS_BASE, BRAND_CSS_DARK, emailBrandHtml } from "@/lib/email-temp
 import { emailLegalHtml, emailLegalText } from "@/lib/email-templates/footer";
 
 export function otpEmailSubject(): string {
-  return "Connexion — BuilderPlatform";
+  return "Connexion — Mada-Made";
 }
 
 export function otpEmailText(input: {
@@ -14,7 +14,7 @@ export function otpEmailText(input: {
   origin: string;
 }): string {
   const lines = [
-    "BuilderPlatform",
+    "Mada-Made",
     "---",
     "Connexion.",
     "",
@@ -109,7 +109,7 @@ export function otpEmailHtml(input: {
     }
     
     <div class="footer">
-      BuilderPlatform &copy; ${new Date().getFullYear()}<br>
+      Mada-Made &copy; ${new Date().getFullYear()}<br>
       ${emailLegalHtml(input.origin)}
     </div>
   </div>

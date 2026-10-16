@@ -42,7 +42,7 @@ export function OverviewStats({
 }: {
   totals: DashboardTotals;
   mode?: "full" | "public";
-  revenueDisplay?: "full" | "badge_only";
+  revenueDisplay?: "full" | "badge_only" | "none";
 }) {
   const stats: StatDef[] =
     mode === "public"
@@ -59,20 +59,26 @@ export function OverviewStats({
             delta: "en ligne",
             tone: "neutral",
           },
-          revenueDisplay === "full"
-            ? {
-                label: "MRR vérifié",
-                value: formatMoney(totals.totalMrrCents, "USD", { compact: true }),
-                delta: "revenus prouvés",
-                tone: "up",
-              }
-            : {
-                label: "MRR vérifié",
-                value: "",
-                delta: "montant masqué par le maker",
-                tone: "neutral",
-                verifiedBadge: true,
-              },
+          ...(revenueDisplay === "none"
+            ? []
+            : [
+                revenueDisplay === "full"
+                  ? {
+                      label: "MRR vérifié",
+                      value: formatMoney(totals.totalMrrCents, totals.mrrCurrency ?? "USD", {
+                        compact: true,
+                      }),
+                      delta: "revenus prouvés",
+                      tone: "up" as const,
+                    }
+                  : {
+                      label: "MRR vérifié",
+                      value: "",
+                      delta: "montant masqué par le maker",
+                      tone: "neutral" as const,
+                      verifiedBadge: true,
+                    },
+              ]),
         ]
       : [
           {
@@ -140,7 +146,9 @@ export function OverviewStats({
           },
           {
             label: "MRR vérifié",
-            value: formatMoney(totals.totalMrrCents, "USD", { compact: true }),
+            value: formatMoney(totals.totalMrrCents, totals.mrrCurrency ?? "USD", {
+              compact: true,
+            }),
             delta: totals.totalMrrCents > 0 ? "revenus prouvés" : "connectez une facturation",
             tone: totals.totalMrrCents > 0 ? "up" : "neutral",
           },

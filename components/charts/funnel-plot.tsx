@@ -110,9 +110,21 @@ export function FunnelPlot({
               interval={0}
               tick={stageTick}
             />
-            <Bar dataKey="value" radius={[999, 999, 999, 999]} isAnimationActive={false}>
+            {/* minPointSize : sans lui Recharts ne dessine pas une barre de largeur nulle
+                et saute son étiquette — l'étape à zéro perdait son chiffre. Le
+                liseré reste invisible (opacité 0), seul le nombre s'affiche. */}
+            <Bar
+              dataKey="value"
+              radius={[999, 999, 999, 999]}
+              minPointSize={2}
+              isAnimationActive={false}
+            >
               {data.map((row, i) => (
-                <Cell key={row.stage} fillOpacity={OPACITY[i]} fill={row.fill} />
+                <Cell
+                  key={row.stage}
+                  fillOpacity={row.value > 0 ? OPACITY[i] : 0}
+                  fill={row.fill}
+                />
               ))}
               <LabelList dataKey="value" position="right" offset={10} content={<ValueTag />} />
             </Bar>

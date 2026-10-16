@@ -8,10 +8,13 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ActionButton } from "@/components/ui/action-button";
 import { type ActivityItem } from "@/components/admin/admin-mock";
 import { getRecentActivity } from "@/services/activity.service";
-import { FeaturedOverrideForm } from "@/components/admin/featured-override-form";
 import { getPendingCountCached, getProductsCount } from "@/services/stats.service";
-import { getFeatured } from "@/services/ranking.service";
 import { getBuildStats } from "@/services/builds.service";
+import {
+  getActiveRevenueConnectionsCount,
+  getFailingRevenueConnections,
+} from "@/services/revenue/views";
+import { REVENUE_CONFIG_SPECS } from "@/services/revenue/types";
 import { getAdminAnalyticsCached, withTimeout } from "@/services/stats.service";
 
 // noindex strict — jamais indexé, même au backend (robots + middleware).
@@ -37,20 +40,24 @@ const STATS_FALLBACK: AdminStat[] = [
   { label: "Makers inscrits", value: "—", delta: "comptes actifs", tone: "neutral" as const },
   { label: "Bannis", value: "—", delta: "suspendus", tone: "neutral" as const },
   { label: "Listings publiés", value: "—", delta: "milestone listings", tone: "neutral" as const },
-  { label: "MRR vérifié", value: "—", delta: "milestone revenue", tone: "neutral" as const },
+  { label: "Clés revenus", value: "—", delta: "backend injoignable", tone: "neutral" as const },
 ];
 
 /** Stats plateforme EXHAUSTIVES (admin = toute la plateforme) : réelles
- * quand le backend répond, "—" pour MRR (milestone revenue) et "0 + Phase
- * 5" pour notes/commentaires (inexistants — jamais de faux chiffres). */
-async function getStats(): Promise<AdminStat[]> {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return STATS_FALLBACK;
+ * quand le backend répond, "0 + Phase 5" pour notes/commentaires
+ * (inexistants — jamais de faux chiffres). Les revenus se pilotent au
+ * nombre de clés actives, jamais à une somme multi-devises. */
+async function getStats(): Promise<{
+  stats: AdminStat[];
+  revenueFailing: Awaited<ReturnType<typeof getFailingRevenueConnections>>;
+}> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return { stats: STATS_FALLBACK, revenueFailing: [] };
   try {
     // Split décisionnel vs analytique (perf overview) : la file et les
     // builds restent FRAIS (jamais de décision sur du daté), avec timeout
     // 8 s et repli « — » par item (plus de tout-ou-rien). Le reste vient
     // du cache 90 s.
-    const [pending, builds, a] = await Promise.all([
+    const [pending, builds, a, revenueFailing, activeRevenue] = await Promise.all([
       withTimeout(
         getProductsCount("pending").catch(() => -1),
         8000,
@@ -62,6 +69,12 @@ async function getStats(): Promise<AdminStat[]> {
         null,
       ),
       getAdminAnalyticsCached(),
+      getFailingRevenueConnections().catch(() => []),
+      withTimeout(
+        getActiveRevenueConnectionsCount().catch(() => -1),
+        8000,
+        -1,
+      ),
     ]);
     const {
       visits,
@@ -85,7 +98,7 @@ async function getStats(): Promise<AdminStat[]> {
     } = a;
     const total = drafts + (pending >= 0 ? pending : 0) + published + rejected;
     const n = (v: number): string => v.toLocaleString("fr-FR");
-    return [
+    const stats: AdminStat[] = [
       {
         label: "Visites (7 j)",
         value: n(visits),
@@ -199,10 +212,30 @@ async function getStats(): Promise<AdminStat[]> {
         delta: `dont ${n(emails7.failed)} (7 j) — webhooks Resend`,
         tone: "neutral" as const,
       },
-      { label: "MRR vérifié", value: "—", delta: "milestone revenue", tone: "neutral" as const },
+      activeRevenue >= 0
+        ? {
+            label: "Clés revenus",
+            value: n(activeRevenue),
+            delta:
+              revenueFailing.length > 0
+                ? `dont ${n(revenueFailing.length)} en échec`
+                : "lecture seule, sync horaire",
+            tone: "neutral" as const,
+          }
+        : {
+            label: "Clés revenus",
+            value: "—",
+            delta: "compteur indisponible",
+            tone: "neutral" as const,
+          },
     ];
+
+    return { stats, revenueFailing };
   } catch {
-    return STATS_FALLBACK;
+    return {
+      stats: STATS_FALLBACK,
+      revenueFailing: [] as Awaited<ReturnType<typeof getFailingRevenueConnections>>,
+    };
   }
 }
 
@@ -212,14 +245,16 @@ function ActivityVisual({ item }: { item: ActivityItem }) {
   const { subject } = item;
 
   if (subject.type === "provider") {
+    // Logo réel du provider (jamais Stripe en dur : 5 providers possibles).
+    const spec = REVENUE_CONFIG_SPECS[subject.provider];
     return (
       <span className="h-8 w-8 rounded-xl bg-background border border-border/40 flex items-center justify-center shrink-0 overflow-hidden px-1">
         <Image
-          src="/logos/stripe.svg"
-          alt="Stripe"
+          src={spec.logo}
+          alt={spec.label}
           width={28}
-          height={14}
-          className="object-contain w-6 h-auto dark:brightness-0 dark:invert"
+          height={28}
+          className="object-contain w-6 h-6"
         />
       </span>
     );
@@ -273,16 +308,28 @@ function ActivityVisual({ item }: { item: ActivityItem }) {
 }
 
 // Gate staff au layout (admin). Stats mixtes : réelles quand le backend
-// répond (visites, makers, bannis), "—" pour listings/MRR jusqu'à leurs
-// milestones.
+// répond (visites, makers, bannis, clés revenus), "—" pour listings
+// jusqu'à son milestone.
 export default async function AdminOverviewPage() {
-  const [stats, featured, pendingCount, activity] = await Promise.all([
+  // eslint-disable-next-line react-hooks/purity -- diagnostic dev : mesure de durée, aucun impact rendu.
+  const pageT0 = Date.now();
+  const [{ stats, revenueFailing }, pendingCount, activity] = await Promise.all([
     getStats(),
-    getFeatured().catch(() => null),
-    getPendingCountCached(),
+    // Compteur CTA borné (8 s) : sans borne, c'était un await infini dans
+    // le stream — -1 = compteur inconnu, le bouton reste sans chiffre
+    // (jamais de « (0) » mensonger).
+    withTimeout(
+      getPendingCountCached().catch(() => -1),
+      8000,
+      -1,
+    ),
     // Activité RÉELLE (audit + soumissions + inscriptions) — vide honnête.
     getRecentActivity(10).catch(() => []),
   ]);
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line react-hooks/purity -- diagnostic dev : mesure de durée, aucun impact rendu.
+    console.log(`[admin] overview ${(Date.now() - pageT0).toFixed(0)}ms`);
+  }
   return (
     <div className="w-full px-6 lg:px-12 pt-10 lg:pt-14 pb-24 flex flex-col gap-14">
       <PageHeader
@@ -296,7 +343,7 @@ export default async function AdminOverviewPage() {
             className="h-11! px-6! text-[14px]!"
           >
             <HourglassIcon weight="fill" className="h-4 w-4" />
-            Traiter la file ({pendingCount})
+            {pendingCount >= 0 ? `Traiter la file (${pendingCount})` : "Traiter la file"}
           </ActionButton>
         }
       />
@@ -327,12 +374,32 @@ export default async function AdminOverviewPage() {
 
       <div className="w-full h-px bg-border/40" />
 
-      {/* Produit du jour — override staff (Phase 3) */}
-      <FeaturedOverrideForm
-        current={
-          featured ? { slug: featured.slug, name: featured.name, pinned: featured.pinned } : null
-        }
-      />
+      {/* Sync revenus en échec (monitoring bêta) — vide = rien à voir. */}
+      {revenueFailing.length > 0 && (
+        <div className="flex flex-col gap-6">
+          <h2 className="text-2xl font-black tracking-tight text-foreground">
+            Sync revenus en échec ({revenueFailing.length})
+          </h2>
+          <div className="flex flex-col">
+            {revenueFailing.map((f) => (
+              <Link
+                key={f.connectionId}
+                href={`/products/${f.productSlug}`}
+                className="group flex items-center gap-3 py-3 px-3 rounded-2xl hover:bg-muted/40 transition-colors"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" aria-hidden="true" />
+                <p className="text-[14px] font-medium text-foreground group-hover:text-primary transition-colors flex-1 min-w-0 truncate">
+                  {f.productName} · {REVENUE_CONFIG_SPECS[f.provider].label}
+                  {f.lastError ? ` — ${f.lastError}` : ""}
+                </p>
+                <span className="text-[12px] font-medium text-muted-foreground shrink-0 tabular-nums">
+                  {f.failedCount} échecs
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Recent activity — réelle (audit + soumissions + inscriptions). */}
       <div className="flex flex-col gap-6">

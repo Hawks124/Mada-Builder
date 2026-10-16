@@ -11,3 +11,5 @@ export * from "./idempotency";
 export * from "./email_logs";
 export * from "./reviews";
 export * from "./notifications";
+export * from "./revenue";
+export * from "./contact";

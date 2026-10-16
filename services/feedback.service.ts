@@ -249,7 +249,7 @@ export type ReviewItem = {
   own: boolean;
   makerResponse: string | null;
   makerRespondedAt: string | null;
-  author: { username: string; displayName: string; avatarUrl: string | null };
+  author: { username: string; displayName: string; avatarUrl: string | null; occupation: string };
 };
 
 /** Avis d'une fiche (récence) + distribution pour le header. */
@@ -274,6 +274,7 @@ export async function getProductReviews(
       username: users.username,
       displayName: users.displayName,
       avatarUrl: users.avatarUrl,
+      occupation: users.occupation,
     })
     .from(reviews)
     .innerJoin(users, eq(reviews.userId, users.id))
@@ -296,7 +297,12 @@ export async function getProductReviews(
       own: viewerId !== null && r.userId === viewerId,
       makerResponse: r.makerResponse,
       makerRespondedAt: r.makerRespondedAt?.toISOString() ?? null,
-      author: { username: r.username, displayName: r.displayName, avatarUrl: r.avatarUrl },
+      author: {
+        username: r.username,
+        displayName: r.displayName,
+        avatarUrl: r.avatarUrl,
+        occupation: r.occupation,
+      },
     })),
     distribution: {
       avg: rows.length > 0 ? Math.round((sum / rows.length) * 10) / 10 : 0,
@@ -515,7 +521,7 @@ export type CommentItem = {
   updatedAt: string;
   own: boolean;
   myVote: "up" | "down" | null;
-  author: { username: string; displayName: string; avatarUrl: string | null };
+  author: { username: string; displayName: string; avatarUrl: string | null; occupation: string };
   replies: CommentItem[];
 };
 
@@ -537,6 +543,7 @@ export async function getProductComments(
       username: users.username,
       displayName: users.displayName,
       avatarUrl: users.avatarUrl,
+      occupation: users.occupation,
     })
     .from(comments)
     .innerJoin(users, eq(comments.userId, users.id))
@@ -567,7 +574,12 @@ export async function getProductComments(
     updatedAt: r.updatedAt.toISOString(),
     own: viewerId !== null && r.userId === viewerId,
     myVote: myVotes.get(r.id) ?? null,
-    author: { username: r.username, displayName: r.displayName, avatarUrl: r.avatarUrl },
+    author: {
+      username: r.username,
+      displayName: r.displayName,
+      avatarUrl: r.avatarUrl,
+      occupation: r.occupation,
+    },
     replies: [],
   });
   const tops: CommentItem[] = [];

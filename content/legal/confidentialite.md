@@ -52,9 +52,11 @@ Si vous envoyez un APK, voilà exactement ce qu'on en fait — rien de plus.
 
 ## Mes clés de facturation
 
-Si vous reliez une clé **en lecture seule** (Stripe, RevenueCat), elle est **chiffrée au repos** dès sa réception, **jamais ré-affichée** après votre saisie — pas même masquée —, et **jamais écrite dans les journaux**. Elle ne peut déclencher ni paiement, ni remboursement, ni transfert.
+Si vous reliez une clé **en lecture seule** (Stripe, RevenueCat, Paddle, Polar ou Lemon Squeezy — [mode d'emploi](/guides/revenus-verifies)), elle est **chiffrée au repos** (AES-256) dès sa réception, **jamais ré-affichée** après votre saisie — pas même masquée —, et **jamais écrite dans les journaux**. Elle ne peut déclencher ni paiement, ni remboursement, ni transfert. Pour Stripe, seules les clés restreintes (`rk_`) sont acceptées : les clés secrètes (`sk_`) sont refusées avant tout stockage.
 
-Vous pouvez la révoquer à tout moment, depuis votre tableau de bord ou auprès de votre prestataire. La révocation purge la clé de notre côté.
+**Ce qu'on lit.** Toutes les heures, un seul chiffre par connexion : le MRR actif, sa devise et le nombre d'abonnés. Essais, impayés et résiliations exclus. **Ce qu'on ne lit jamais** : vos clients (ni noms, ni emails), vos transactions une par une, vos moyens de paiement.
+
+Vous pouvez la révoquer à tout moment, depuis votre tableau de bord ou auprès de votre prestataire. La révocation purge la clé de notre côté ; les agrégats déjà publiés restent (transparence de l'historique).
 
 ## Qui traite mes données, et où
 
@@ -112,7 +114,9 @@ La bannière qui apparaît au premier passage **n'est pas un mécanisme de conse
 
 Des emails **transactionnels** uniquement : lien de connexion, approbation ou rejet d'une soumission ou d'un binaire, alerte de sécurité, puis les changements de conditions. Rien d'autre — jamais de marketing, jamais de revente d'adresses.
 
-Le digest hebdomadaire, quand il existera, sera **désinscriptible en un clic** et n'enverra que les nouveaux produits et les revenus vérifiés.
+Le digest hebdomadaire existe : un récap de vos notifications non lues, chaque lundi, réservé aux membres (aucune liste externe — votre compte est l'abonnement). Il est **désinscriptible en un clic** (profil → notifications), et les rares annonces de la plateforme respectent le même opt-out.
+
+Le formulaire de contact (`/contact`, sans compte requis) transmet nom, email, motif et message à l'équipe, conservés **2 ans** (suivi des échanges, notamment sponsoring et partenariat). Écrivez-nous pour faire rectifier ou effacer votre message avant ce délai.
 
 ## Les dons
 
@@ -124,6 +128,6 @@ Nous n'enregistrons que ce que vous nous transmettez : une référence de paieme
 
 ## Modifications de cette politique
 
-Cette politique évolue avec le produit. La date de mise à jour figure en haut de cette page, et toute modification substantielle est annoncée **au moins 15 jours avant son entrée en vigueur**.
+Cette politique évolue avec le produit. La date de mise à jour figure en haut de cette page, et toute modification substantielle est annoncée **au moins 15 jours avant son entrée en vigueur** : notification in-app + email direct à tous les membres (préavis contractuel — il part même si vous avez coupé le récap hebdo).
 
 En attendant, le moyen le plus sûr d'être informé des changements est de nous écrire : nous vous répondons directement, sans liste de diffusion ni intermédiaire.

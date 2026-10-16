@@ -13,10 +13,15 @@ import {
   ListIcon,
   DownloadSimpleIcon,
   XIcon,
+  StarIcon,
+  LifebuoyIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import type { BadgeKey, BadgeState } from "@/app/api/admin/badges/route";
+
+const ALL_BADGE_KEYS: BadgeKey[] = ["pending", "rejected", "builds", "contact"];
 
 const NAV_ITEMS = [
   {
@@ -58,28 +63,91 @@ const NAV_ITEMS = [
     match: (pathname: string) => pathname.startsWith("/admin/rejected"),
     badgeKey: "rejected" as const,
   },
+  {
+    href: "/admin/featured",
+    label: "Produit du jour",
+    icon: StarIcon,
+    match: (pathname: string) => pathname.startsWith("/admin/featured"),
+  },
+  {
+    href: "/admin/contact",
+    label: "Contact",
+    icon: LifebuoyIcon,
+    match: (pathname: string) => pathname.startsWith("/admin/contact"),
+    badgeKey: "contact" as const,
+  },
 ];
 
 const STORAGE_KEY = "admin-sidebar-collapsed";
 
 // Shell présentationnel (client). Garde session+rôle dans
 // app/(admin)/layout.tsx (server) — défense en profondeur avec le middleware.
+// Pastilles chargées en LAZY après mount (endpoint batché
+// /api/admin/badges) : le shell s'ouvre instantanément, les compteurs
+// « se complètent doucement ». Une stat lente/morte ne retient ni les
+// autres clés ni la page — échec final = pastille « — », jamais page
+// morte, jamais 0 mensonger (contrat {value, ok, at}).
 // + table admin_actions (audit trail) à la migration.
-export default function AdminShell({
-  children,
-  pendingCount,
-  rejectedCount,
-  buildsPendingCount,
-}: {
-  children: React.ReactNode;
-  /** File de revue réelle (layout serveur, jamais de mock). */
-  pendingCount: number;
-  /** Rejetés en attente de correction (layout serveur). */
-  rejectedCount?: number;
-  /** Binaires en attente de revue (layout serveur). */
-  buildsPendingCount: number;
-}) {
+export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [badges, setBadges] = React.useState<Partial<Record<BadgeKey, BadgeState>>>({});
+  const inFlight = React.useRef(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    const load = async (
+      keys?: BadgeKey[],
+    ): Promise<Partial<Record<BadgeKey, BadgeState>> | null> => {
+      try {
+        const qs = keys && keys.length > 0 ? `?keys=${keys.join(",")}` : "";
+        const res = await fetch(`/api/admin/badges${qs}`, { cache: "no-store" });
+        if (!res.ok || cancelled) return null;
+        const body = (await res.json()) as { data?: Partial<Record<BadgeKey, BadgeState>> };
+        return body.data ?? null;
+      } catch {
+        return null;
+      }
+    };
+    const merge = (part: Partial<Record<BadgeKey, BadgeState>> | null) => {
+      if (part && !cancelled) setBadges((prev) => ({ ...prev, ...part }));
+    };
+    // Retry auto des clés en échec SEULEMENT (jamais de re-clic) :
+    // batch complet, puis 2 rattrapages espacés (1,5 s / 4 s), puis stop.
+    const run = async () => {
+      if (inFlight.current) return;
+      inFlight.current = true;
+      try {
+        const first = await load();
+        merge(first);
+        let failed = ALL_BADGE_KEYS.filter((k) => !first?.[k]?.ok);
+        for (const delay of [1500, 4000]) {
+          if (cancelled || failed.length === 0) return;
+          await new Promise<void>((resolve) => {
+            timers.push(setTimeout(() => resolve(), delay));
+          });
+          if (cancelled) return;
+          const next = await load(failed);
+          merge(next);
+          failed = failed.filter((k) => !next?.[k]?.ok);
+        }
+      } finally {
+        inFlight.current = false;
+      }
+    };
+    run();
+    // Récupération sans clic : retour focus + navigation admin.
+    const onFocus = () => {
+      run();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      timers.forEach((t) => clearTimeout(t));
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [pathname]);
   const [collapsed, setCollapsed] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
@@ -131,9 +199,7 @@ export default function AdminShell({
           pathname={pathname}
           collapsed={collapsed}
           onToggle={toggle}
-          pendingCount={pendingCount}
-          rejectedCount={rejectedCount}
-          buildsPendingCount={buildsPendingCount}
+          badges={badges}
         />
       </aside>
 
@@ -151,9 +217,7 @@ export default function AdminShell({
               collapsed={false}
               onClose={() => setMobileOpen(false)}
               onNavigate={() => setMobileOpen(false)}
-              pendingCount={pendingCount}
-              rejectedCount={rejectedCount}
-              buildsPendingCount={buildsPendingCount}
+              badges={badges}
             />
           </div>
         </div>
@@ -188,18 +252,15 @@ function AdminSidebarBody({
   onToggle,
   onClose,
   onNavigate,
-  pendingCount,
-  rejectedCount,
-  buildsPendingCount,
+  badges,
 }: {
   pathname: string;
   collapsed: boolean;
   onToggle?: () => void;
   onClose?: () => void;
   onNavigate?: () => void;
-  pendingCount: number;
-  rejectedCount?: number;
-  buildsPendingCount: number;
+  /** Pastilles lazy (endpoint batché) — absentes = pas encore chargées. */
+  badges: Partial<Record<BadgeKey, BadgeState>>;
 }) {
   return (
     <>
@@ -265,14 +326,20 @@ function AdminSidebarBody({
         {NAV_ITEMS.map((item) => {
           const isActive = item.match(pathname);
           const Icon = item.icon;
-          const badge =
-            "badgeKey" in item
-              ? item.badgeKey === "pending"
-                ? pendingCount
-                : item.badgeKey === "builds"
-                  ? buildsPendingCount
-                  : (rejectedCount ?? 0)
-              : 0;
+          // Contrat {value, ok, at} : un nombre ne s'affiche que si la
+          // requête a RÉUSSI (ok) — sinon pastille « — » (inconnu, jamais
+          // 0). Pas encore chargé = rien (le shell est déjà ouvert).
+          const state = "badgeKey" in item ? badges[item.badgeKey as BadgeKey] : undefined;
+          const badge = state?.ok === true && state.value > 0 ? state.value : 0;
+          const unknown = state !== undefined && state.ok !== true;
+          const attemptedAt =
+            state !== undefined
+              ? new Date(state.at).toLocaleTimeString("fr-FR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })
+              : null;
           return (
             <Link
               key={item.href}
@@ -301,6 +368,24 @@ function AdminSidebarBody({
                   )}
                 >
                   {badge}
+                </span>
+              )}
+              {badge === 0 && unknown && (
+                <span
+                  aria-label="Compteur indisponible"
+                  title={
+                    attemptedAt
+                      ? `Dernière tentative à ${attemptedAt} — réessaie tout seul`
+                      : "Chargement…"
+                  }
+                  className={cn(
+                    "rounded-full border border-border/60 text-muted-foreground text-[10px] font-black tabular-nums leading-none flex items-center justify-center",
+                    collapsed
+                      ? "absolute -top-1 -right-1 min-w-5 h-5 px-1"
+                      : "ml-auto min-w-5 h-5 px-1",
+                  )}
+                >
+                  —
                 </span>
               )}
             </Link>

@@ -2,27 +2,22 @@ import Link from "next/link";
 import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
 import { VerifiedRevenueCard } from "./verified-revenue";
 import { RevenueMethodology } from "./revenue-methodology";
-import { getRevenueRecords } from "@/services/revenue-mock.service";
-import { formatSyncedLabel } from "@/components/revenue/revenue-derive";
-import { getCatalog } from "@/services/catalog-mock.service";
+import { getRevenueRankingGroups } from "@/services/revenue/views";
 import type { RevenueView } from "@/components/revenue/revenue-types";
 
 /**
- * Section « Revenus vérifiés » de la home.
+ * Section « Revenus vérifiés » de la home (données réelles).
  *
- * Composant **serveur** : plus de jeu de données local. Les cartes sont les 3
- * premiers produits du catalogue qui ont un MRR vérifié — donc exactement les
- * mêmes que le classement `/revenue` et que le tri « Revenus MRR » de
- * `/discover`. Une seule source de vérité : impossible que la home mette en
- * avant un produit absent du classement.
+ * Les cartes sont les 3 premiers du classement `/revenue` (devise
+ * dominante) — une seule source de vérité : impossible que la home mette
+ * en avant un produit absent du classement. Top vide = rien rendu (pas
+ * de CTA fantôme vers un classement vide : `/revenue` porte déjà son
+ * propre vide honnête).
  */
-export function VerifiedRevenueSection() {
-  const top = getRevenueRecords()
-    .filter((r) => r.displayMode === "full")
-    .sort((a, b) => b.mrrCents - a.mrrCents)
-    .slice(0, 3);
-
-  const products = new Map(getCatalog().map((p) => [p.id, p]));
+export async function VerifiedRevenueSection() {
+  const groups = await getRevenueRankingGroups().catch(() => []);
+  const top = (groups[0]?.items ?? []).slice(0, 3);
+  if (top.length === 0) return null;
 
   return (
     <section className="container px-4 md:px-8 max-w-7xl mx-auto w-full pt-16 pb-24">
@@ -33,8 +28,8 @@ export function VerifiedRevenueSection() {
             Ils buildent. Ils prouvent.
           </h2>
           <p className="text-muted-foreground font-medium tracking-tight">
-            Des makers malgaches qui génèrent de vrais revenus — lus directement chez Stripe et
-            RevenueCat, jamais déclarés à la main.
+            Des makers malgaches qui génèrent de vrais revenus — lus directement chez leur
+            prestataire, jamais déclarés à la main.
           </p>
         </div>
 
@@ -56,29 +51,29 @@ export function VerifiedRevenueSection() {
       {/* ── Cartes ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {top.map((record) => {
-          const product = products.get(record.productId);
-          if (!product) return null;
           const view: RevenueView = {
             provider: record.provider,
-            displayMode: record.displayMode,
+            displayMode: "full",
             mrrCents: record.mrrCents,
-            arrCents: record.arrCents,
-            activeSubscribers: record.activeSubscribers,
+            arrCents: record.mrrCents * 12,
+            activeSubscribers: record.subscriberCount,
+            currency: groups[0].currency,
             lastSyncedAt: record.lastSyncedAt,
+            lastSyncedLabel: record.lastSyncedLabel,
             history: record.history,
           };
           return (
             <VerifiedRevenueCard
               key={record.productId}
-              productId={product.id}
-              productName={product.name}
-              productTagline={product.tagline}
-              initials={product.initials}
-              iconGradient={product.iconGradient}
-              makerName={product.maker}
-              makerAvatar={product.makerAvatar}
+              productId={record.slug}
+              productName={record.name}
+              productTagline={record.tagline}
+              initials={record.initials}
+              iconGradient={record.iconGradient}
+              makerName={record.makerDisplayName}
+              makerAvatar={record.makerAvatarUrl ?? ""}
               revenue={view}
-              lastSyncedLabel={formatSyncedLabel(record.syncedMinutesAgo)}
+              lastSyncedLabel={view.lastSyncedLabel}
             />
           );
         })}

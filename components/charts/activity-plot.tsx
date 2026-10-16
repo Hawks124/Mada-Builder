@@ -12,7 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { cn } from "@/lib/utils";
-import type { ChartPoint } from "@/components/dashboard/dashboard-charts-mock";
+import type { ChartDay } from "@/services/dashboard.service";
 import {
   AXIS,
   CURSOR,
@@ -46,7 +46,7 @@ export function ActivityPlot({
   height = 260,
   className,
 }: {
-  points: ChartPoint[];
+  points: ChartDay[];
   height?: number;
   className?: string;
 }) {
@@ -75,13 +75,17 @@ export function ActivityPlot({
   const peak = data.reduce((best, p, i) => (p.views > data[best]!.views ? i : best), 0);
   const launch = data[peak]!;
 
+  // Le libellé annonce « sur N jours » : c'est le cumul de la fenêtre. Lire le
+  // dernier point affichait la journée en cours sous un titre de total.
+  const sum = (key: "views" | "clicks") => data.reduce((s, p) => s + p[key], 0);
+
   return (
     <section className={cn("flex flex-col gap-5", className)}>
       <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <div className="flex items-baseline gap-6">
-          <Readout value={compact(last?.views ?? 0)} label="vues" range={range} />
+          <Readout value={compact(sum("views"))} label="vues" range={range} />
           <Readout
-            value={compact(last?.clicks ?? 0)}
+            value={compact(sum("clicks"))}
             label="clics"
             range={range}
             color={SERIES.clicks}

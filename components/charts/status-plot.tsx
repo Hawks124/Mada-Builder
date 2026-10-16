@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 import { STATUS } from "./palette";
 
 /**
@@ -33,9 +34,13 @@ export function StatusPlot({ counts, className }: { counts: StatusCounts; classN
 
   if (total === 0) {
     return (
-      <p className={cn("text-[14px] font-medium text-muted-foreground", className)}>
-        Aucune fiche pour l&apos;instant.
-      </p>
+      <EmptyState
+        illustration="none"
+        size="sm"
+        className={className}
+        title="Aucune fiche pour l'instant."
+        description="Publiez un produit et il apparaîtra ici avec son statut."
+      />
     );
   }
 

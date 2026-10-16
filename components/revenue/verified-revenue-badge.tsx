@@ -84,7 +84,7 @@ export function RevenueBadge({
             size === "md" ? "text-[13px]" : "text-[12px]",
           )}
         >
-          {formatMoney(revenue.mrrCents, "USD", { compact: true })}
+          {formatMoney(revenue.mrrCents, revenue.currency, { compact: true })}
         </span>
       )}
     </span>

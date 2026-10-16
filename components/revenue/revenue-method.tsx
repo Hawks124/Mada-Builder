@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { ChartLineUpIcon, KeyIcon, SealCheckIcon } from "@phosphor-icons/react/dist/ssr";
 
@@ -35,8 +36,12 @@ export function RevenueMethod({ className }: { className?: string }) {
         >
           Depuis son dashboard, le maker crée une clé{" "}
           <strong className="text-foreground">restreinte, en lecture seule</strong> chez son
-          prestataire. Elle ne peut ni déclencher un paiement, ni initier un remboursement, ni voir
-          la moindre donnée client. Il garde le contrôle et peut la révoquer à tout moment.
+          prestataire (Stripe, RevenueCat, Paddle, Polar ou Lemon Squeezy —{" "}
+          <Link href="/guides/revenus-verifies" className="underline underline-offset-2">
+            mode d&apos;emploi par provider
+          </Link>
+          ). Elle ne peut ni déclencher un paiement, ni initier un remboursement, ni voir la moindre
+          donnée client. Il garde le contrôle et peut la révoquer à tout moment.
           <span className="mt-4 flex items-center gap-4">
             <Image
               src="/logos/stripe.svg"
@@ -54,6 +59,30 @@ export function RevenueMethod({ className }: { className?: string }) {
               style={{ width: "auto", height: "16px" }}
               className="h-4 w-auto opacity-45"
             />
+            <Image
+              src="/logos/paddle.svg"
+              alt="Paddle"
+              width={40}
+              height={40}
+              style={{ width: "auto", height: "16px" }}
+              className="h-4 w-auto opacity-45"
+            />
+            <Image
+              src="/logos/polar.svg"
+              alt="Polar"
+              width={40}
+              height={40}
+              style={{ width: "auto", height: "16px" }}
+              className="h-4 w-auto opacity-45"
+            />
+            <Image
+              src="/logos/lemon-squeezy.svg"
+              alt="Lemon Squeezy"
+              width={40}
+              height={40}
+              style={{ width: "auto", height: "16px" }}
+              className="h-4 w-auto opacity-45"
+            />
           </span>
         </Step>
 
@@ -66,7 +95,9 @@ export function RevenueMethod({ className }: { className?: string }) {
           Une tâche automatique interroge l&apos;API et n&apos;extrait que le{" "}
           <strong className="text-foreground">MRR actif</strong> : les essais gratuits, les
           abonnements impayés et les résiliations sont exclus. Seul l&apos;argent récurrent est
-          compté. Le total est rafraîchi toutes les heures.
+          compté, dans la devise du provider (jamais converti). Le total est rafraîchi toutes les
+          heures — après deux échecs, le badge passe « en échec » plutôt qu&apos;afficher un vieux
+          chiffre.
         </Step>
 
         <Step

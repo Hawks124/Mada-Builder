@@ -145,7 +145,7 @@ export const SUBPROCESSOR_ROWS: readonly SubprocessorRow[] = [
  * recevons ni identité de ses clients, ni détail de ses transactions.
  */
 export const NOT_SUBPROCESSORS: readonly string[] = [
-  "Stripe et RevenueCat, lorsqu'un maker y relie sa facturation : ce sont les prestataires du maker, pas les nôtres. Nous ne recevons qu'une clé chiffrée en lecture seule et des agrégats (MRR, nombre d'abonnés), jamais de donnée client ni de détail de transaction.",
+  "Stripe, RevenueCat, Paddle, Polar et Lemon Squeezy, lorsqu'un maker y relie sa facturation : ce sont les prestataires du maker, pas les nôtres. Nous ne recevons qu'une clé chiffrée en lecture seule et des agrégats (MRR, devise, nombre d'abonnés), jamais de donnée client ni de détail de transaction.",
 ];
 
 export type LegalBasisRow = {

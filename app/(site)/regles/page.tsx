@@ -68,6 +68,21 @@ const RULES = [
     title: "Le respect mutuel",
     body: "On critique les produits, jamais les personnes. Cette scène se construit ensemble : célèbrez le travail des autres comme vous voulez voir le vôtre célébré.",
   },
+  {
+    id: "regles-revenus-honnetes",
+    title: "Des revenus honnêtes",
+    body: (
+      <>
+        Le badge « revenus vérifiés » ne se branche que sur vos propres comptes, avec une clé en
+        lecture seule. Fausses clés, comptes d&apos;autrui et chiffres arrangés : le badge saute, et
+        la fraude organisée exclut.{" "}
+        <Link href="/guides/revenus-verifies" className="font-bold underline underline-offset-4">
+          Mode d&apos;emploi
+        </Link>
+        .
+      </>
+    ),
+  },
 ];
 
 const SANCTIONS = [
@@ -88,6 +103,7 @@ const SANCTIONS = [
 const HEADINGS = [
   { id: "regles-principes", text: "Les règles" },
   { id: "regles-sanctions", text: "En cas de manquement" },
+  { id: "regles-veille", text: "La veille internationale" },
   { id: "regles-oeuvre", text: "Open source" },
   { id: "regles-contact", text: "Écrire ou rejoindre" },
 ];
@@ -101,7 +117,7 @@ export default function ReglesPage() {
     <DocLayout
       eyebrow="Communauté"
       title="Charte de la communauté"
-      description="Quatre règles simples pour une scène dont on est fiers. Et ce qui arrive si on les enfreint — parce qu'une charte sans sanction annoncée n'est pas une charte, c'est un vœu."
+      description="Cinq règles simples pour une scène dont on est fiers. Et ce qui arrive si on les enfreint — parce qu'une charte sans sanction annoncée n'est pas une charte, c'est un vœu."
       headings={HEADINGS}
       siblings={[
         { href: "/conditions", label: "Conditions d'utilisation" },
@@ -172,6 +188,24 @@ export default function ReglesPage() {
             </li>
           ))}
         </ol>
+      </section>
+
+      <section aria-labelledby="regles-veille" className="mt-14 flex flex-col gap-4">
+        <h2
+          id="regles-veille"
+          className="text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground"
+        >
+          La veille internationale
+        </h2>
+        <p className="text-[15px] font-medium leading-relaxed text-muted-foreground">
+          Certains produits ici ne sont pas malgaches. Ce sont des références internationales que
+          l&apos;équipe juge utiles à la scène — des exemples de ce qui se fait bien ailleurs, ni
+          concurrents, ni vitrines. On les reconnaît au badge « Veille » : ils sont hors classement,
+          on ne peut ni voter pour eux ni les noter (les commentaires restent ouverts pour en
+          discuter). Et ce sont des invités : dès qu&apos;une solution locale équivalente existe, la
+          fiche est retirée, sans préavis. La place ici appartient en priorité à ce qui se construit
+          à Madagascar.
+        </p>
       </section>
 
       <section aria-labelledby="regles-oeuvre" className="mt-14 flex flex-col gap-4">

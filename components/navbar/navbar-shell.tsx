@@ -227,10 +227,10 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
               onClick={() => setIsMobileMenuOpen(false)}
             />
             <MobileNavItem
+              href="/contact"
               icon={<LifebuoyIcon weight="fill" className="h-6 w-6" />}
               label="Contact"
-              badge="Bientôt"
-              dead
+              onClick={() => setIsMobileMenuOpen(false)}
             />
 
             <div className="mt-8 mb-4">

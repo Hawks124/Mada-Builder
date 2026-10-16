@@ -217,6 +217,80 @@ async function main(): Promise<void> {
     );
   }
 
+  // ── /makers collection : recent + trending, formes stables ──────
+  {
+    const { db } = await import("../db");
+    const { users, products, votes } = await import("../db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { GET: makersGet } = await import("../app/api/v1/makers/route");
+    const tag = `vmakers-${Date.now()}`;
+    const [maker] = await db
+      .insert(users)
+      .values({ username: tag, displayName: "Vérif Makers", email: `${tag}@example.com` })
+      .returning({ id: users.id });
+    const [voter] = await db
+      .insert(users)
+      .values({ username: `${tag}-v`, displayName: "Votant", email: `${tag}-v@example.com` })
+      .returning({ id: users.id });
+    const [prod] = await db
+      .insert(products)
+      .values({
+        slug: tag,
+        makerId: maker.id,
+        name: "Produit Vérif Makers",
+        tagline: "Tagline.",
+        description: "Description.",
+        category: "dev-tools",
+        productType: "app_web",
+        pricingModel: "free",
+        galleryOrientation: "landscape",
+        status: "published",
+      })
+      .returning({ id: products.id });
+    await db.insert(votes).values({ userId: voter.id, productId: prod.id, weight: 1 });
+
+    const res = await makersGet(new Request("http://x/api/v1/makers?limit=5&sort=recent"));
+    const b = await body(res);
+    const data = b.data as {
+      items: { username: string; displayName: string; avatarUrl: string | null }[];
+      total: number;
+      sort: string;
+    };
+    check("makers recent: 200 + enveloppe", res.status === 200 && b.ok === true);
+    const found = data.items.find((i) => i.username === tag);
+    check(
+      "makers recent: maker publié présent, email absent",
+      !!found &&
+        found.displayName === "Vérif Makers" &&
+        !("email" in found) &&
+        data.total >= 1 &&
+        data.sort === "recent",
+    );
+    const one = (await (await makersGet(new Request("http://x/api/v1/makers?limit=1"))).json()) as {
+      data: { items: unknown[] };
+    };
+    check("makers limit=1", one.data.items.length === 1);
+    const bad = await makersGet(new Request("http://x/api/v1/makers?sort=nope"));
+    const badBody = (await bad.json()) as { ok: boolean; code: string };
+    check("makers tri inconnu = 422", bad.status === 422 && badBody.code === "VALIDATION");
+
+    const trend = await makersGet(new Request("http://x/api/v1/makers?sort=trending"));
+    const trendBody = (await trend.json()) as {
+      ok: boolean;
+      data: { items: { username: string; score: number }[]; windowDays: number };
+    };
+    const tFound = trendBody.data.items.find((i) => i.username === tag);
+    check(
+      "makers trending: score = + combien (30 j)",
+      trend.status === 200 && trendBody.data.windowDays === 30 && !!tFound && tFound.score >= 1,
+    );
+
+    await db.delete(votes).where(eq(votes.productId, prod.id));
+    await db.delete(products).where(eq(products.id, prod.id));
+    await db.delete(users).where(eq(users.id, voter.id));
+    await db.delete(users).where(eq(users.id, maker.id));
+  }
+
   console.log(`api-v1: ${pass} OK, ${fail} KO`);
   process.exit(fail === 0 ? 0 : 1);
 }
