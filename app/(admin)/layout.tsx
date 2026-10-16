@@ -5,8 +5,6 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import AdminShell from "@/components/admin/admin-shell";
 import { getOnboardingRedirect } from "@/app/actions/onboarding";
-import { getPendingCountCached, getRejectedCountCached } from "@/services/stats.service";
-import { getBuildStats } from "@/services/builds.service";
 
 /**
  * Double-check server : session + rôle staff (admin|moderateur).
@@ -22,6 +20,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // configuré (même garde env-absente que le proxy).
   // Périmètre sensible : invité PROUVÉ → /signin, incident → / (fail-closed
   // assumé — un admin éjecté sous hoquet revient à la navigation suivante).
+  // Journal diagnostique (dev seul, jamais de PII) : si le stream
+  // admin meurt, ces lignes disent quelle phase n'a pas abouti.
+  const devLog = (msg: string): void => {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[admin] ${msg}`);
+    }
+  };
+  // eslint-disable-next-line react-hooks/purity -- diagnostic dev : mesure de durée, aucun impact rendu.
+  const gateT0 = Date.now();
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     const viewer = await getViewer().catch(() => ({ status: "error" as const }));
     if (viewer.status !== "authed") {
@@ -43,21 +50,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     const dest = await getOnboardingRedirect().catch(() => null);
     if (dest) redirect(dest);
   }
-  // Badges réels (files DB, pas de mock).
-  const [pendingCount, rejectedCount, buildsPending] = await Promise.all([
-    getPendingCountCached(),
-    getRejectedCountCached(),
-    getBuildStats()
-      .then((s) => s.pending)
-      .catch(() => 0),
-  ]);
-  return (
-    <AdminShell
-      pendingCount={pendingCount}
-      rejectedCount={rejectedCount}
-      buildsPendingCount={buildsPending}
-    >
-      {children}
-    </AdminShell>
-  );
+  // eslint-disable-next-line react-hooks/purity -- diagnostic dev : mesure de durée, aucun impact rendu.
+  devLog(`gate ${(Date.now() - gateT0).toFixed(0)}ms`);
+  // Zéro requête stat ici, par construction : les pastilles se chargent
+  // en lazy côté shell (endpoint batché). Le layout ne fait que le gate
+  // session+rôle — il ne peut plus mourir d'une stat.
+  return <AdminShell>{children}</AdminShell>;
 }

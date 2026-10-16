@@ -15,6 +15,7 @@ const KIND_ICON: Record<string, React.ReactNode> = {
   product_removed: <WarningCircleIcon weight="fill" className="h-5 w-5 text-red-500 shrink-0" />,
   vote_milestone: <TrophyIcon weight="fill" className="h-5 w-5 text-amber-500 shrink-0" />,
   view_milestone: <TrophyIcon weight="fill" className="h-5 w-5 text-amber-500 shrink-0" />,
+  revenue_failing: <WarningCircleIcon weight="fill" className="h-5 w-5 text-red-500 shrink-0" />,
 };
 
 function timeAgoFr(iso: string): string {

@@ -5,8 +5,10 @@
 export type AppStatus = "live" | "pending" | "rejected";
 
 export type DashboardRevenue = {
-  provider: "stripe" | "revenuecat";
+  provider: "stripe" | "revenuecat" | "paddle" | "polar" | "lemon_squeezy";
   mrrCents: number;
+  /** Devise native (jamais convertie) — affichée partout avec le montant. */
+  currency: string;
   /** §12 display_mode — badge_only masque le chiffre exact en public. */
   displayMode?: "full" | "badge_only";
 };
@@ -67,7 +69,7 @@ export type DashboardApp = {
   categoryIds?: string[];
   license?: string;
   installCommand?: string;
-  requirements?: string;
+  requirements?: string[];
   changelogUrl?: string;
   hasAds?: boolean;
   hasThirdParty?: boolean;
@@ -114,7 +116,7 @@ export const MOCK_APPS: DashboardApp[] = [
     rating: 4.9,
     ratingsCount: 120,
     status: "live",
-    revenue: { provider: "stripe", mrrCents: 25_000 },
+    revenue: { provider: "stripe", mrrCents: 25_000, currency: "USD" },
     iconGradient: "from-zinc-800 to-zinc-950",
     initials: "AV",
   },
@@ -167,6 +169,7 @@ export const MOCK_APPS: DashboardApp[] = [
     revenue: {
       provider: "revenuecat",
       mrrCents: 9_400,
+      currency: "USD",
       displayMode: "badge_only",
     },
     iconGradient: "from-blue-600 to-indigo-600",
@@ -258,6 +261,8 @@ export type DashboardTotals = {
   totalViews7d: number;
   pendingCount: number;
   totalMrrCents: number;
+  /** Devise du total (dominante — jamais de somme multi-devises). */
+  mrrCurrency: string;
   totalComments: number;
   globalRating: number;
   /** Binaires (D6) : total + nb de produits avec track (absents en public). */
@@ -268,6 +273,25 @@ export type DashboardTotals = {
 export function getDashboardTotals(apps: DashboardApp[]): DashboardTotals {
   const totalRatings = apps.reduce((acc, a) => acc + a.ratingsCount, 0);
   const weightedSum = apps.reduce((acc, a) => acc + a.rating * a.ratingsCount, 0);
+  // Total MRR : devise dominante uniquement (sommer des devises = erreur).
+  // Dashboard privé : tous modes inclus (le maker voit ses propres chiffres).
+  const byCurrency = new Map<string, number>();
+  for (const a of apps) {
+    if (a.revenue) {
+      byCurrency.set(
+        a.revenue.currency,
+        (byCurrency.get(a.revenue.currency) ?? 0) + a.revenue.mrrCents,
+      );
+    }
+  }
+  let totalMrrCents = 0;
+  let mrrCurrency = "USD";
+  for (const [cur, sum] of byCurrency) {
+    if (sum > totalMrrCents) {
+      totalMrrCents = sum;
+      mrrCurrency = cur;
+    }
+  }
   return {
     totalUpvotes: apps.reduce((acc, a) => acc + a.votes, 0),
     liveCount: apps.filter((a) => a.status === "live").length,
@@ -276,7 +300,8 @@ export function getDashboardTotals(apps: DashboardApp[]): DashboardTotals {
     totalClicks: apps.reduce((acc, a) => acc + a.clicks, 0),
     totalViews7d: apps.reduce((acc, a) => acc + a.views7d, 0),
     pendingCount: apps.filter((a) => a.status === "pending").length,
-    totalMrrCents: apps.reduce((acc, a) => acc + (a.revenue?.mrrCents ?? 0), 0),
+    totalMrrCents,
+    mrrCurrency,
     totalComments: apps.reduce((acc, a) => acc + a.comments, 0),
     globalRating: totalRatings > 0 ? Math.round((weightedSum / totalRatings) * 10) / 10 : 0,
     totalBuilds: apps.reduce((acc, a) => acc + (a.buildCount ?? 0), 0),

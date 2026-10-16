@@ -391,6 +391,49 @@ export default function AproposPage() {
                 </ul>
               </div>
 
+              {/* ── Déclinaisons du wordmark — convention vérifiée par
+                  pixels (2026-10-14, comme les PNG Supabase) : suffixe =
+                  thème cible. `mm_logo_light` = marque noire (fond clair),
+                  `mm_logo_dark` = marque blanche (fond sombre). Inverser =
+                  logo invisible. */}
+              <div>
+                <h3 className="mb-4 text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground/60">
+                  Déclinaisons
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <figure className="flex flex-col gap-4">
+                    <div className="flex items-center justify-center overflow-hidden rounded-2xl border border-border/60 bg-white px-8 py-10">
+                      <Image
+                        src="/branding/mm_logo_light.webp"
+                        alt="Wordmark Mada-Made en noir sur fond clair."
+                        width={720}
+                        height={240}
+                        sizes="(max-width: 1024px) 100vw, 31ch"
+                        className="h-auto w-full max-w-[280px]"
+                      />
+                    </div>
+                    <figcaption className="text-[12px] font-medium text-muted-foreground/60">
+                      Marque noire — fonds clairs.
+                    </figcaption>
+                  </figure>
+                  <figure className="flex flex-col gap-4">
+                    <div className="flex items-center justify-center overflow-hidden rounded-2xl border border-border/60 bg-zinc-950 px-8 py-10">
+                      <Image
+                        src="/branding/mm_logo_dark.webp"
+                        alt="Wordmark Mada-Made en blanc sur fond sombre."
+                        width={720}
+                        height={240}
+                        sizes="(max-width: 1024px) 100vw, 31ch"
+                        className="h-auto w-full max-w-[280px]"
+                      />
+                    </div>
+                    <figcaption className="text-[12px] font-medium text-muted-foreground/60">
+                      Marque blanche — fonds sombres.
+                    </figcaption>
+                  </figure>
+                </div>
+              </div>
+
               <figure className="flex flex-col gap-4">
                 <div className="overflow-hidden rounded-2xl border border-border/60">
                   <Image

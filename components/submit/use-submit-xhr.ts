@@ -76,6 +76,13 @@ export function useSubmitXhr(
         categories: jsonArr("categories"),
         tags: jsonArr("tags"),
         platforms: jsonArr("platforms"),
+        requirements: jsonArr("requirements"),
+        revenue: {
+          key: fields.revenueKey ?? "",
+          provider: fields.revenueProvider ?? "stripe",
+          projectId: fields.revenueProjectId ?? "",
+          storeId: fields.revenueStoreId ?? "",
+        },
         targetCountries: jsonArr("targetCountries"),
         languages: jsonArr("languages"),
         linkValues: Object.fromEntries(

@@ -6,7 +6,8 @@ import { OverviewCharts } from "@/components/dashboard/overview-charts";
 import { getDashboardTotals } from "@/components/dashboard/dashboard-mock";
 import { getSessionUser } from "@/lib/supabase/server";
 import { fetchOwnProfile } from "@/services/users.service";
-import { getMakerAppsDashboard } from "@/services/dashboard.service";
+import { getMakerAppsDashboard, getMakerChartSeries } from "@/services/dashboard.service";
+import { getMakerRevenueDaily } from "@/services/revenue/views";
 import { getNotifications } from "@/services/notifications.service";
 import { timeAgoFr } from "@/services/activity.service";
 
@@ -28,10 +29,12 @@ export default async function DashboardPage() {
   // Résilience (D6) : un hoquet pooler (Supabase cloud) ne doit jamais
   // écran blanc — comme la home, chaque source dégrade (profil absent =
   // re-login, apps vides = états honnêtes).
-  const [profile, apps, bell] = await Promise.all([
+  const [profile, apps, bell, points, mrr] = await Promise.all([
     fetchOwnProfile(sessionUser.id).catch(() => null),
     getMakerAppsDashboard(sessionUser.id).catch(() => []),
     getNotifications(sessionUser.id, { limit: 5 }).catch(() => ({ items: [], unreadCount: 0 })),
+    getMakerChartSeries(sessionUser.id).catch(() => []),
+    getMakerRevenueDaily(sessionUser.id).catch(() => null),
   ]);
   if (!profile) redirect("/signin?next=/dashboard");
   const totals = getDashboardTotals(apps);
@@ -54,7 +57,7 @@ export default async function DashboardPage() {
         unreadCount={bell.unreadCount}
       />
       <OverviewStats totals={totals} />
-      <OverviewCharts />
+      <OverviewCharts points={points} apps={apps} mrr={mrr} />
     </div>
   );
 }

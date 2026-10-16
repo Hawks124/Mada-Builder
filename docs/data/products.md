@@ -31,7 +31,7 @@ RGPD ; `deleted_at` = retraits admin uniquement.
 | `is_child_directed`         | `boolean` NOT NULL DEFAULT `false`          | Dérivé (`audience === kids`)                                                         |
 | `install_command`           | `text` NULL                                 | max 200, requis si type dev-facing (cli/package/framework/plugin)                    |
 | `version`                   | `text` NULL                                 | max 20                                                                               |
-| `requirements`              | `text` NULL                                 | max 500 (config requise)                                                             |
+| `requirements`              | `text[]` NOT NULL DEFAULT `{}`              | Config requise en pastilles (game/desktop/os), max 8 × 80                            |
 | `target_countries`          | `text[]` NOT NULL DEFAULT `{}`              | Marchés servis (filtre « pensé pour »), max 10 × 60                                  |
 | `languages_supported`       | `text[]` NOT NULL DEFAULT `{}`              | max 20 × 30                                                                          |
 | `icon_url`                  | `text` NULL                                 | Logo final R2 (URL publique racine par bucket)                                       |

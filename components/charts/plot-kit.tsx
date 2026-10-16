@@ -3,13 +3,9 @@
 import { cn } from "@/lib/utils";
 import type { XAxisTickContentProps, YAxisTickContentProps } from "recharts";
 
-/**
- * Personnalisation des graphiques — une seule fois, réutilisée partout.
- *
- * Recharts applique par défaut des barres d'axe, une grille, une boîte d'infobulle
- * carrée et une légende. Tout cela est retiré ici : sur ce site, un graphique est
- * une ligne, un dégradé et du vide.
- */
+/** Personnalisation des graphiques — une seule fois, réutilisée partout.
+ *  Recharts impose barres d'axe, grille, infobulle carrée et légende : ici un
+ *  graphique est une ligne, un dégradé et du vide. */
 
 /** 1 234 → « 1,2 k ». Les axes restent lisibles sans empiler les zéros. */
 export function compact(n: number): string {
@@ -28,12 +24,7 @@ export const AXIS = {
 export const AXIS_TEXT = "text-[11px] font-bold tabular-nums text-muted-foreground/70";
 export const GRID_STROKE = "var(--border)";
 
-/**
- * Graduations verticales sur ~3 lignes. `onlyValues` retire l'étiquette des
- * dates intermédiaires : sur 30 jours, les nommer tous rend le texte illisible.
- */
-/** Rendeur commun : Recharts type séparément le tick X et le tick Y, donc
- *  deux fonctions distinctes, un seul rendu. */
+/** Rendu commun : Recharts type le tick X et le tick Y séparément. */
 function axisLabel(x: number, y: number, value: string, anchor: "start" | "middle" | "end") {
   return (
     <text
@@ -50,14 +41,9 @@ function axisLabel(x: number, y: number, value: string, anchor: "start" | "middl
   );
 }
 
-/**
- * Étiquette d'axe X qui se cale sur les bords.
- *
- * Une graduation centrée sur la première ou la dernière position déborde hors du
- * graphique et vient toucher l'axe des valeurs. On identifie les extrémités par
- * leur valeur et non par un index : Recharts ne garantit pas `index` sur les
- * tickers personnalisés.
- */
+/** Étiquette d'axe X calée sur les bords : une graduation centrée sur la
+ *  première ou la dernière position déborde et touche l'axe des valeurs.
+ *  Extrémités reconnues par leur valeur, pas par `index` (non garanti). */
 export function makeDateTick(ticks: readonly string[]) {
   const first = ticks[0];
   const last = ticks[ticks.length - 1];
@@ -77,10 +63,8 @@ export function makeValueTick(props: YAxisTickContentProps) {
   );
 }
 
-/**
- * Infobulle sans aucun habillage Recharts : pas de cadre, pas de fond par
- * défaut. Le chiffre est l'élément dominant, l'étiquette passe au-dessus.
- */
+/** Infobulle sans habillage Recharts : le chiffre domine, l'étiquette passe
+ *  au-dessus. */
 export function PlotTooltip({
   active,
   label,
@@ -115,11 +99,8 @@ export function PlotTooltip({
   );
 }
 
-/**
- * Point actif au survol : un anneau plutôt que le disque plein par défaut.
- * Il marque la position survolée, pas la série — d'où le premier plan plutôt que
- * la teinte de la courbe.
- */
+/** Point actif : un anneau plutôt que le disque plein. Il marque la position
+ *  survolée, pas la série — d'où le premier plan. */
 export function activeDot({ cx, cy }: { cx?: number; cy?: number }) {
   if (cx === undefined || cy === undefined) return null;
   return (
@@ -130,10 +111,7 @@ export function activeDot({ cx, cy }: { cx?: number; cy?: number }) {
   );
 }
 
-/**
- * Clé d'infobulle commune aux deux séries, pour que la ligne et l'aire parlent
- * de la même chose.
- */
+/** Curseur d'infobulle, commun aux deux séries. */
 export const CURSOR = {
   stroke: "var(--foreground)",
   strokeOpacity: 0.25,

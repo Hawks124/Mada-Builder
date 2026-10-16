@@ -6,6 +6,19 @@
  */
 export type AdminUserStatus = "active" | "banned";
 
+/**
+ * Référence revenus côté admin — 5 providers, devise native réelle.
+ * (L'ancien `{ provider: "stripe" | "revenuecat"; mrrCents }` + `"USD"` en
+ * dur dans la revue datait du temps des mocks.)
+ */
+export type AdminRevenueRef = {
+  provider: "stripe" | "revenuecat" | "paddle" | "polar" | "lemon_squeezy";
+  mrrCents: number;
+  /** ISO 4217 native du provider — jamais convertie. */
+  currency: string;
+  displayMode: "full" | "badge_only";
+};
+
 export type AdminUserProduct = {
   id: string;
   initials: string;
@@ -61,7 +74,7 @@ export type ReviewItem = {
   /** Config requise + changelog — affichés quand présents (données
       historiques/import : l'admin montre ce qui existe, le formulaire
       restreint la saisie au game/desktop/os). */
-  requirements?: string;
+  requirements?: string[];
   changelogUrl?: string;
   iconGradient: string;
   initials: string;
@@ -77,7 +90,7 @@ export type ReviewItem = {
   waitingText: string;
   /** Heures d'attente — SLA 24 h (→ published_at backend). */
   waitingHours: number;
-  revenue?: { provider: "stripe" | "revenuecat"; mrrCents: number };
+  revenue?: AdminRevenueRef;
 };
 
 export type ActivitySubject =
@@ -88,7 +101,7 @@ export type ActivitySubject =
       iconGradient?: string;
       iconUrl?: string;
     }
-  | { type: "provider"; provider: "stripe" | "revenuecat" }
+  | { type: "provider"; provider: AdminRevenueRef["provider"] }
   | { type: "users"; avatars: string[]; extra: number };
 
 export type ActivityItem = {
@@ -223,7 +236,7 @@ export type AdminProduct = {
   votes: number;
   views: number;
   rating: number;
-  revenue?: { provider: "stripe" | "revenuecat"; mrrCents: number };
+  revenue?: AdminRevenueRef;
   iconGradient: string;
   initials: string;
   /** Logo réel si fourni (D6) — sinon tuile initiales. */
@@ -260,7 +273,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
     votes: 342,
     views: 12400,
     rating: 4.9,
-    revenue: { provider: "stripe", mrrCents: 25_000 },
+    revenue: { provider: "stripe", mrrCents: 25_000, currency: "USD", displayMode: "full" },
     iconGradient: "from-zinc-800 to-zinc-950",
     initials: "AV",
     maker: {
@@ -338,7 +351,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
     votes: 96,
     views: 4100,
     rating: 4.8,
-    revenue: { provider: "revenuecat", mrrCents: 9_400 },
+    revenue: { provider: "revenuecat", mrrCents: 9_400, currency: "USD", displayMode: "full" },
     iconGradient: "from-blue-600 to-indigo-600",
     initials: "VA",
     maker: {
@@ -431,14 +444,14 @@ export const MOCK_REVIEW_QUEUE: ReviewItem[] = [
       demo: "https://demo.payemalagasy.com",
     },
     videoUrl: "https://www.youtube.com/watch?v=mock-paye-1234",
-    requirements: "Navigateur récent, connexion internet",
+    requirements: ["Navigateur récent", "Connexion internet"],
     changelogUrl: "https://payemalagasy.com/changelog",
     iconGradient: "from-orange-500 to-amber-600",
     initials: "PM",
     screenshots: 3,
     waitingText: "En attente depuis 2 j",
     waitingHours: 48,
-    revenue: { provider: "stripe", mrrCents: 4_200 },
+    revenue: { provider: "stripe", mrrCents: 4_200, currency: "USD", displayMode: "full" },
   },
   {
     id: "tsenabora",

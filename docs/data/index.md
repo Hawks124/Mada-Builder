@@ -39,6 +39,10 @@ doute, le schéma fait foi, pas ce doc.
 | [idempotency_keys](idempotency_keys.md)       | `idempotency_keys`    | non                | service       |
 | [page_views](page_views.md)                   | `page_views`          | non                | service       |
 | [admin_actions](admin_actions.md)             | `admin_actions`       | non                | service       |
+| [revenue_connections](revenue_connections.md) | `revenue_connections` | non (clés)         | API (maker)   |
+| [revenue_snapshots](revenue_snapshots.md)     | `revenue_snapshots`   | non (agrégats)     | service       |
+| [product_builds](product_builds.md)           | `product_builds`      | non                | API (upload)  |
+| [contact_messages](contact_messages.md)       | `contact_messages`    | non (staff)        | API + page    |
 
 ## Stockage & Auth
 

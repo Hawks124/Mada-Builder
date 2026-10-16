@@ -284,7 +284,7 @@ export const submitProductSchema = z.object({
   license: z.string().trim().max(60).optional(),
   installCommand: z.string().trim().max(200).optional(),
   version: z.string().trim().max(20).optional(),
-  requirements: z.string().trim().max(500).optional(),
+  requirements: z.array(z.string().trim().min(1).max(80)).max(8).optional(),
   // Changelog (champ metadata, pas matrice) : fusionné dans links à
   // l'insertion — UNE seule source en lecture (même forme que le submit).
   changelogUrl: optionalUrlSchema,
@@ -1328,7 +1328,13 @@ export async function fetchProductAdminStatus(input: {
  */
 export function toReviewItem(
   row: Omit<ReviewQueueRow, "shotCount">,
-  extras?: { shotCount?: number; makerLive?: number; makerBans?: number },
+  extras?: {
+    shotCount?: number;
+    makerLive?: number;
+    makerBans?: number;
+    /** Vue revenus réelle (staff uniquement — jamais undefined par défaut). */
+    revenue?: ReviewItem["revenue"];
+  },
 ): ReviewItem {
   // SLA 24 h (D0) : depuis la (re-)soumission, jamais la naissance du
   // brouillon (un brouillon de 3 jours ne naît pas "dépassé"). Fallback
@@ -1370,7 +1376,7 @@ export function toReviewItem(
     screenshots: extras?.shotCount ?? 0,
     waitingText: waitingFr(since),
     waitingHours,
-    revenue: undefined,
+    revenue: extras?.revenue,
   };
 }
 
@@ -1381,6 +1387,8 @@ export async function fetchAdminProducts(input: {
   status?: "all" | "draft" | "pending" | "published" | "rejected";
   cursor?: { createdAt: Date; id: string } | null;
   limit?: number;
+  /** `false` = produits pinnables uniquement (utilisé par l'épinglage). */
+  curated?: boolean;
 }) {
   if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
   const limit = Math.min(Math.max(input.limit ?? 20, 1), 50);
@@ -1388,6 +1396,7 @@ export async function fetchAdminProducts(input: {
   const q = (input.q ?? "").trim();
   const conditions = [isNull(products.deletedAt)];
   if (status !== "all") conditions.push(eq(products.status, status));
+  if (input.curated === false) conditions.push(eq(products.curated, false));
   if (q !== "") {
     // % et _ saisis = littéraux (sinon "100%" matche "1000").
     const literal = q.replace(/[%_\\]/g, (c) => `\\${c}`);
@@ -2132,6 +2141,7 @@ export type MakerPublicProduct = {
  */
 export async function getMakerPublicProfile(username: string): Promise<{
   profile: {
+    makerId: string;
     username: string;
     displayName: string;
     avatarUrl: string | null;
@@ -2187,6 +2197,7 @@ export async function getMakerPublicProfile(username: string): Promise<{
   }));
   return {
     profile: {
+      makerId: row.id,
       username: row.username,
       displayName: row.displayName,
       avatarUrl: row.avatarUrl,

@@ -48,7 +48,7 @@ export function staffFicheSubmittedSubject(productName: string): string {
 
 export function staffFicheSubmittedText(input: StaffFicheInfo): string {
   return [
-    "BuilderPlatform - Modération",
+    "Mada-Made - Modération",
     "---",
     `Nouvelle fiche en revue : ${input.productName} (par ${input.makerDisplayName}).`,
     ...(input.buildNote ? [input.buildNote] : []),
@@ -81,7 +81,7 @@ export function staffBuildSubmittedSubject(productName: string): string {
 
 export function staffBuildSubmittedText(input: StaffBuildInfo): string {
   return [
-    "BuilderPlatform - Modération",
+    "Mada-Made - Modération",
     "---",
     `Nouveau binaire en revue : ${input.productName} ${input.versionLabel} (par ${input.makerDisplayName}).`,
     ...(input.package ? [`Package : ${input.package}`] : []),

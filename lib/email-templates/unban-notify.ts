@@ -28,7 +28,7 @@ export function unbanNotifyText(input: {
   timeZone: string | null;
 }): string {
   return [
-    "BuilderPlatform",
+    "Mada-Made",
     "---",
     `${emailGreeting(input.timeZone)} ${input.displayName},`,
     "",
@@ -105,7 +105,7 @@ export function unbanNotifyHtml(input: {
 
     <hr class="divider" />
     <div class="footer">
-      Notification système &bull; BuilderPlatform &copy; ${new Date().getFullYear()}<br>
+      Notification système &bull; Mada-Made &copy; ${new Date().getFullYear()}<br>
       ${emailModerationFooterHtml(input.origin)}
     </div>
   </div>

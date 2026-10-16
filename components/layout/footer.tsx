@@ -76,6 +76,7 @@ const EXPLORER: FooterItem[] = [
   { label: "Catégories", href: "/categories" },
   { label: "Classement", href: "/leaderboard" },
   { label: "Revenus vérifiés", href: "/revenue" },
+  { label: "Guides makers", href: "/guides" },
 ];
 
 // Le légal est ici et pas dans une colonne à lui : il donne à ce groupe assez
@@ -94,6 +95,12 @@ const PLATEFORME: FooterItem[] = [
 const PROJET: FooterItem[] = [
   { label: "À propos", href: "/about" },
   { label: "Code source", href: GITHUB_URL, external: true, icon: "github" },
+  { label: "Signaler un problème", href: `${GITHUB_URL}/issues/new`, external: true },
+  {
+    label: "Contribuer",
+    href: `${GITHUB_URL}/blob/main/CONTRIBUTING.md`,
+    external: true,
+  },
   {
     label: "Rejoindre le groupe",
     href: FACEBOOK_GROUP_URL,
@@ -105,16 +112,14 @@ const PROJET: FooterItem[] = [
 /**
  * Pas de champ email ici, **exprès**.
  *
- * Un champ qui collecte une adresse sans rien derrière est le contrôle mort
- * que cette colonne portait à sa création : il collecte des adresses qui
- * n'arrivaient nulle part. Tant que la liste d'abonnés n'existe pas, on
- * propose un bouton vers la page d'inscription — qui, elle, dit honnêtement
- * que le digest n'est pas encore lancé et donne une alternative qui marche
- * aujourd'hui.
+ * Il n'existe aucune liste d'abonnés externe : les inscrits reçoivent le
+ * récap automatiquement (opt-out : profil → notifications). Un champ
+ * collecterait des adresses de visiteurs sans rien derrière — le contrôle
+ * mort que cette colonne portait à sa création.
  *
- * Cette colonne a une raison d'être juridique autant qu'éditoriale : c'est le
- * canal du préavis de 15 jours annoncé dans les conditions. Le jour où le
- * digest existe, ce champ devient le canal et le préavis redevient tenable.
+ * Raison d'être juridique autant qu'éditoriale : le préavis de 15 jours
+ * annoncé dans les conditions et la confidentialité part en notification
+ * in-app + email direct (`run-jobs announce`), pas par cette colonne.
  */
 /**
  * Le digest : ce qui bouge dans la scène, une fois par semaine.
@@ -125,8 +130,7 @@ const PROJET: FooterItem[] = [
  * qu'on ne peut pas tenir. Elle est donc formulée comme la promesse qu'on
  * pourra réellement honourer, et le détail du contenu reste ailleurs.
  */
-const DIGEST_COPY =
-  "En soumettant votre adresse e-mail, vous acceptez de recevoir la newsletter mensuelle de Raycast. Pour plus d'informations, veuillez consulter notre politique de confidentialité. Vous pouvez retirer votre consentement à tout moment.";
+
 export function Footer() {
   return (
     <footer className="bg-muted">
@@ -238,9 +242,6 @@ function FooterDigest() {
       <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground pb-3 border-b border-foreground/10">
         Rester informé
       </h3>
-      <p className="mt-3.5 text-[11px] font-medium text-muted-foreground/80 leading-relaxed">
-        {DIGEST_COPY}
-      </p>
       <DigestForm />
     </div>
   );

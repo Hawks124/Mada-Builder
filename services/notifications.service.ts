@@ -19,6 +19,13 @@ import {
   digestWeeklySubject,
   digestWeeklyText,
 } from "@/lib/email-templates/digest-weekly";
+import {
+  LEGAL_DOC_LABEL,
+  legalNoticeHtml,
+  legalNoticeSubject,
+  legalNoticeText,
+  type LegalDoc,
+} from "@/lib/email-templates/legal-notice";
 
 /**
  * Notifications in-app — jumelles des emails (même point d'émission,
@@ -339,6 +346,76 @@ export async function sendWeeklyDigest(input?: {
     }
   }
   return { eligible, sent };
+}
+
+/**
+ * Préavis légal (modification substantielle confidentialité/conditions) :
+ * in-app + email direct à TOUS les membres actifs, opt-out digest
+ * IGNORÉ (préavis contractuel, pas du marketing — le récap lui respecte
+ * l'opt-out). `dryRun` = comptes sans écrire ni envoyer. L'opérateur
+ * rédige `summary` (une phrase : ce qui change) et la date d'effet
+ * (≥ 15 jours, promise au légal).
+ */
+export async function announceLegalUpdate(input: {
+  doc: LegalDoc;
+  summary: string;
+  effectiveLabel: string;
+  dryRun?: boolean;
+}): Promise<{ members: number; notified: number; emailed: number }> {
+  const members = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      displayName: users.displayName,
+      timeZone: users.timeZone,
+    })
+    .from(users)
+    .where(and(isNull(users.deletedAt), isNull(users.bannedAt)));
+  const origin = siteUrl();
+  const docPath = input.doc === "confidentialite" ? "/confidentialite" : "/conditions";
+  const title = `${LEGAL_DOC_LABEL[input.doc]} — mise à jour annoncée`;
+  let notified = 0;
+  let emailed = 0;
+  for (const u of members) {
+    if (u.email.trim().toLowerCase().endsWith("@placeholder.local")) continue;
+    if (input.dryRun) {
+      notified++;
+      continue;
+    }
+    if (await notify({ userId: u.id, kind: "legal_updated", title, body: input.summary })) {
+      notified++;
+    }
+    try {
+      await sendEmail({
+        to: u.email,
+        subject: legalNoticeSubject(input.doc),
+        template: "legal-notice",
+        userId: u.id,
+        html: legalNoticeHtml({
+          displayName: u.displayName,
+          doc: input.doc,
+          summary: input.summary,
+          docUrl: `${origin}${docPath}`,
+          effectiveLabel: input.effectiveLabel,
+          origin,
+          timeZone: u.timeZone,
+        }),
+        text: legalNoticeText({
+          displayName: u.displayName,
+          doc: input.doc,
+          summary: input.summary,
+          docUrl: `${origin}${docPath}`,
+          effectiveLabel: input.effectiveLabel,
+          origin,
+          timeZone: u.timeZone,
+        }),
+      });
+      emailed++;
+    } catch {
+      // Un préavis en échec n'empêche pas les autres (in-app déjà posé).
+    }
+  }
+  return { members: members.length, notified, emailed };
 }
 
 /**

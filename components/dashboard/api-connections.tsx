@@ -3,23 +3,31 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { TrashIcon, ArrowClockwiseIcon, PlugsConnectedIcon } from "@phosphor-icons/react";
 import { cn, formatMoney } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SupportedProviders } from "@/components/dashboard/supported-providers";
+import { revokeRevenueAction, setRevenueDisplayModeAction } from "@/app/actions/revenue";
+import { REVENUE_CONFIG_SPECS } from "@/services/revenue/types";
+import type { RevenueProviderId } from "@/services/revenue/types";
 
-export type RevenueProvider = "stripe" | "revenuecat";
+export type RevenueProvider = RevenueProviderId;
 
 export type ApiConnection = {
   id: string;
   provider: RevenueProvider;
   productId: string;
   productName: string;
-  status: "active" | "failing";
+  productSlug: string;
+  displayMode: "full" | "badge_only";
+  status: "active" | "failing" | "revoked";
   lastSyncedText: string;
   lastError?: string;
-  mrrCents: number;
+  mrrCents: number | null;
+  currency: string;
+  keyHint: string | null;
 };
 
 const PROVIDER_META: Record<
@@ -43,31 +51,90 @@ const PROVIDER_META: Record<
     logo: "/logos/revenuecat.svg",
     inlineClass: "w-4 h-4",
   },
+  paddle: {
+    label: "Paddle",
+    logo: "/logos/paddle.svg",
+    inlineClass: "w-4 h-4",
+    darkClass: "dark:brightness-0 dark:invert",
+  },
+  polar: {
+    label: "Polar",
+    logo: "/logos/polar.svg",
+    inlineClass: "w-4 h-4",
+  },
+  lemon_squeezy: {
+    label: "Lemon Squeezy",
+    logo: "/logos/lemon-squeezy.svg",
+    inlineClass: "w-4 h-4",
+    darkClass: "dark:brightness-0 dark:invert",
+  },
 };
 
-// Stored keys — surveiller et révoquer (les secrets ne sont jamais
-// ré-affichés). Vide honnête : aucune connexion sans le lot revenus
-// (milestone revenue — ni table ni sync pour l'instant, jamais de mock).
+function guideHref(provider: RevenueProvider): string {
+  return `/guides/revenus-verifies/${REVENUE_CONFIG_SPECS[provider].guideSlug}#creer-la-cle`;
+}
+
+// Connexions réelles (props serveur) : surveiller et révoquer (les secrets
+// ne sont jamais ré-affichés). La suppression appelle le serveur (purge
+// clé) puis rafraîchit — jamais de suppression locale seule.
 export function ApiConnections({ initial = [] }: { initial?: ApiConnection[] }) {
+  const router = useRouter();
   const [connections, setConnections] = React.useState<ApiConnection[]>(initial);
   const [deleteTarget, setDeleteTarget] = React.useState<ApiConnection | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
+  const [togglingId, setTogglingId] = React.useState<string | null>(null);
 
-  const confirmDelete = () => {
-    if (!deleteTarget) return;
+  const toggleDisplay = async (conn: ApiConnection) => {
+    if (togglingId) return;
+    setTogglingId(conn.id);
+    setDeleteError(null);
+    const next = conn.displayMode === "full" ? "badge_only" : "full";
+    const res = await setRevenueDisplayModeAction({ connectionId: conn.id, displayMode: next });
+    setTogglingId(null);
+    if (!res.ok) {
+      setDeleteError(res.message ?? "Modification impossible.");
+      return;
+    }
+    setConnections((prev) => prev.map((c) => (c.id === conn.id ? { ...c, displayMode: next } : c)));
+    router.refresh();
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    const res = await revokeRevenueAction({ connectionId: deleteTarget.id });
+    setDeleting(false);
+    if (!res.ok) {
+      setDeleteError(res.message ?? "Suppression impossible.");
+      return;
+    }
     setConnections((prev) => prev.filter((c) => c.id !== deleteTarget.id));
     setDeleteTarget(null);
+    router.refresh();
   };
+
+  const visible = connections.filter((c) => c.status !== "revoked");
 
   return (
     <div className="flex flex-col gap-12">
-      {connections.length === 0 ? (
+      {visible.length === 0 ? (
         <EmptyState
           title="Aucune clé connectée"
           description="Connectez une clé en lecture seule depuis la fiche de votre produit pour afficher vos revenus vérifiés."
+          action={
+            <Link
+              href="/guides/revenus-verifies"
+              className="text-[13px] font-bold text-foreground underline underline-offset-4"
+            >
+              Mode d&apos;emploi →
+            </Link>
+          }
         />
       ) : (
         <div className="flex flex-col">
-          {connections.map((conn) => {
+          {visible.map((conn) => {
             const meta = PROVIDER_META[conn.provider];
             const initials = conn.productName
               .split(/[\s_.-]+/)
@@ -82,7 +149,7 @@ export function ApiConnections({ initial = [] }: { initial?: ApiConnection[] }) 
               >
                 {/* Product icon */}
                 <Link
-                  href={`/products/${conn.productId}`}
+                  href={`/products/${conn.productSlug}`}
                   className={cn(
                     "row-span-2 h-11 w-11 rounded-2xl shrink-0 flex items-center justify-center text-white font-black text-[15px] bg-linear-to-br from-zinc-500 to-zinc-700 shadow-sm",
                   )}
@@ -93,7 +160,7 @@ export function ApiConnections({ initial = [] }: { initial?: ApiConnection[] }) 
                 {/* Product + status */}
                 <div className="flex items-center gap-2.5 flex-wrap min-w-0">
                   <Link
-                    href={`/products/${conn.productId}`}
+                    href={`/products/${conn.productSlug}`}
                     className="text-[15px] font-extrabold tracking-tight text-foreground hover:text-primary transition-colors truncate"
                   >
                     {conn.productName}
@@ -109,6 +176,11 @@ export function ApiConnections({ initial = [] }: { initial?: ApiConnection[] }) 
                     <span className="h-1 w-1 rounded-full bg-current" aria-hidden="true" />
                     {conn.status === "active" ? "Active" : "En échec"}
                   </span>
+                  {conn.displayMode === "badge_only" && (
+                    <span className="inline-flex items-center rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.75 text-[9px] font-black uppercase tracking-[0.14em] leading-none text-muted-foreground shrink-0">
+                      Badge seul
+                    </span>
+                  )}
                 </div>
 
                 {/* MRR */}
@@ -116,7 +188,9 @@ export function ApiConnections({ initial = [] }: { initial?: ApiConnection[] }) 
                   className="hidden sm:block row-span-2 text-[15px] font-black tabular-nums text-emerald-600 dark:text-emerald-400 whitespace-nowrap"
                   title={`MRR synchronisé via ${meta.label}`}
                 >
-                  {formatMoney(conn.mrrCents, "USD", { compact: true })}
+                  {conn.mrrCents !== null
+                    ? formatMoney(conn.mrrCents, conn.currency, { compact: true })
+                    : "—"}
                 </span>
 
                 {/* Provider + sync */}
@@ -131,12 +205,36 @@ export function ApiConnections({ initial = [] }: { initial?: ApiConnection[] }) 
                     />
                     <span className="truncate">
                       {meta.label} · synchronisé {conn.lastSyncedText}
+                      {conn.keyHint ? ` · clé ${conn.keyHint}` : ""}
                     </span>
                     <ArrowClockwiseIcon
                       weight="bold"
                       className="w-3.5 h-3.5 shrink-0"
                       aria-hidden="true"
                     />
+                  </p>
+                  <p className="flex items-center gap-2 text-[12px] font-medium">
+                    <button
+                      type="button"
+                      onClick={() => toggleDisplay(conn)}
+                      disabled={togglingId === conn.id}
+                      className="text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {togglingId === conn.id
+                        ? "…"
+                        : conn.displayMode === "full"
+                          ? "Passer en badge seul"
+                          : "Publier le chiffre"}
+                    </button>
+                    <span aria-hidden="true" className="text-border">
+                      ·
+                    </span>
+                    <Link
+                      href={guideHref(conn.provider)}
+                      className="text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                    >
+                      Guide {meta.label}
+                    </Link>
                   </p>
                   {conn.status === "failing" && conn.lastError && (
                     <p className="text-[12px] font-medium text-red-600 dark:text-red-400 leading-snug">
@@ -208,10 +306,18 @@ export function ApiConnections({ initial = [] }: { initial?: ApiConnection[] }) 
             ? `La synchronisation ${PROVIDER_META[deleteTarget.provider].label} de ${deleteTarget.productName} sera coupée et les snapshots existants conservés.`
             : ""
         }
-        confirmLabel="Supprimer"
+        confirmLabel={deleting ? "Suppression…" : "Supprimer"}
         onConfirm={confirmDelete}
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={() => {
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
       />
+      {deleteError && (
+        <p role="alert" className="text-[12px] font-bold text-red-600 dark:text-red-400">
+          {deleteError}
+        </p>
+      )}
     </div>
   );
 }

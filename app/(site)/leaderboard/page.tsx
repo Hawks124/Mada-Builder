@@ -8,6 +8,8 @@ import { getProductTypeById } from "@/config/product-types";
 import { getSessionUser } from "@/lib/supabase/server";
 import { getUserVotedIds } from "@/services/votes.service";
 import { getFeatured, getLeaderboard, toFeaturedCard } from "@/services/ranking.service";
+import { getRevenueViewsForProducts } from "@/services/revenue/views";
+import type { FeaturedProductData } from "@/services/home.service";
 import { itemListLd } from "@/lib/seo";
 import { siteUrl } from "@/lib/site-url";
 
@@ -76,6 +78,24 @@ export default async function LeaderboardPage({
     ...taxo.items.map((i) => i.id),
   ]);
   const voted = [...votedIds];
+  let featuredData: FeaturedProductData | null = featured
+    ? toFeaturedCard(featured, { initialVoted: voted.includes(featured.productId) })
+    : null;
+  if (featuredData && featured) {
+    const views = await getRevenueViewsForProducts([featured.productId]).catch(() => new Map());
+    const view = views.get(featured.productId);
+    if (view) {
+      featuredData = {
+        ...featuredData,
+        revenue: {
+          provider: view.provider,
+          displayMode: view.displayMode,
+          mrrCents: view.mrrCents,
+          currency: view.currency,
+        },
+      };
+    }
+  }
 
   return (
     <Suspense
@@ -98,11 +118,7 @@ export default async function LeaderboardPage({
         taxo={taxo.items}
         taxoTotal={taxo.total}
         taxoWeight={taxo.totalWeighted}
-        featured={
-          featured
-            ? toFeaturedCard(featured, { initialVoted: voted.includes(featured.productId) })
-            : null
-        }
+        featured={featuredData}
         votedIds={voted}
         window={w}
         cat={cat}

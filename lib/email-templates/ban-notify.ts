@@ -24,7 +24,7 @@ export function banNotifyText(input: {
   timeZone: string | null;
 }): string {
   return [
-    "BuilderPlatform",
+    "Mada-Made",
     "---",
     `${emailGreeting(input.timeZone)} ${input.displayName},`,
     "",
@@ -122,7 +122,7 @@ export function banNotifyHtml(input: {
 
     <hr class="divider" />
     <div class="footer">
-      Notification de modération &bull; BuilderPlatform &copy; ${new Date().getFullYear()}<br>
+      Notification de modération &bull; Mada-Made &copy; ${new Date().getFullYear()}<br>
       ${emailModerationFooterHtml(input.origin)}
     </div>
   </div>

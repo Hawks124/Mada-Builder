@@ -128,7 +128,7 @@ export function MakerAppRow({ app }: { app: DashboardApp }) {
               className="text-[13px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums"
               title={`MRR vérifié via ${app.revenue.provider}`}
             >
-              {formatMoney(app.revenue.mrrCents, "USD", { compact: true })}
+              {formatMoney(app.revenue.mrrCents, app.revenue.currency, { compact: true })}
             </span>
           ))}
 

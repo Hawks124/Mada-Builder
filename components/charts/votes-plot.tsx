@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { cn } from "@/lib/utils";
-import type { ChartPoint } from "@/components/dashboard/dashboard-charts-mock";
+import type { ChartDay } from "@/services/dashboard.service";
 import { BetaPill } from "@/components/ui/beta-pill";
 import { AXIS, CURSOR, PlotTooltip, activeDot, makeDateTick, makeValueTick } from "./plot-kit";
 import { tickBudget, tickIndices } from "./palette";
@@ -37,7 +37,7 @@ export function VotesPlot({
   height = 200,
   className,
 }: {
-  points: ChartPoint[];
+  points: ChartDay[];
   height?: number;
   className?: string;
 }) {

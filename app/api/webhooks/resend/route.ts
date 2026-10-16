@@ -7,8 +7,10 @@ import { apiCatch, apiOk, methodNotAllowed } from "@/lib/api/response";
 export const GET = async () => methodNotAllowed(["POST"]);
 
 /**
- * Webhooks Resend (Lot 5) : délivrabilité réelle (delivered / bounced /
- * complained). `opened`/`clicked` IGNORÉS volontairement (pas de tracking
+ * Webhooks Resend (Lot 5 + Phase 2 newsletter) : délivrabilité réelle
+ * (delivered / bounced / complained) + désinscriptions audience
+ * (`contact.updated` avec `unsubscribed: true` → `digest_opt_out` local).
+ * `opened`/`clicked` IGNORÉS volontairement (pas de tracking
  * d'ouverture — §16). Secret `RESEND_WEBHOOK_SECRET` (whsec_…).
  * Échec de vérif = 401 (Resend retry) ; payload inconnu = 200 (pas de
  * retry inutile). `email_id` Resend ↔ `resend_id` des logs.
@@ -58,11 +60,32 @@ export async function POST(req: Request): Promise<Response> {
         },
       );
     }
-    const payload = JSON.parse(body) as { type?: string; data?: { email_id?: string } };
+    const payload = JSON.parse(body) as {
+      type?: string;
+      data?: {
+        email_id?: string;
+        email?: string;
+        unsubscribed?: boolean;
+        audience_id?: string;
+      };
+    };
     const status = payload.type ? HANDLED[payload.type] : undefined;
     const emailId = payload.data?.email_id;
     if (status && emailId) {
       await db.update(emailLogs).set({ status }).where(eq(emailLogs.resendId, emailId));
+    }
+    // Désinscription via lien Resend (one-shot) : la vérité locale suit.
+    // Audience étrangère = ignorée (une seule audience pilotée).
+    if (
+      payload.type === "contact.updated" &&
+      payload.data?.unsubscribed === true &&
+      typeof payload.data?.email === "string"
+    ) {
+      const want = (process.env.RESEND_AUDIENCE_ID ?? "").trim();
+      if (want === "" || payload.data.audience_id === want) {
+        const { applyContactUnsubscribed } = await import("@/services/newsletter.service");
+        await applyContactUnsubscribed(payload.data.email);
+      }
     }
     return apiOk({ received: true });
   } catch (e) {

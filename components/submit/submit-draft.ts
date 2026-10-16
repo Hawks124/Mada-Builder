@@ -14,6 +14,9 @@ export function saveSubmitDraft(form: HTMLFormElement): void {
     for (const [k, v] of fd.entries()) {
       if (typeof v !== "string" || v === "") continue;
       if (k === "intent" || k === "productId") continue;
+      // Secret : la clé revenus ne persiste JAMAIS en local (re-saisie
+      // à chaque visite — le confort ne vaut pas le risque).
+      if (k === "revenueKey") continue;
       if (!(k in record)) record[k] = v;
     }
     localStorage.setItem(KEY, JSON.stringify(record));

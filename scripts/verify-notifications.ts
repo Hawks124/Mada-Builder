@@ -198,6 +198,138 @@ async function main(): Promise<void> {
     .limit(1);
   check("purge 90 j", purged.purged >= 1 && !gone);
 
+  // 8. Cron digest : gardes + dry-run (zéro envoi réel).
+  const digestCron = await import("@/app/api/cron/digest/route");
+  check("digest cron GET = 405", (await digestCron.GET()).status === 405);
+  const savedCron = process.env.CRON_SECRET;
+  delete process.env.CRON_SECRET;
+  check(
+    "digest cron sans secret = 503",
+    (await digestCron.POST(new Request("https://x.test/", { method: "POST" }))).status === 503,
+  );
+  process.env.CRON_SECRET = "verify-digest-secret";
+  check(
+    "digest cron mauvais Bearer = 403",
+    (
+      await digestCron.POST(
+        new Request("https://x.test/", {
+          method: "POST",
+          headers: { authorization: "Bearer wrong" },
+        }),
+      )
+    ).status === 403,
+  );
+  const digestOk = await digestCron.POST(
+    new Request("https://x.test/?dryRun=1", {
+      method: "POST",
+      headers: { authorization: "Bearer verify-digest-secret" },
+    }),
+  );
+  const digestBody = (await digestOk.json()) as { ok: boolean; data: { dryRun: boolean } };
+  check(
+    "digest cron dry-run = 200 sans envoi",
+    digestOk.status === 200 && digestBody.ok === true && digestBody.data?.dryRun === true,
+  );
+  if (savedCron === undefined) delete process.env.CRON_SECRET;
+  else process.env.CRON_SECRET = savedCron;
+
+  // 9. Diff audience pur (créations, retraits, opt-out — ajouts manuels conservés).
+  const { diffAudience } = await import("@/services/newsletter.service");
+  const diff = diffAudience(
+    new Map([
+      ["a@x.mg", "A"],
+      ["b@x.mg", "B"],
+    ]),
+    new Set(["old@x.mg"]),
+    [
+      { id: "c1", email: "a@x.mg", unsubscribed: true },
+      { id: "c2", email: "old@x.mg", unsubscribed: false },
+      { id: "c3", email: "manuel@x.mg", unsubscribed: false },
+    ],
+  );
+  check(
+    "audience diff",
+    diff.toCreate.length === 1 &&
+      diff.toCreate[0]?.email === "b@x.mg" &&
+      diff.toRemove.length === 1 &&
+      diff.toRemove[0]?.id === "c2" &&
+      diff.toOptOut.length === 1 &&
+      diff.toOptOut[0] === "a@x.mg",
+  );
+
+  // 10. Webhook contact.updated (désinscription Resend → opt-out local).
+  const { createHmac } = await import("node:crypto");
+  const savedHook = process.env.RESEND_WEBHOOK_SECRET;
+  const savedAud = process.env.RESEND_AUDIENCE_ID;
+  process.env.RESEND_WEBHOOK_SECRET = `whsec_${Buffer.from("verify-webhook-secret-0123456789").toString("base64")}`;
+  process.env.RESEND_AUDIENCE_ID = "aud_verify";
+  const hookBody = JSON.stringify({
+    type: "contact.updated",
+    data: { email: EMAIL, unsubscribed: true, audience_id: "aud_verify" },
+  });
+  const hookId = "msg_verify_1";
+  const hookTs = String(Math.floor(Date.now() / 1000));
+  const hookKey = Buffer.from((process.env.RESEND_WEBHOOK_SECRET as string).slice(6), "base64");
+  const hookSig = `v1,${createHmac("sha256", hookKey).update(`${hookId}.${hookTs}.${hookBody}`).digest("base64")}`;
+  const { POST: hookPost } = await import("@/app/api/webhooks/resend/route");
+  const hookRes = await hookPost(
+    new Request("https://x.test/api/webhooks/resend", {
+      method: "POST",
+      headers: {
+        "svix-id": hookId,
+        "svix-timestamp": hookTs,
+        "svix-signature": hookSig,
+        "content-type": "application/json",
+      },
+      body: hookBody,
+    }),
+  );
+  const [opted] = await db
+    .select({ digestOptOut: users.digestOptOut })
+    .from(users)
+    .where(eq(users.email, EMAIL))
+    .limit(1);
+  check(
+    "webhook contact.updated → opt-out",
+    hookRes.status === 200 && opted?.digestOptOut === true,
+  );
+  if (savedHook === undefined) delete process.env.RESEND_WEBHOOK_SECRET;
+  else process.env.RESEND_WEBHOOK_SECRET = savedHook;
+  if (savedAud === undefined) delete process.env.RESEND_AUDIENCE_ID;
+  else process.env.RESEND_AUDIENCE_ID = savedAud;
+
+  // 11. Préavis légal : gabarit + dry-run (zéro écriture, zéro envoi).
+  const { LEGAL_DOC_LABEL, legalNoticeHtml, legalNoticeSubject, legalNoticeText } =
+    await import("@/lib/email-templates/legal-notice");
+  const legalInput = {
+    displayName: "Vérif",
+    doc: "confidentialite" as const,
+    summary: "Résumé de test.",
+    docUrl: "https://x.test/confidentialite",
+    effectiveLabel: "entre en vigueur le 1er novembre 2026",
+    origin: "https://x.test",
+    timeZone: "Indian/Antananarivo",
+  };
+  check(
+    "préavis gabarit (sujet + contraction + opt-out nommé)",
+    legalNoticeSubject("confidentialite") === `Mise à jour : ${LEGAL_DOC_LABEL.confidentialite}` &&
+      legalNoticeHtml(legalInput).includes("Résumé de test.") &&
+      legalNoticeText(legalInput).includes("coupé le récap hebdo"),
+  );
+  const { announceLegalUpdate } = await import("@/services/notifications.service");
+  const announced = await announceLegalUpdate({ ...legalInput, dryRun: true });
+  const [legalRows] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(notifications)
+    .where(eq(notifications.kind, "legal_updated"));
+  check(
+    "préavis dry-run (comptes sans écrire)",
+    announced.members >= 2 &&
+      announced.notified <= announced.members &&
+      announced.emailed === 0 &&
+      (legalRows?.n ?? 0) === 0,
+  );
+
   // Cleanup.
   await db.delete(products).where(eq(products.id, prod.id));
   const admin = createAdminClient();

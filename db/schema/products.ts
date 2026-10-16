@@ -111,7 +111,9 @@ export const products = pgTable(
     isChildDirected: boolean("is_child_directed").notNull().default(false),
     installCommand: text("install_command"),
     version: text("version"),
-    requirements: text("requirements"),
+    // Config requise : pastilles libres (text[], miroir tags — Entrée/virgule
+    // au submit, jamais de texte brut). Items libres, garde-fous nombre×longueur.
+    requirements: text("requirements").array().notNull().default([]),
     targetCountries: text("target_countries").array().notNull().default([]),
     languagesSupported: text("languages_supported").array().notNull().default([]),
     iconUrl: text("icon_url"),

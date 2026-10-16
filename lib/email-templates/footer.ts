@@ -25,19 +25,19 @@ export function emailLegalText(origin: string): string {
 
 /**
  * Footer des emails de modération (ban, déban, décision d'appel) : les
- * liens seuls sont muets — ici la Charte est décrite (4 règles) et
+ * liens seuls sont muets — ici la Charte est décrite (5 règles) et
  * suivie d'un appel à la suivre. Formulation volontairement générique
  * pour convenir aux trois cas (avertissement, retour, maintien).
  * Copy proposée — ajustable sans toucher aux templates.
  */
 export function emailModerationFooterHtml(origin: string): string {
   const o = escapeAttr(origin);
-  return `La scène tient à 4 règles — produits réels, votes loyaux, respect mutuel. Les connaître, c'est y rester : <a href="${o}/regles" style="color:#a1a1aa;text-decoration:underline;">Charte</a> &bull; <a href="${o}/conditions" style="color:#a1a1aa;text-decoration:underline;">Conditions</a> &bull; <a href="${o}/confidentialite" style="color:#a1a1aa;text-decoration:underline;">Confidentialité</a>`;
+  return `La scène tient à 5 règles — produits réels, revue humaine, votes loyaux, respect mutuel, revenus honnêtes. Les connaître, c'est y rester : <a href="${o}/regles" style="color:#a1a1aa;text-decoration:underline;">Charte</a> &bull; <a href="${o}/conditions" style="color:#a1a1aa;text-decoration:underline;">Conditions</a> &bull; <a href="${o}/confidentialite" style="color:#a1a1aa;text-decoration:underline;">Confidentialité</a>`;
 }
 
 export function emailModerationFooterText(origin: string): string {
   return [
-    "La scène tient à 4 règles — produits réels, votes loyaux, respect mutuel. Les connaître, c'est y rester :",
+    "La scène tient à 5 règles — produits réels, revue humaine, votes loyaux, respect mutuel, revenus honnêtes. Les connaître, c'est y rester :",
     emailLegalText(origin),
   ].join("\n");
 }

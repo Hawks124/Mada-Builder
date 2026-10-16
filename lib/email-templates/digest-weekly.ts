@@ -78,7 +78,7 @@ export function digestWeeklyText(input: {
   timeZone: string | null;
 }): string {
   return [
-    "BuilderPlatform",
+    "Mada-Made",
     "---",
     `${emailGreeting(input.timeZone)} ${input.displayName},`,
     "",

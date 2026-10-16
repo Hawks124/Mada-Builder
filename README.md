@@ -16,11 +16,11 @@
 
 **Ce que tu construis ici, on le voit ici.** L'annuaire des produits construits par les développeurs malgaches : publie ton produit, gagne ta place au leaderboard quotidien, et prouve optionnellement tes revenus réels (vérifiés en lecture seule, jamais auto-déclarés).
 
-> Statut : `v0.1.0` — fondations, identité & modération. Voir [CHANGELOG.md](./CHANGELOG.md) (pas encore un MVP : listings, leaderboard et revenus vérifiés arrivent).
+> Statut : `v1` (pré-déploiement) — fondations, listings, leaderboard, binaires APK, avis & commentaires livrés. Reste : revenus vérifiés (MRR). Voir [CHANGELOG.md](./CHANGELOG.md).
 
 ## Stack
 
-Next.js 16 (App Router) + TypeScript · Tailwind v4 · Postgres (Drizzle) · Supabase Auth (Google, GitHub, email OTP) · Resend · Upstash (rate-limit) · Vercel + pg_cron (jobs).
+Next.js 16 (App Router) + TypeScript · Tailwind v4 · Postgres (Drizzle) · Supabase Auth (Google, GitHub, GitLab, email OTP) · R2 (médias + binaires APK) · Resend · Upstash (rate-limit) · Vercel + pg_cron (jobs).
 
 ## Démarrage
 
@@ -34,7 +34,7 @@ npm run dev
 | Script                                     | Usage                                                    |
 | ------------------------------------------ | -------------------------------------------------------- |
 | `npm run db:generate` / `db:migrate:local` | migration Drizzle (générer, appliquer avec `.env.local`) |
-| `npm run db:setup`                         | `setup.sql` post-migration (31 instructions, rejouable)  |
+| `npm run db:setup`                         | `setup.sql` post-migration (64 instructions, rejouable)  |
 | `npx tsx scripts/verify-*.ts`              | garde-fous (OTP, toasts, emails, API v1…)                |
 | `npx tsc --noEmit` + `npx eslint`          | vérifs avant chaque lot                                  |
 
@@ -48,7 +48,11 @@ Sans clés Supabase, l'app tourne en mock (voir `docs/auth.md`).
 - [`docs/mobile-contrats.md`](./docs/mobile-contrats.md) — contrats de l'API v1 (équipe Flutter).
 - [`CHANGELOG.md`](./CHANGELOG.md) — ce qui est livré, version par version.
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md) — conventions (lire avant toute PR).
+- [`SECURITY.md`](./SECURITY.md) — signaler une faille (jamais en issue publique).
+- [`DESIGN.md`](./DESIGN.md) — design system & patterns UI (à suivre impérativement).
+- [`STACK.md`](./STACK.md) — postes d'infra, coût 0 $/mois possible.
+- [`docs/data/`](./docs/data/) — fiches par table (contrat data de référence).
 
 ## Contribuer
 
-Projet open source sous licence MIT. Lire [`CONTRIBUTING.md`](./CONTRIBUTING.md) et le [code de conduite](./CODE_OF_CONDUCT.md). La [marque](./TRADEMARK.md) n'est pas couverte par la MIT.`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md). Faille de sécurité → [`SECURITY.md`](./SECURITY.md) (jamais en issue publique).
+Projet open source sous licence MIT. Lire [`CONTRIBUTING.md`](./CONTRIBUTING.md) et le [code de conduite](./CODE_OF_CONDUCT.md). La [marque](./TRADEMARK.md) n'est pas couverte par la MIT. Faille de sécurité → [`SECURITY.md`](./SECURITY.md) (jamais en issue publique).

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { CaretUpIcon, EyeIcon, TrashIcon, StarIcon, FunnelIcon } from "@phosphor-icons/react";
 import { getPlatformById } from "@/config/platforms";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -215,9 +215,7 @@ export function ProductsTable({ initialApps }: { initialApps: AdminProduct[] }) 
             ? [
                 `${formatCompactCount(deleteTarget.votes)} votes`,
                 `${formatCompactCount(deleteTarget.views)} vues cumulées`,
-                deleteTarget.revenue
-                  ? `MRR ${formatMoney(deleteTarget.revenue.mrrCents, "USD", { compact: true })} déconnecté`
-                  : "Aucun revenu connecté",
+                "Connexion revenus révoquée avec la fiche (si présente)",
               ]
             : []
         }

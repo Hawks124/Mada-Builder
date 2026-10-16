@@ -252,6 +252,39 @@ CREATE POLICY "users_update_own"
     AND (SELECT banned_at FROM public.users WHERE id = auth.uid()) IS NULL
   );
 
+-- Verrou colonnes sensibles (signalement équipe mobile, oct. 2026,
+-- migration 0044 — garder les deux en sync) : la policy ci-dessus filtre
+-- la LIGNE mais aucune COLONNE — sans ce trigger, tout client
+-- authentifié pouvait `SET role = 'admin'`. Les identités de service
+-- (Drizzle/postgres, service_role, supabase_admin) passent ; tout autre
+-- appelant qui touche role, banned_at, email, username ou providers est
+-- rejeté. Champs profil modifiables (non-breaking).
+CREATE OR REPLACE FUNCTION public.lock_users_sensitive_columns()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF current_user IN ('postgres', 'service_role', 'supabase_admin') THEN
+    RETURN NEW;
+  END IF;
+  IF coalesce(auth.role(), '') = 'service_role' THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.role IS DISTINCT FROM OLD.role
+     OR NEW.banned_at IS DISTINCT FROM OLD.banned_at
+     OR NEW.email IS DISTINCT FROM OLD.email
+     OR NEW.username IS DISTINCT FROM OLD.username
+     OR NEW.providers IS DISTINCT FROM OLD.providers THEN
+    RAISE EXCEPTION 'colonnes protégées : role, banned_at, email, username, providers (service_role seul)';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS users_lock_sensitive ON public.users;
+CREATE TRIGGER users_lock_sensitive
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.lock_users_sensitive_columns();
+
 -- ── 4. Bucket avatars + policies ────────────────────────────────────────────
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('avatars', 'avatars', true)
@@ -351,6 +384,12 @@ ALTER TABLE public.idempotency_keys ENABLE ROW LEVEL SECURITY;
 -- du jour ne se fixe que côté service/admin — jamais PostgREST, sinon
 -- n'importe qui épinglerait sa fiche). Lectures Drizzle serveur.
 ALTER TABLE public.featured_products ENABLE ROW LEVEL SECURITY;
+
+-- revenue_connections / revenue_snapshots : AUCUNE policy = refusé via
+-- Data API (sinon n'importe qui lirait les clés chiffrées via PostgREST).
+-- Lectures/écritures Drizzle serveur uniquement (service_role).
+ALTER TABLE public.revenue_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.revenue_snapshots ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "products_select_public" ON public.products;
 CREATE POLICY "products_select_public"

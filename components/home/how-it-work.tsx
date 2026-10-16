@@ -147,12 +147,15 @@ export function RevenueVerificationSheet({
                 <strong className="font-black text-foreground">
                   restreinte à la lecture seule
                 </strong>{" "}
-                chez Stripe ou RevenueCat. Il garde la main sur la connexion : c&apos;est lui qui la
-                pose, et lui qui peut la révoquer.
+                chez Stripe, RevenueCat, Paddle, Polar ou Lemon Squeezy. Il garde la main sur la
+                connexion : c&apos;est lui qui la pose, et lui qui peut la révoquer.
               </p>
               <div className="mt-3.5 flex items-center gap-4 opacity-55">
                 <ProviderLogo src="/logos/stripe.svg" alt="Stripe" />
                 <ProviderLogo src="/logos/revenuecat.svg" alt="RevenueCat" />
+                <ProviderLogo src="/logos/paddle.svg" alt="Paddle" />
+                <ProviderLogo src="/logos/polar.svg" alt="Polar" />
+                <ProviderLogo src="/logos/lemon-squeezy.svg" alt="Lemon Squeezy" />
               </div>
             </Step>
 

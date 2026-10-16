@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils";
 export const FACEBOOK_GROUP_URL = "https://web.facebook.com/groups/facedev.mg?locale=fr_FR";
 
 // Communauté — même pattern hover que ProductDropdown.
-// Contact reste un item mort honnête (pill "Bientôt") jusqu'à la page admin.
 export function CommunityDropdown() {
   return (
     <div className="group relative">
@@ -44,18 +43,11 @@ export function CommunityDropdown() {
             icon={<FacebookLogoIcon weight="fill" className="h-5 w-5" />}
             external
           />
-          <div
-            className="flex items-center gap-3.5 rounded-xl px-4 py-3 text-[15px] font-medium text-muted-foreground/60 cursor-default"
-            title="Disponible prochainement"
-          >
-            <span className="text-foreground/40">
-              <LifebuoyIcon weight="fill" className="h-5 w-5" />
-            </span>
-            Contact
-            <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[10px] font-black uppercase tracking-widest">
-              Bientôt
-            </span>
-          </div>
+          <DropdownItem
+            href="/contact"
+            title="Contact"
+            icon={<LifebuoyIcon weight="fill" className="h-5 w-5" />}
+          />
         </div>
       </div>
     </div>

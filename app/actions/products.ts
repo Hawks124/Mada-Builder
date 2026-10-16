@@ -8,6 +8,8 @@ import { products } from "@/db/schema";
 import { getSessionUser } from "@/lib/supabase/server";
 import { ProfileError } from "@/services/users.service";
 import {
+  appGradientFor,
+  appInitialsFor,
   deleteMyProduct,
   deleteProductAsAdmin,
   fetchAdminProducts,
@@ -23,7 +25,7 @@ import {
   updateProduct,
 } from "@/services/products.service";
 import { getUserVotedIds, toggleVote } from "@/services/votes.service";
-import { findPublishedIdBySlug, setFeaturedOverride } from "@/services/ranking.service";
+import { resolveFeaturedSlug, setFeaturedOverride } from "@/services/ranking.service";
 import { logAdminAction } from "@/services/admin-audit.service";
 import { notifyProductMaker } from "@/services/notifications.service";
 import { listProductBuilds } from "@/services/builds.service";
@@ -50,6 +52,9 @@ import {
 import { appOrigin } from "@/app/actions/auth";
 import { withToast } from "@/lib/toast";
 import { captureError } from "@/lib/monitoring";
+import { checkLimit } from "@/lib/ratelimit";
+import { connectRevenueConnection } from "@/services/revenue/connections";
+import { REVENUE_PROVIDER_IDS, type RevenueProviderId } from "@/services/revenue/types";
 
 export type ProductActionState = {
   ok: boolean;
@@ -79,6 +84,46 @@ function str(raw: FormDataEntryValue | null): string | undefined {
   if (typeof raw !== "string") return undefined;
   const trimmed = raw.trim();
   return trimmed === "" ? undefined : trimmed;
+}
+
+/**
+ * Connexion revenus BÊTA après save (création comme édition) : best-effort —
+ * la fiche est sauvée dans tous les cas, l'échec probe n'annule rien.
+ * Retourne un suffixe d'avertissement (affiché en toast) ou null.
+ * Rate-limit 5/h anti-bruteforce de clés (probe = appels provider).
+ */
+async function connectRevenueIfProvided(
+  userId: string,
+  productId: string,
+  formData: FormData,
+): Promise<string | null> {
+  const key = str(formData.get("revenueKey"));
+  if (!key) return null;
+  const limited = await checkLimit({
+    namespace: "revenue-connect",
+    id: userId,
+    window: { window: "1 h", max: 5 },
+  });
+  if (!limited.allowed) return "Trop de tentatives de connexion — réessayez dans une heure.";
+  const rawProvider = str(formData.get("revenueProvider")) ?? "stripe";
+  const provider: RevenueProviderId = (REVENUE_PROVIDER_IDS as string[]).includes(rawProvider)
+    ? (rawProvider as RevenueProviderId)
+    : "stripe";
+  const displayMode = str(formData.get("revenueDisplay")) === "badge_only" ? "badge_only" : "full";
+  const config: Record<string, string> = {};
+  const projectId = str(formData.get("revenueProjectId"));
+  const storeId = str(formData.get("revenueStoreId"));
+  if (projectId) config.projectId = projectId;
+  if (storeId) config.storeId = storeId;
+  try {
+    await connectRevenueConnection(userId, { productId, provider, key, config, displayMode });
+    return null;
+  } catch (e) {
+    if (e instanceof ProfileError)
+      return `Connexion revenus à refaire depuis la fiche (${e.message})`;
+    captureError(e instanceof Error ? e : new Error(String(e)), { op: "revenue.connectSubmit" });
+    return "Connexion revenus à refaire depuis la fiche.";
+  }
 }
 export async function submitProductAction(
   _prev: ProductActionState,
@@ -114,7 +159,7 @@ export async function submitProductAction(
         license: str(formData.get("license")),
         installCommand: str(formData.get("installCommand")),
         version: str(formData.get("version")),
-        requirements: str(formData.get("requirements")),
+        requirements: parseJsonArray(formData.get("requirements"), "config requise"),
         changelogUrl: str(formData.get("changelogUrl")),
         hasAds: parseBool(formData.get("hasAds")),
         sharesData: parseBool(formData.get("hasThirdParty")),
@@ -135,13 +180,10 @@ export async function submitProductAction(
     return { ok: false, message: "Soumission impossible pour le moment." };
   }
   revalidatePath("/dashboard");
-  redirect(
-    withToast(
-      "/dashboard",
-      "ok",
-      result.status === "draft" ? "Brouillon enregistré." : "Produit soumis — en revue sous 24 h.",
-    ),
-  );
+  const revenueWarning = await connectRevenueIfProvided(user.id, result.id, formData);
+  const base =
+    result.status === "draft" ? "Brouillon enregistré." : "Produit soumis — en revue sous 24 h.";
+  redirect(withToast("/dashboard", "ok", revenueWarning ? `${base} ${revenueWarning}` : base));
 }
 
 /**
@@ -189,7 +231,10 @@ export async function updateProductAction(
         license: str(formData.get("license")),
         installCommand: str(formData.get("installCommand")),
         version: str(formData.get("version")),
-        requirements: str(formData.get("requirements")),
+        requirements:
+          formData.get("requirements") === null
+            ? undefined
+            : parseJsonArray(formData.get("requirements"), "config requise"),
         changelogUrl: str(formData.get("changelogUrl")),
         hasAds: formData.get("hasAds") === null ? undefined : parseBool(formData.get("hasAds")),
         targetCountries:
@@ -219,13 +264,9 @@ export async function updateProductAction(
   }
   revalidatePath(`/products/${result.slug}`);
   revalidatePath("/dashboard");
-  redirect(
-    withToast(
-      "/dashboard",
-      "ok",
-      result.rereview ? "Modifications envoyées en re-revue." : "Fiche mise à jour.",
-    ),
-  );
+  const revenueWarning = await connectRevenueIfProvided(user.id, productId, formData);
+  const base = result.rereview ? "Modifications envoyées en re-revue." : "Fiche mise à jour.";
+  redirect(withToast("/dashboard", "ok", revenueWarning ? `${base} ${revenueWarning}` : base));
 }
 
 /** Suppression maker (RGPD) — irréversible, confirmée côté UI. */
@@ -673,9 +714,20 @@ export async function setFeaturedOverrideBySlugAction(input: {
     await requireStaffId();
     const slug = input.slug.trim().toLowerCase();
     if (!slug) return { ok: false, message: "Slug requis." };
-    const productId = await findPublishedIdBySlug(slug);
-    if (!productId) return { ok: false, message: "Fiche publiée introuvable pour ce slug." };
-    return await setFeaturedOverrideAction({ productId });
+    const resolved = await resolveFeaturedSlug(slug);
+    if (resolved.state === "missing") {
+      return { ok: false, message: "Aucun produit avec ce slug." };
+    }
+    if (resolved.state === "watch") {
+      return { ok: false, message: "Produit en veille : il ne peut pas être mis en avant." };
+    }
+    if (resolved.state === "notPublished") {
+      return {
+        ok: false,
+        message: "Produit pas encore publié : il ne peut pas être mis en avant.",
+      };
+    }
+    return await setFeaturedOverrideAction({ productId: resolved.productId });
   } catch (e) {
     if (e instanceof ProfileError) return { ok: false, message: e.message };
     captureError(e instanceof Error ? e : new Error(String(e)), { op: "products.featuredSlug" });
@@ -766,6 +818,8 @@ export async function getAdminProductsList(input: {
   q?: string;
   status?: "all" | "draft" | "pending" | "published" | "rejected";
   cursor?: string | null;
+  /** `false` = produits pinnables uniquement. */
+  curated?: boolean;
 }) {
   try {
     await requireStaffId();
@@ -795,9 +849,20 @@ export async function getAdminProductsList(input: {
       q: input.q,
       status: input.status,
       cursor,
+      curated: input.curated,
     });
     return {
-      items,
+      // Initiales et dégradé calculés ici : `appInitialsFor`/`appGradientFor`
+      // vivent dans un module serveur, le composant client ne peut pas les importer.
+      items: items.map((r) => ({
+        id: r.id,
+        slug: r.slug,
+        name: r.name,
+        tagline: r.tagline,
+        iconUrl: r.iconUrl ?? null,
+        initials: appInitialsFor(r.name),
+        gradient: appGradientFor(r.id),
+      })),
       nextCursor: nextCursor
         ? Buffer.from(
             JSON.stringify({ createdAt: nextCursor.createdAt.toISOString(), id: nextCursor.id }),

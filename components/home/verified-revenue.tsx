@@ -90,7 +90,7 @@ export function VerifiedRevenueCard({
                 Revenu mensuel
               </span>
               <span className="text-3xl font-black tabular-nums tracking-tighter text-emerald-600 dark:text-emerald-400 leading-none">
-                {formatMoney(revenue.mrrCents, "USD", { maximumFractionDigits: 0 })}
+                {formatMoney(revenue.mrrCents, revenue.currency, { maximumFractionDigits: 0 })}
               </span>
             </div>
             <span className="text-[11px] font-medium text-muted-foreground pb-1">
@@ -107,7 +107,7 @@ export function VerifiedRevenueCard({
           <div className="mt-4 flex items-center gap-5 border-t border-border/20 pt-4">
             <SubMetric
               label="Run rate annuel"
-              value={formatMoney(revenue.arrCents, "USD", { compact: true })}
+              value={formatMoney(revenue.arrCents, revenue.currency, { compact: true })}
             />
             <span className="h-7 w-px bg-border/50" />
             <SubMetric label="Abonnés" value={revenue.activeSubscribers.toLocaleString("fr-FR")} />

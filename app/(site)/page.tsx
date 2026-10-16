@@ -20,6 +20,10 @@ import { logPageView } from "@/services/stats.service";
 import { getSessionUser } from "@/lib/supabase/server";
 import { getUserVotedIds } from "@/services/votes.service";
 import { getFeatured, getLeaderboard, getNewest, toFeaturedCard } from "@/services/ranking.service";
+import { getRevenueViewsForProducts } from "@/services/revenue/views";
+import type { RevenueView } from "@/components/revenue/revenue-types";
+
+type CardRevenue = Pick<RevenueView, "provider" | "displayMode" | "mrrCents" | "currency">;
 import { getProductsUpdateBadges, getRecentApprovedBuilds } from "@/services/builds.service";
 import { ratingLabelOf } from "@/services/products.service";
 import { appGradientFor, appInitialsFor } from "@/services/products.service";
@@ -55,9 +59,12 @@ export default async function Home() {
   // Badges « Mis à jour » (D6) + mises à jour récentes : best-effort
   // (jamais de page blanche — sections masquées si vide).
   const homeIds = [...new Set([...board.items.map((i) => i.id), ...newest.map((n) => n.id)])];
-  const [badges, recentBuilds] = await Promise.all([
+  const [badges, recentBuilds, revenueViews] = await Promise.all([
     getProductsUpdateBadges(homeIds).catch((): Record<string, string> => ({})),
     getRecentApprovedBuilds(6).catch(() => []),
+    getRevenueViewsForProducts(newest.map((n) => n.id)).catch(
+      (): Map<string, CardRevenue> => new Map(),
+    ),
   ]);
   for (const item of board.items) {
     const label = badges[item.id];
@@ -69,9 +76,26 @@ export default async function Home() {
   ]).catch(() => new Set<string>());
   const voted = [...votedIds];
 
-  const featuredData: FeaturedProductData | null = featured
+  let featuredData: FeaturedProductData | null = featured
     ? toFeaturedCard(featured, { initialVoted: voted.includes(featured.productId) })
     : null;
+  if (featuredData && featured) {
+    const featuredViews = await getRevenueViewsForProducts([featured.productId]).catch(
+      (): Map<string, CardRevenue> => new Map(),
+    );
+    const featuredView = featuredViews.get(featured.productId);
+    if (featuredView) {
+      featuredData = {
+        ...featuredData,
+        revenue: {
+          provider: featuredView.provider,
+          displayMode: featuredView.displayMode,
+          mrrCents: featuredView.mrrCents,
+          currency: featuredView.currency,
+        },
+      };
+    }
+  }
 
   const newestCards: ProductCardProps[] = newest.map((n) => ({
     id: n.id,
@@ -92,11 +116,15 @@ export default async function Home() {
     comments: n.commentsCount,
     rating: ratingLabelOf(n.ratingAvg, n.ratingsCount),
     curated: n.curated,
+    revenue: revenueViews.get(n.id) ?? null,
     // Pas de badge « Mis à jour » ici : la section new liste des produits
     // nouveaux, les updates ont leur propre section (indépendantes).
     updatedLabel: null,
   }));
 
+  const updateRevenues: Map<string, CardRevenue> = await getRevenueViewsForProducts(
+    recentBuilds.map((b) => b.productId),
+  ).catch(() => new Map());
   const recentUpdates: ProductCardProps[] = recentBuilds.map((b) => ({
     id: b.productId,
     slug: b.slug,
@@ -120,6 +148,7 @@ export default async function Home() {
     // les badges board qui restent version seule).
     updatedLabel: `${b.versionCode === null && !b.versionName ? "Nouvelle version" : `v${b.versionName ?? "?"} (${b.versionCode ?? "?"})`} · ${b.reviewedAt.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`,
     installPath: `/api/products/${b.productId}/download`,
+    revenue: updateRevenues.get(b.productId) ?? null,
   }));
 
   return (

@@ -1,6 +1,15 @@
 import { ProductAvatarTile } from "@/components/ui/product-avatar";
 import { cn } from "@/lib/utils";
-import type { ChartProduct } from "@/components/dashboard/dashboard-charts-mock";
+
+export type ProductsPlotRow = {
+  name: string;
+  views: number;
+  clicks: number;
+  votes: number;
+  initials: string;
+  gradient: string;
+  iconUrl?: string | null;
+};
 
 /**
  * Comparaison par produit.
@@ -38,7 +47,7 @@ export function ProductsPlot({
   products,
   className,
 }: {
-  products: ChartProduct[];
+  products: ProductsPlotRow[];
   className?: string;
 }) {
   const sorted = [...products].sort((a, b) => b.views - a.views);

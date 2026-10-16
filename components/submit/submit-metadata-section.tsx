@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import { useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { Select } from "@/components/ui/select";
 import { InputField } from "@/components/ui/input-field";
 import { ChangelogField } from "@/components/submit/changelog-field";
 import { LicenseImporter } from "@/components/submit/license-importer";
+import { RevenueProviderSheet } from "@/components/submit/revenue-provider-sheet";
 import { FieldBadge } from "@/components/ui/field-badge";
 import { useSubmitForm, draftJsonList } from "@/components/submit/submit-form-context";
 import {
@@ -16,8 +18,14 @@ import {
   ShieldCheck,
   ToggleRightIcon,
   ToggleLeftIcon,
+  XIcon,
 } from "@phosphor-icons/react";
 import { PLATFORMS, PLATFORMS_BY_TYPE } from "@/config/platforms";
+import {
+  REVENUE_CONFIG_SPECS,
+  type RevenueConfigSpec,
+  type RevenueProviderId,
+} from "@/services/revenue/types";
 import { PRICING_MODELS, isMonetizedPricing } from "@/config/pricing";
 
 const OPTION_ICON_CLASS = "w-4 h-4 shrink-0";
@@ -26,6 +34,89 @@ const OPTION_ICON_CLASS = "w-4 h-4 shrink-0";
 // They are mapped inline below with JSX icons at the required size
 
 const DEV_FACING_TYPES = ["cli", "package", "framework", "plugin"];
+
+const MAX_REQUIREMENTS = 8;
+const MAX_REQUIREMENT_LEN = 80;
+
+/**
+ * Configuration requise : pastilles libres (miroir tags, sans la
+ * normalisation minuscules/tirets — ici le texte est libre, espaces et
+ * virgules comprises : Entrée seule pour ajouter, jamais la virgule).
+ */
+function RequirementsField({ subtitle }: { subtitle: string }) {
+  const { editApp, errors, clearError, draft } = useSubmitForm();
+  const [items, setItems] = useState<string[]>(() => {
+    if (editApp?.requirements) return editApp.requirements;
+    return draftJsonList(draft, "requirements");
+  });
+  const [input, setInput] = useState("");
+
+  const commit = (raw: string) => {
+    const value = raw.trim().replace(/\s+/g, " ");
+    if (value === "" || items.includes(value) || items.length >= MAX_REQUIREMENTS) return;
+    clearError("requirements");
+    setItems((prev) => [...prev, value]);
+  };
+
+  return (
+    <div className="flex flex-col gap-3 scroll-mt-24" data-field-anchor="requirements">
+      <input type="hidden" name="requirements" value={JSON.stringify(items)} />
+      <label className="text-[14px] font-bold text-foreground flex items-center gap-2">
+        Configuration requise
+        <FieldBadge variant="optional" />
+        <span className="px-2 py-0.5 rounded-md bg-muted text-[11px] font-black tracking-widest text-muted-foreground uppercase">
+          {items.length} / {MAX_REQUIREMENTS}
+        </span>
+      </label>
+      <p className="text-[12px] font-medium text-muted-foreground leading-relaxed">{subtitle}</p>
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-background border border-border/60 px-4 py-3 focus-within:border-foreground/40 hover:border-foreground/20 transition-colors">
+        {items.map((item) => (
+          <span
+            key={item}
+            className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/40 pl-3 pr-1.5 py-1 text-[13px] font-bold text-foreground"
+          >
+            {item}
+            <button
+              type="button"
+              onClick={() => setItems((prev) => prev.filter((t) => t !== item))}
+              aria-label={`Retirer ${item}`}
+              className="flex items-center justify-center w-5 h-5 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+            >
+              <XIcon weight="bold" className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        {items.length < MAX_REQUIREMENTS && (
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit(input);
+                setInput("");
+              } else if (e.key === "Backspace" && input === "" && items.length > 0) {
+                setItems((prev) => prev.slice(0, -1));
+              }
+            }}
+            onBlur={() => {
+              commit(input);
+              setInput("");
+            }}
+            placeholder={items.length === 0 ? "ex : Windows 10 64-bit, puis Entrée…" : ""}
+            maxLength={MAX_REQUIREMENT_LEN}
+            className="flex-1 min-w-32 bg-transparent border-none outline-none text-[14px] font-medium placeholder:text-muted-foreground/30 text-foreground py-1"
+          />
+        )}
+      </div>
+      {errors["requirements"] && (
+        <p role="alert" className="text-[12px] font-bold text-red-600 dark:text-red-400">
+          {errors["requirements"]}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function SubmitMetadataSection() {
   const {
@@ -67,11 +158,12 @@ export function SubmitMetadataSection() {
     });
   };
 
-  // Revenue connection — affiché, pas encore collecté (lot MRR) : le
-  // champ clé est DÉSACTIVÉ avec mention explicite (jamais de secret
-  // collecté sans backend — cf. review phases 1+2, M4).
+  // Revenue connection (BÊTA) : collectée puis connectée après save
+  // (probe live + chiffrement côté serveur — jamais de secret loggé).
   const [revenueEnabled, setRevenueEnabled] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<"stripe" | "revenuecat">("stripe");
+  const [selectedProvider, setSelectedProvider] = useState<RevenueProviderId>("stripe");
+  const [providerSheetOpen, setProviderSheetOpen] = useState(false);
+  const [revenueDisplay, setRevenueDisplay] = useState<"full" | "badge_only">("full");
 
   // Advanced features
   const [hasAds, setHasAds] = useState(editApp?.hasAds ?? false);
@@ -170,8 +262,8 @@ export function SubmitMetadataSection() {
           <LicenseImporter onApply={(id) => setLicenseDraft(id)} />
         </div>
 
-        {/* Conditional Revenue Connection — visible mais non collecté :
-            saisie désactivée jusqu'au lot revenus vérifiés (MRR). */}
+        {/* Conditional Revenue Connection (BÊTA) : clé collectée puis
+            connectée après save (probe + chiffrement serveur). */}
         {isMonetized && (
           <div className="md:col-span-2 pt-4 pb-4 flex flex-col gap-6 relative">
             <div className="flex flex-col gap-1">
@@ -182,8 +274,8 @@ export function SubmitMetadataSection() {
                     Revenus Vérifiés
                   </h3>
                   <FieldBadge variant="optional" />
-                  <span className="px-2 py-0.5 rounded-md bg-muted text-[11px] font-black tracking-widest text-muted-foreground uppercase">
-                    Bientôt
+                  <span className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-[11px] font-black tracking-widest text-amber-700 dark:text-amber-400 uppercase">
+                    Bêta
                   </span>
                 </div>
                 {/* Explicit toggle — the block is optional, engagement makes the key required */}
@@ -207,61 +299,57 @@ export function SubmitMetadataSection() {
               </div>
               <p className="text-[14px] font-medium text-muted-foreground max-w-xl">
                 Connectez une clé API en <strong>lecture seule</strong> pour prouver publiquement
-                vos revenus et gagner en crédibilité.
+                vos revenus et gagner en crédibilité.{" "}
+                <Link
+                  href="/guides/revenus-verifies"
+                  className="font-bold text-foreground underline underline-offset-4"
+                >
+                  Mode d&apos;emploi
+                </Link>
               </p>
             </div>
 
             {revenueEnabled && (
               <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-3">
+                <input type="hidden" name="revenueProvider" value={selectedProvider} />
+                <input type="hidden" name="revenueDisplay" value={revenueDisplay} />
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => setSelectedProvider("stripe")}
-                    className={cn(
-                      "px-5 py-2.5 rounded-full text-[13px] font-bold transition-all cursor-pointer flex items-center gap-2.5",
-                      selectedProvider === "stripe"
-                        ? "bg-foreground text-background shadow-md border border-transparent"
-                        : "bg-background text-foreground border border-border hover:bg-muted/60",
-                    )}
+                    onClick={() => setProviderSheetOpen(true)}
+                    className="px-5 py-2.5 rounded-full text-[13px] font-bold transition-all cursor-pointer flex items-center gap-2 border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-foreground/40"
                   >
-                    <Image
-                      src="/logos/stripe.svg"
-                      alt="Stripe"
-                      width={24}
-                      height={12}
-                      className={cn(
-                        "object-contain w-8 h-auto",
-                        selectedProvider === "stripe" && "brightness-0 invert",
-                      )}
-                    />
-                    Stripe
+                    Quel prestataire ?
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProvider("revenuecat")}
-                    className={cn(
-                      "px-5 py-2.5 rounded-full text-[13px] font-bold transition-all cursor-pointer flex items-center gap-2",
-                      selectedProvider === "revenuecat"
-                        ? "bg-foreground text-background shadow-md border border-transparent"
-                        : "bg-background text-foreground border border-border hover:bg-muted/60",
-                    )}
-                  >
-                    <Image
-                      src="/logos/revenuecat.svg"
-                      alt="RevenueCat"
-                      width={18}
-                      height={18}
+                  {(Object.values(REVENUE_CONFIG_SPECS) as RevenueConfigSpec[]).map((spec) => (
+                    <button
+                      key={spec.id}
+                      type="button"
+                      onClick={() => setSelectedProvider(spec.id)}
+                      aria-pressed={selectedProvider === spec.id}
                       className={cn(
-                        "w-5.5 h-5.5 object-contain rounded-full overflow-hidden",
-                        selectedProvider === "revenuecat" && "brightness-0 invert",
+                        "px-5 py-2.5 rounded-full text-[13px] font-bold transition-all cursor-pointer flex items-center gap-2.5",
+                        selectedProvider === spec.id
+                          ? "bg-foreground text-background shadow-md border border-transparent"
+                          : "bg-background text-foreground border border-border hover:bg-muted/60",
                       )}
-                    />
-                    RevenueCat
-                  </button>
+                    >
+                      <Image
+                        src={spec.logo}
+                        alt={spec.label}
+                        width={32}
+                        height={32}
+                        className={cn(
+                          "object-contain w-6 h-6",
+                          selectedProvider === spec.id && "brightness-0 invert",
+                        )}
+                      />
+                      {spec.label}
+                    </button>
+                  ))}
                 </div>
 
-                {/* API Key Input — désactivé jusqu'au lot MRR : aucune clé
-                    collectée (ni name ni envoi), mention explicite. */}
+                {/* API Key Input — collectée puis chiffrée côté serveur. */}
                 <label className="text-[14px] font-bold text-foreground flex items-center gap-2">
                   Clé API en lecture seule
                   <FieldBadge variant="optional" />
@@ -272,19 +360,68 @@ export function SubmitMetadataSection() {
                   </div>
                   <input
                     type="password"
-                    disabled
-                    placeholder="Bientôt disponible — aucune clé collectée pour l'instant"
-                    aria-describedby="revenue-coming"
-                    className="w-full bg-background border-none rounded-2xl pl-12 pr-5 py-4 text-[15px] font-medium placeholder:text-muted-foreground/40 text-foreground outline-none ring-1 ring-inset ring-border/50 transition-shadow h-15 disabled:opacity-60 disabled:cursor-not-allowed"
+                    name="revenueKey"
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder={`ex : ${REVENUE_CONFIG_SPECS[selectedProvider].keyFormat.example}`}
+                    aria-describedby="revenue-help"
+                    className="w-full bg-background border-none rounded-2xl pl-12 pr-5 py-4 text-[15px] font-medium placeholder:text-muted-foreground/40 text-foreground outline-none ring-1 ring-inset ring-border/50 transition-shadow h-15"
                   />
                 </div>
+
+                {/* Champs non-secrets du provider (ID projet / boutique). */}
+                {REVENUE_CONFIG_SPECS[selectedProvider].extraFields.map((field) => (
+                  <div key={field.key} className="flex flex-col gap-2">
+                    <label className="text-[14px] font-bold text-foreground">{field.label}</label>
+                    <input
+                      type="text"
+                      name={field.key === "projectId" ? "revenueProjectId" : "revenueStoreId"}
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder={field.placeholder}
+                      className="w-full bg-background border-none rounded-2xl px-5 py-4 text-[15px] font-medium placeholder:text-muted-foreground/40 text-foreground outline-none ring-1 ring-inset ring-border/50 transition-shadow"
+                    />
+                    <p className="text-[12px] font-medium text-muted-foreground">{field.hint}</p>
+                  </div>
+                ))}
+
+                {/* Affichage : chiffre complet ou badge seul. */}
+                <div className="flex items-center gap-2">
+                  {(["full", "badge_only"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setRevenueDisplay(mode)}
+                      aria-pressed={revenueDisplay === mode}
+                      className={cn(
+                        "px-4 py-2 rounded-full text-[13px] font-bold transition-all cursor-pointer border",
+                        revenueDisplay === mode
+                          ? "bg-foreground text-background border-transparent"
+                          : "bg-background text-muted-foreground border-border/60 hover:text-foreground",
+                      )}
+                    >
+                      {mode === "full" ? "Chiffre complet" : "Badge seul"}
+                    </button>
+                  ))}
+                </div>
+
                 <p
-                  id="revenue-coming"
+                  id="revenue-help"
                   className="text-[12px] font-medium text-muted-foreground leading-relaxed"
                 >
-                  La connexion des revenus arrive avec le lot dédié (clés chiffrées, badge vérifié).
-                  Votre clé ne vous sera demandée qu&apos;à ce moment-là.
+                  Vérifiée immédiatement, chiffrée dès réception, jamais ré-affichée.{" "}
+                  <Link
+                    href={`/guides/revenus-verifies/${REVENUE_CONFIG_SPECS[selectedProvider].guideSlug}#creer-la-cle`}
+                    className="font-bold text-foreground underline underline-offset-4"
+                  >
+                    Comment obtenir cette clé ? →
+                  </Link>
                 </p>
+                {errors["revenueKey"] && (
+                  <p role="alert" className="text-[12px] font-bold text-red-600 dark:text-red-400">
+                    {errors["revenueKey"]}
+                  </p>
+                )}
 
                 {/* Security trust block — inline at the moment of entry */}
                 <div className="grid grid-cols-2 gap-3 mt-1">
@@ -314,13 +451,12 @@ export function SubmitMetadataSection() {
                     </div>
                   ))}
                 </div>
-                <p className="text-[11px] font-medium text-muted-foreground/60 leading-relaxed mt-1">
-                  Sur Stripe : créez une clé restreinte avec la permission{" "}
-                  <span className="font-mono bg-muted/50 px-1 rounded">
-                    Lire les charges &amp; abonnements
-                  </span>{" "}
-                  uniquement. Votre clé est chiffrée dès réception et jamais partagée.
-                </p>
+                <RevenueProviderSheet
+                  open={providerSheetOpen}
+                  selected={selectedProvider}
+                  onSelect={setSelectedProvider}
+                  onClose={() => setProviderSheetOpen(false)}
+                />
               </div>
             )}
           </div>
@@ -361,22 +497,14 @@ export function SubmitMetadataSection() {
       {/* ── Configuration requise + Changelog (game/desktop/os, optionnel) ── */}
       {(productType === "game" || productType === "app_desktop" || productType === "os") && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-          <InputField
-            label="Configuration requise"
+          <RequirementsField
             subtitle={
               productType === "game"
-                ? "Un jeu sans config fait amateur : OS, RAM, stockage."
+                ? "Un jeu sans config fait amateur : OS, RAM, stockage. Une pastille par exigence, Entrée pour ajouter."
                 : productType === "os"
-                  ? "Sur quoi tourne le système : architecture, RAM, stockage."
-                  : "Sur quoi tourne le logiciel : OS, RAM, stockage."
+                  ? "Sur quoi tourne le système : architecture, RAM, stockage. Une pastille par exigence, Entrée pour ajouter."
+                  : "Sur quoi tourne le logiciel : OS, RAM, stockage. Une pastille par exigence, Entrée pour ajouter."
             }
-            isOptional={true}
-            defaultValue={draft?.requirements ?? editApp?.requirements ?? ""}
-            placeholder="ex : Windows 10, 8 Go RAM, 500 Mo"
-            name="requirements"
-            maxLength={500}
-            showCount
-            errorKey="requirements"
           />
           <ChangelogField defaultValue={draft?.changelogUrl ?? editApp?.changelogUrl ?? ""} />
         </div>

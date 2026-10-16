@@ -70,6 +70,13 @@ export type FeaturedProductData = {
   ageLabel: string;
   rating: string;
   reviewsCount: number;
+  /** Revenus vérifiés réels — absent = pas de badge (jamais de mock). */
+  revenue?: {
+    provider: "stripe" | "revenuecat" | "paddle" | "polar" | "lemon_squeezy";
+    displayMode: "full" | "badge_only";
+    mrrCents: number;
+    currency: string;
+  } | null;
 };
 
 const MOCK_FEATURED: FeaturedProductData = {

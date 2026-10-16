@@ -90,7 +90,7 @@ export type ProductSidebarData = {
   version?: string | null;
   changelogUrl?: string | null;
   license?: string | null;
-  requirements?: string | null;
+  requirements?: string[] | null;
   audienceId: string;
   hasAds: boolean;
   hasInAppPurchase: boolean;
@@ -368,13 +368,17 @@ export function ProductSidebar({ product }: { product: ProductSidebarData }) {
               }
             />
           ) : null}
-          {product.requirements ? (
+          {product.requirements && product.requirements.length > 0 ? (
             <MetaRow
               label="Configuration requise"
               value={
-                <span className="text-foreground font-medium whitespace-pre-line">
-                  {product.requirements}
-                </span>
+                <ul className="flex flex-col gap-1 items-end text-right">
+                  {product.requirements.map((req) => (
+                    <li key={req} className="text-foreground font-medium">
+                      {req}
+                    </li>
+                  ))}
+                </ul>
               }
             />
           ) : null}

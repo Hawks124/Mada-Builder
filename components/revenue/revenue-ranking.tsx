@@ -7,24 +7,20 @@ import { AvatarImage } from "@/components/ui/avatar-image";
 import { LifecyclePill } from "@/components/ui/lifecycle-pill";
 import { RevenueBadge } from "./verified-revenue-badge";
 import { RevenueTrend } from "./revenue-trend";
-import { getCatalog } from "@/services/catalog-mock.service";
-import { getRevenueRecords } from "@/services/revenue-mock.service";
-import { formatSyncedLabel } from "./revenue-derive";
-import type { RevenueView } from "./revenue-types";
+import type { RankedRevenue } from "@/services/revenue/views";
 
 /**
- * Classement `/revenue`.
+ * Classement `/revenue` (données réelles en props — jamais de mock).
  *
  * **Une seule colonne, pleine largeur.** Pas une grille 3 colonnes : le nombre
  * de produits vérifiés sera faible par construction (il faut que le maker
- * connecte une clé Stripe ou RevenueCat), donc une grille afficherait des trous
- * et semblerait cassée. 1, 3 ou 24 entrées, la page a la même allure — elle
- * grandit, elle ne se recompose pas.
+ * connecte une clé), donc une grille afficherait des trous et semblerait
+ * cassée. 1, 3 ou 24 entrées, la page a la même allure — elle grandit, elle
+ * ne se recompose pas.
  *
- * Le rang n'est attribué qu'aux produits qui **publient** leur MRR. Ceux dont le
- * maker a choisi le mode badge seul n'apparaissent pas ici : classer par
- * grandeur un produit qui a masqué la sienne n'aurait pas de sens. Leur
- * vérification reste visible ailleurs — fiche, profil maker, card de la home.
+ * Le rang n'est attribué qu'aux produits qui **publient** leur MRR (connexion
+ * `active`, mode `full`, ≥1 snapshot). Zéro conversion : un onglet par
+ * devise, chacun son rang et son cumul.
  *
  * La ligne est un `<div>` et non un `<Link>` : c'est ce qui permet d'y faire
  * coexister plusieurs liens (fiche, maker, catégorie) sans imbrication
@@ -38,16 +34,41 @@ const RANK_CLASS: Record<number, string> = {
   3: "text-orange-600 dark:text-orange-400",
 };
 
-export function RevenueRanking() {
-  const products = new Map(getCatalog().map((p) => [p.id, p]));
-  const ranked = getRevenueRecords()
-    .filter((r) => r.displayMode === "full")
-    .sort((a, b) => b.mrrCents - a.mrrCents);
-
-  const totalMrr = ranked.reduce((n, r) => n + r.mrrCents, 0);
+export function RevenueRanking({
+  groups,
+  currency,
+}: {
+  groups: { currency: string; totalMrrCents: number; count: number; items: RankedRevenue[] }[];
+  currency: string;
+}) {
+  const group = groups.find((g) => g.currency === currency) ?? groups[0];
+  const ranked = group?.items ?? [];
+  const totalMrr = group?.totalMrrCents ?? 0;
+  const activeCurrency = group?.currency ?? currency;
 
   return (
     <div className="flex flex-col">
+      {/* ── Onglets devise (zéro conversion : chaque devise son classement) ── */}
+      {groups.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 pb-4">
+          {groups.map((g) => (
+            <Link
+              key={g.currency}
+              href={`/revenue?currency=${g.currency}`}
+              aria-current={g.currency === activeCurrency ? "page" : undefined}
+              className={cn(
+                "px-4 py-1.5 rounded-full text-[13px] font-bold transition-all",
+                g.currency === activeCurrency
+                  ? "bg-foreground text-background"
+                  : "bg-muted/50 text-muted-foreground hover:text-foreground border border-border/40",
+              )}
+            >
+              {g.currency} · {g.count}
+            </Link>
+          ))}
+        </div>
+      )}
+
       {/* ── Ligne de stats ── */}
       <p className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 pb-4 border-b border-border/40 text-[15px] font-medium text-muted-foreground">
         <span className="text-foreground font-black tabular-nums">{ranked.length}</span>
@@ -56,9 +77,9 @@ export function RevenueRanking() {
           ·
         </span>
         <span className="text-foreground font-black tabular-nums">
-          {formatMoney(totalMrr, "USD", { compact: true, maximumFractionDigits: 1 })}
+          {formatMoney(totalMrr, activeCurrency, { compact: true, maximumFractionDigits: 1 })}
         </span>
-        <span>de MRR cumulé</span>
+        <span>de MRR cumulé ({activeCurrency})</span>
       </p>
 
       {ranked.length === 0 ? (
@@ -66,25 +87,13 @@ export function RevenueRanking() {
       ) : (
         <div className="flex flex-col">
           {ranked.map((record, i) => {
-            const product = products.get(record.productId);
-            if (!product) return null;
-
-            const view: RevenueView = {
-              provider: record.provider,
-              displayMode: record.displayMode,
-              mrrCents: record.mrrCents,
-              arrCents: record.arrCents,
-              activeSubscribers: record.activeSubscribers,
-              lastSyncedAt: record.lastSyncedAt,
-              history: record.history,
-            };
             const first = record.history[0] ?? record.mrrCents;
             const last = record.history[record.history.length - 1] ?? record.mrrCents;
             const delta = first > 0 ? ((last - first) / first) * 100 : 0;
             const up = delta >= 0;
 
-            const category = getCategoryById(product.categoryId);
-            const lifecycle = getLifecycleById(product.lifecycle);
+            const category = getCategoryById(record.categoryId);
+            const lifecycle = getLifecycleById(record.lifecycle);
 
             return (
               <div
@@ -99,6 +108,7 @@ export function RevenueRanking() {
                 {/* ── Identité, montant, évolution ── */}
                 <div className="relative flex items-start gap-5">
                   <span
+                    aria-hidden="true"
                     className={cn(
                       "w-7 shrink-0 pt-2.5 text-[12px] font-black tabular-nums",
                       RANK_CLASS[i + 1] ?? "text-muted-foreground/50",
@@ -108,42 +118,42 @@ export function RevenueRanking() {
                   </span>
 
                   <Link
-                    href={`/products/${product.id}`}
+                    href={`/products/${record.slug}`}
                     className={cn(
                       "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br text-[13px] font-black text-white transition-transform duration-200 group-hover:scale-105",
-                      product.iconGradient,
+                      record.iconGradient,
                     )}
                   >
-                    {product.initials}
+                    {record.initials}
                   </Link>
 
                   <div className="flex-1 min-w-0 pt-1">
                     <Link
-                      href={`/products/${product.id}`}
+                      href={`/products/${record.slug}`}
                       className="block max-w-full focus-visible:outline-none"
                     >
                       <h3 className="truncate text-lg font-extrabold tracking-tight text-foreground transition-colors group-hover:text-primary">
-                        {product.name}
+                        {record.name}
                       </h3>
                     </Link>
 
                     <p className="mt-0.5 truncate text-[13px] font-medium text-muted-foreground">
-                      {product.tagline}
+                      {record.tagline}
                     </p>
 
                     {/* ── Meta : maker, catégorie, provider, échelle, fraîcheur ── */}
                     <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-muted-foreground">
                       <Link
-                        href={`/makers/${slugifyName(product.maker)}`}
+                        href={`/makers/${record.makerUsername || slugifyName(record.makerDisplayName)}`}
                         className="inline-flex items-center gap-1.5 font-bold text-foreground/80 transition-colors hover:text-foreground"
                       >
                         <AvatarImage
-                          src={product.makerAvatar}
-                          name={product.maker}
+                          src={record.makerAvatarUrl}
+                          name={record.makerDisplayName}
                           size={16}
                           className="grayscale transition-all group-hover:grayscale-0"
                         />
-                        {product.maker}
+                        {record.makerDisplayName}
                       </Link>
 
                       <Dot />
@@ -159,7 +169,21 @@ export function RevenueRanking() {
 
                       <Dot />
 
-                      <RevenueBadge revenue={view} mode="sans-montant" size="sm" />
+                      <RevenueBadge
+                        revenue={{
+                          provider: record.provider,
+                          displayMode: "full",
+                          mrrCents: record.mrrCents,
+                          arrCents: record.mrrCents * 12,
+                          activeSubscribers: record.subscriberCount,
+                          currency: activeCurrency,
+                          lastSyncedAt: record.lastSyncedAt,
+                          lastSyncedLabel: record.lastSyncedLabel,
+                          history: record.history,
+                        }}
+                        mode="sans-montant"
+                        size="sm"
+                      />
 
                       <Dot />
 
@@ -167,23 +191,23 @@ export function RevenueRanking() {
                           pas le même produit. Le seul chiffre qui contextualise
                           le MRR. */}
                       <span className="tabular-nums">
-                        {record.activeSubscribers.toLocaleString("fr-FR")} abonnés
+                        {record.subscriberCount.toLocaleString("fr-FR")} abonnés
                       </span>
 
                       <Dot />
 
-                      <span>{formatSyncedLabel(record.syncedMinutesAgo)}</span>
+                      <span>{record.lastSyncedLabel}</span>
 
                       {/* Avancement affiché seulement quand il dérange : « Lancé »
                           sur 15 lignes sur 17 serait du bruit, « Bêta » sur une
                           seule ligne est un signal. */}
-                      {lifecycle.id !== "live" && <LifecyclePill lifecycleId={product.lifecycle} />}
+                      {lifecycle.id !== "live" && <LifecyclePill lifecycleId={record.lifecycle} />}
                     </div>
                   </div>
 
                   <div className="shrink-0 flex flex-col items-end gap-1.5">
                     <span className="text-2xl font-black tabular-nums tracking-tighter text-emerald-600 dark:text-emerald-400 leading-none">
-                      {formatMoney(record.mrrCents, "USD", {
+                      {formatMoney(record.mrrCents, activeCurrency, {
                         maximumFractionDigits: 0,
                       })}
                     </span>
@@ -245,9 +269,15 @@ function EmptyState() {
         Le classement est vide. Il se remplira tout seul.
       </h2>
       <p className="text-[15px] font-medium leading-relaxed text-muted-foreground">
-        Personne ne publie son revenu tout seul : il faut connecter une clé Stripe ou RevenueCat en
-        lecture seule. Le montant est ensuite lu chez le prestataire, chaque heure, sans
-        intervention.
+        Personne ne publie son revenu tout seul : il faut connecter une clé en lecture seule
+        (Stripe, RevenueCat, Paddle, Polar ou Lemon Squeezy). Le montant est ensuite lu chez le
+        prestataire, chaque heure, sans intervention.{" "}
+        <Link
+          href="/guides/revenus-verifies"
+          className="font-bold text-foreground underline underline-offset-4"
+        >
+          Mode d&apos;emploi
+        </Link>
       </p>
       <Link
         href="/products/submit"

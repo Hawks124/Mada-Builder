@@ -20,6 +20,10 @@ export type SubmitValidationInput = {
   tags: string[];
   /** Plateformes sélectionnées (JSON parsé). */
   platforms: string[];
+  /** Config requise (chips parsés, max 8 × 80). */
+  requirements: string[];
+  /** Revenus BÊTA (bruts du formulaire — validés si clé présente). */
+  revenue: { key: string; provider: string; projectId: string; storeId: string };
   /** Pays cibles (JSON parsé). */
   targetCountries: string[];
   /** Langues (JSON parsé). */
@@ -73,10 +77,6 @@ export function validateSubmitClient(input: SubmitValidationInput): Record<strin
   const version = len("version");
   if (version.length > 20) set("version", "Version : trop longue (max 20 caractères).");
 
-  const requirements = len("requirements");
-  if (requirements.length > 500)
-    set("requirements", "Configuration requise : trop longue (max 500 caractères).");
-
   const changelog = len("changelogUrl");
   if (changelog !== "") {
     try {
@@ -93,6 +93,25 @@ export function validateSubmitClient(input: SubmitValidationInput): Record<strin
   if (input.platforms.length === 0) set("platforms", "Plateformes : au moins une requise.");
   if (input.tags.some((t) => t.length > 30) || input.tags.length > 5) {
     set("tags", "Tags : max 5, 30 caractères chacun.");
+  }
+  if (input.requirements.some((r) => r.length > 80) || input.requirements.length > 8) {
+    set("requirements", "Configuration requise : max 8, 80 caractères chacune.");
+  }
+  // Revenus BÊTA : clé présente = intention → provider + extras requis
+  // (miroir du serveur : probe live, jamais de clé stockée sans vérif).
+  if (input.revenue.key.trim() !== "") {
+    if (
+      !["stripe", "revenuecat", "paddle", "polar", "lemon_squeezy"].includes(input.revenue.provider)
+    ) {
+      set("revenueKey", "Provider de facturation inconnu.");
+    } else if (input.revenue.provider === "revenuecat" && input.revenue.projectId.trim() === "") {
+      set("revenueKey", "RevenueCat : ID du projet requis.");
+    } else if (
+      input.revenue.provider === "lemon_squeezy" &&
+      !/^\d+$/.test(input.revenue.storeId.trim())
+    ) {
+      set("revenueKey", "Lemon Squeezy : ID de la boutique requis.");
+    }
   }
   if (input.targetCountries.some((c) => c.length > 60) || input.targetCountries.length > 10) {
     set("targetCountries", "Pays cibles : max 10, 60 caractères chacun.");

@@ -22,6 +22,11 @@ import {
   buildRejectedHtml,
   buildRejectedText,
 } from "../lib/email-templates/build-review";
+import {
+  revenueFailingHtml,
+  revenueFailingSubject,
+  revenueFailingText,
+} from "../lib/email-templates/revenue-failing";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { LOGO_ON_DARK_URL, LOGO_ON_LIGHT_URL } from "../lib/email-templates/brand";
@@ -196,6 +201,30 @@ const rendered: Array<[string, string]> = [
     }),
   ],
   [
+    "revenue-failing",
+    revenueFailingHtml({
+      displayName: "Test <User>",
+      productName: "App <Test>",
+      providerLabel: "Stripe",
+      reason: "Motif <b>gras</b>",
+      dashboardUrl: `${ORIGIN}/dashboard/api`,
+      origin: ORIGIN,
+      timeZone: null,
+    }),
+  ],
+  [
+    "revenue-failing-text",
+    revenueFailingText({
+      displayName: "Test",
+      productName: "App Test",
+      providerLabel: "Stripe",
+      reason: "Motif",
+      dashboardUrl: `${ORIGIN}/dashboard/api`,
+      origin: ORIGIN,
+      timeZone: null,
+    }),
+  ],
+  [
     "staff-fiche",
     staffFicheSubmittedHtml({
       productName: "App <Test>",
@@ -270,6 +299,7 @@ const branded = [
   "build-rejected",
   "staff-fiche",
   "staff-build",
+  "revenue-failing",
 ];
 for (const [name, body] of rendered) {
   if (!branded.includes(name)) continue;
@@ -329,6 +359,26 @@ check("staff-build: ligne fiche", staffBuildHtml.includes("en revue elle aussi")
 check("staff-build: cockpit", staffBuildHtml.includes(`${ORIGIN}/admin/review/123`));
 const staffBuildText = rendered.find(([n]) => n === "staff-build-text")?.[1] ?? "";
 check("staff-build-text: version", staffBuildText.includes("v1.2.3 (42)"));
+const revenueFailingHtmlBody = rendered.find(([n]) => n === "revenue-failing")?.[1] ?? "";
+check("revenue-failing: displayName échappé", revenueFailingHtmlBody.includes("Test &lt;User&gt;"));
+check("revenue-failing: produit échappé", revenueFailingHtmlBody.includes("App &lt;Test&gt;"));
+check(
+  "revenue-failing: motif échappé",
+  revenueFailingHtmlBody.includes("Motif &lt;b&gt;gras&lt;/b&gt;"),
+);
+check(
+  "revenue-failing: CTA reconnecter",
+  revenueFailingHtmlBody.includes(`${ORIGIN}/dashboard/api`),
+);
+check(
+  "revenue-failing: sujet produit",
+  revenueFailingSubject("App Test") === "Sync revenus en échec — App Test",
+);
+const revenueFailingTextBody = rendered.find(([n]) => n === "revenue-failing-text")?.[1] ?? "";
+check(
+  "revenue-failing-text: motif",
+  revenueFailingTextBody.includes("MOTIF :") && revenueFailingTextBody.includes("Motif"),
+);
 
 // Salutation dynamique : Bonjour ou Bonsoir selon l'heure réelle du run.
 // Le rendu seul ne distingue pas calculé vs codé en dur selon l'heure —
@@ -351,6 +401,8 @@ for (const name of [
   "build-approved-text",
   "build-rejected",
   "build-rejected-text",
+  "revenue-failing",
+  "revenue-failing-text",
 ]) {
   const body = rendered.find(([n]) => n === name)?.[1] ?? "";
   check(`${name}: salutation dynamique`, body.includes("Bonjour ") || body.includes("Bonsoir "));
@@ -364,6 +416,7 @@ for (const name of [
     "role-notify.ts",
     "product-removed.ts",
     "product-nudge.ts",
+    "revenue-failing.ts",
   ]) {
     const src = readFileSync(join(dir, file), "utf-8");
     check(`${file}: aucun Bonjour codé en dur`, !src.includes("Bonjour ${"));
@@ -381,7 +434,7 @@ for (const name of [
   "decision-text",
 ]) {
   const body = rendered.find(([n]) => n === name)?.[1] ?? "";
-  check(`${name}: phrase charte`, body.includes("4 règles"));
+  check(`${name}: phrase charte`, body.includes("5 règles"));
 }
 
 console.log(`email-templates: ${pass} OK, ${fail} KO`);

@@ -126,14 +126,17 @@ export function syncedMinutesAgo(productId: string): number {
 /** Instantané vérifié complet pour un produit du catalogue. */
 export function deriveRevenueView(productId: string, mrrCents: number): RevenueView {
   const seed = hash(productId);
+  const minutes = syncedMinutesAgo(productId);
   return {
     provider: pickProvider(seed),
     displayMode: pickDisplayMode(seed),
     mrrCents,
     arrCents: mrrCents * 12,
     activeSubscribers: Math.max(1, Math.round(mrrCents / 900)),
+    currency: "USD",
     // Jamais affiché tel quel : le libellé de fraîcheur se calcule à part.
     lastSyncedAt: "",
+    lastSyncedLabel: formatSyncedLabel(minutes),
     history: buildRevenueHistory(mrrCents, productId),
   };
 }

@@ -30,10 +30,16 @@ public est `username` (immuable) — **jamais l'id dans les URLs**.
 | `updated_at`           | `timestamptz` NOT NULL                | Auto (`$onUpdate`)                                                                              |
 | `deleted_at`           | `timestamptz` NULL                    | Soft-delete ; suppression RGPD = hard delete + cascade                                          |
 
-## RLS (`setup.sql`)
+## RLS (`setup.sql`, migration 0044)
 
 - `users_select_own` : `authenticated`, `auth.uid() = id` (lecture ligne).
 - `users_update_own` : `authenticated`, own + non banni (update + check).
+- **Trigger `users_lock_sensitive`** : la policy filtre la ligne, pas
+  les colonnes — sans lui, tout authentifié pouvait `SET role =
+'admin'`. Tout changement de `role`, `banned_at`, `email`,
+  `username`, `providers` par un non-service est rejeté
+  (`postgres`/`service_role` passent : promotions admin, onboarding,
+  sync). Champs profil modifiables (bio, display_name…).
 - **AUCUNE lecture publique** : volontaire — RLS ne filtre pas les
   colonnes, et `email` ne doit jamais fuir. Les profils publics passent
   par `GET /makers/[username]` (allowlist serveur).

@@ -112,8 +112,15 @@ export async function GET(
           ? {
               versionCode: latestBuild.versionCode,
               versionName: latestBuild.versionName,
+              package: latestBuild.package,
+              minSdk: latestBuild.minSdk,
+              targetSdk: latestBuild.targetSdk,
+              permissions: latestBuild.permissions,
+              certSha256: latestBuild.certSha256,
               sha256: latestBuild.sha256File,
               sizeBytes: latestBuild.sizeBytes,
+              whatsnew: latestBuild.whatsnew,
+              reviewedAt: iso(latestBuild.reviewedAt),
             }
           : null,
       }),

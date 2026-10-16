@@ -141,6 +141,16 @@ async function main(): Promise<void> {
     "flag own",
     items.some((i) => i.own),
   );
+  check(
+    "auteur + occupation (payload mobile, id brut)",
+    items.every(
+      (i) =>
+        typeof i.author.username === "string" &&
+        typeof i.author.occupation === "string" &&
+        i.author.occupation.length > 0 &&
+        !("email" in i.author),
+    ),
+  );
   let badRating = false;
   try {
     await upsertReview({
@@ -219,6 +229,16 @@ async function main(): Promise<void> {
   check(
     "thread 1 niveau + myVote",
     thread.length === 1 && thread[0].replies.length === 1 && thread[0].myVote === "down",
+  );
+  check(
+    "commentaires : auteur + occupation (jamais d'email)",
+    thread.every(
+      (t) =>
+        typeof t.author.occupation === "string" &&
+        t.author.occupation.length > 0 &&
+        !("email" in t.author) &&
+        t.replies.every((r) => typeof r.author.occupation === "string" && !("email" in r.author)),
+    ),
   );
   await deleteOwnComment({ viewerId: other, commentId: c1.id });
   const counts2 = await getFeedbackCounts(prod.id);
