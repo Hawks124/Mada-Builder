@@ -35,7 +35,81 @@ const GUIDE_FILES: Record<string, string> = {
   paddle: "revenus-verifies-paddle.md",
   polar: "revenus-verifies-polar.md",
   "lemon-squeezy": "revenus-verifies-lemon-squeezy.md",
+  "signature-apk": "signature-apk.md",
+  "signature-apk-android": "signature-apk-android.md",
+  "signature-apk-flutter": "signature-apk-flutter.md",
+  "signature-apk-react-native": "signature-apk-react-native.md",
+  "signature-apk-expo": "signature-apk-expo.md",
+  "signature-apk-capacitor": "signature-apk-capacitor.md",
+  "signature-apk-depannage": "signature-apk-depannage.md",
 };
+
+export type SignatureApkGuideSlug =
+  | "signature-apk"
+  | "signature-apk-android"
+  | "signature-apk-flutter"
+  | "signature-apk-react-native"
+  | "signature-apk-expo"
+  | "signature-apk-capacitor"
+  | "signature-apk-depannage";
+
+/**
+ * Fiches « signature APK » : hub sans logo, 5 frameworks avec logo officiel
+ * (`public/logos/`, glyphes simple-icons), dépannage sans logo. `dark: true`
+ * = glyphe coloré → inversé en thème sombre, comme les providers revenus
+ * (`dark:brightness-0 dark:invert`).
+ */
+export const SIGNATURE_APK_GUIDE_META = {
+  "signature-apk": {
+    label: "Vue d'ensemble",
+    short: "Les trois schémas de signature v1/v2/v3, le keystore et le vocabulaire commun.",
+    logo: undefined,
+    dark: false,
+  },
+  "signature-apk-android": {
+    label: "Android natif",
+    short: "Keystore, keystore.properties, Kotlin DSL + Groovy, vérification apksigner.",
+    logo: "/logos/android.svg",
+    dark: true,
+  },
+  "signature-apk-flutter": {
+    label: "Flutter",
+    short: "key.properties, les deux DSL Gradle, flutter clean, build apk --release.",
+    logo: "/logos/flutter.svg",
+    dark: false,
+  },
+  "signature-apk-react-native": {
+    label: "React Native",
+    short: "gradle.properties MYAPP_UPLOAD_*, build.gradle, assembleRelease.",
+    logo: "/logos/react.svg",
+    dark: true,
+  },
+  "signature-apk-expo": {
+    label: "Expo",
+    short: "EAS remote ou credentials.json local, eas credentials, expo prebuild.",
+    logo: "/logos/expo.svg",
+    dark: true,
+  },
+  "signature-apk-capacitor": {
+    label: "Capacitor",
+    short: "keystore.properties, npx cap build, pourquoi pas jarsigner par défaut.",
+    logo: "/logos/capacitor.svg",
+    dark: false,
+  },
+  "signature-apk-depannage": {
+    label: "Vérifier & dépanner",
+    short: "apksigner verify, les refus de la plateforme, debug APK, keystore perdu.",
+    logo: undefined,
+    dark: false,
+  },
+} as const satisfies Record<
+  SignatureApkGuideSlug,
+  { label: string; short: string; logo?: string; dark: boolean }
+>;
+
+export const SIGNATURE_APK_GUIDE_SLUGS = Object.keys(
+  SIGNATURE_APK_GUIDE_META,
+) as SignatureApkGuideSlug[];
 
 export type GuideDoc = {
   slug: string;

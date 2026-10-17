@@ -93,21 +93,30 @@ function fakeSigner(certBlob: Uint8Array, scheme: "v2" | "v3"): Uint8Array {
 /**
  * Faux APK : 1 fichier STORED + signing block multi-paires.
  * `pad16` réplique le layout réel (F-Droid, Facebook) : 16 zéros
- * devant size1, paires à +24 au lieu de +8.
+ * devant size1, paires à +24 au lieu de +8. `withBlock = false`
+ * produit un ZIP nu (aucun signe de signature) pour le refus brut.
  */
-function fakeApkPairs(ids: number[], signers: Uint8Array[], pad16: boolean): Uint8Array {
+function fakeApkPairs(
+  ids: number[],
+  signers: Uint8Array[],
+  pad16: boolean,
+  withBlock = true,
+  entryName = "hello.txt",
+): Uint8Array {
   const pairs = ids.map((id, i) => cat(u32(id), signers[i]!));
   const pairFull = cat(...pairs.map((p) => cat(u64(p.length), p)));
-  const block = pad16
-    ? cat(
-        new Uint8Array(16),
-        u64(pairFull.length + 24),
-        pairFull,
-        u64(pairFull.length + 24),
-        SIG_MAGIC,
-      )
-    : cat(u64(pairFull.length + 8), pairFull, u64(pairFull.length + 8), SIG_MAGIC);
-  const name = new TextEncoder().encode("hello.txt");
+  const block = !withBlock
+    ? new Uint8Array(0)
+    : pad16
+      ? cat(
+          new Uint8Array(16),
+          u64(pairFull.length + 24),
+          pairFull,
+          u64(pairFull.length + 24),
+          SIG_MAGIC,
+        )
+      : cat(u64(pairFull.length + 8), pairFull, u64(pairFull.length + 8), SIG_MAGIC);
+  const name = new TextEncoder().encode(entryName);
   const data = new TextEncoder().encode("hello");
   const local = cat(
     u32(0x04034b50),
@@ -164,6 +173,10 @@ function fakeApk(certDer: Uint8Array, scheme: "v2" | "v3"): Uint8Array {
   return fakeApkPairs([id], [fakeSigner(certDer, scheme)], false);
 }
 
+/**
+ * Vérifie l'extraction sur les APK synthétiques et, si disponible, F-Droid.
+ * Contrôle aussi la normalisation du manifest et termine avec le code 1 en cas d'échec.
+ */
 async function main(): Promise<void> {
   const certDer = new Uint8Array(Buffer.from(FIXTURE_CERT_HEX, "hex"));
   console.log(`DER fixture: ${certDer.length} octets (attendu 866)`);
@@ -218,6 +231,58 @@ async function main(): Promise<void> {
     notZip = e instanceof ApkParseError && e.code === "NOT_ZIP";
   }
   check("garbage → NOT_ZIP", notZip);
+
+  // 3a. ZIP nu (aucun signe de signature) → UNSIGNED brut (message l' фоне).
+  let plainUnsigned = false;
+  try {
+    await extractApkCerts(bufferReader(fakeApkPairs([], [], false, false)));
+  } catch (e) {
+    plainUnsigned = e instanceof ApkParseError && e.code === "UNSIGNED";
+  }
+  check("zip sans bloc ni META-INF → UNSIGNED", plainUnsigned);
+
+  // 3b. Bloc v2 présent mais signer = déchet → message différencié
+  //     (le maker re-signe, il ne repart pas de zéro).
+  let blockUnreadable = false;
+  try {
+    await extractApkCerts(
+      bufferReader(fakeApkPairs([0x7109871a], [new Uint8Array(264).fill(0xab)], false)),
+    );
+  } catch (e) {
+    blockUnreadable = e instanceof ApkParseError && e.code === "BLOCK_UNREADABLE";
+  }
+  check("bloc v2 déchet → BLOCK_UNREADABLE", blockUnreadable);
+
+  // 3c. Magic de bloc valide mais aucune paire v2/v3 lisible (ex. id
+  //     v3.1 0xf05368c1 seul — signé par des outils récents) →
+  //     BLOCK_UNREADABLE, actionnable.
+  let scheme31 = false;
+  try {
+    await extractApkCerts(
+      bufferReader(fakeApkPairs([0xf05368c1], [fakeSigner(certDer, "v2")], false)),
+    );
+  } catch (e) {
+    scheme31 = e instanceof ApkParseError && e.code === "BLOCK_UNREADABLE";
+  }
+  check("bloc v3.1 seul (id inconnu) → BLOCK_UNREADABLE", scheme31);
+
+  // Blobs collectés mais aucun certificat lisible : CERT_FAILED, quel que soit le schéma.
+  for (const scheme of ["v2", "v3"] as const) {
+    let certFailed = false;
+    try {
+      await extractApkCerts(bufferReader(fakeApk(garbage, scheme)));
+    } catch (e) {
+      certFailed = e instanceof ApkParseError && e.code === "CERT_FAILED";
+    }
+    check(`${scheme} : blob non-X.509 → CERT_FAILED`, certFailed);
+  }
+  let v1CertFailed = false;
+  try {
+    await extractApkCerts(bufferReader(fakeApkPairs([], [], false, false, "META-INF/CERT.RSA")));
+  } catch (e) {
+    v1CertFailed = e instanceof ApkParseError && e.code === "CERT_FAILED";
+  }
+  check("v1 : bloc PKCS#7 illisible → CERT_FAILED", v1CertFailed);
 
   // 3b. Normalisation manifest : tout ce que la boîte noire peut cracher
   // se mappe vers du propre ou un refus franc (fonction pure testée offline).

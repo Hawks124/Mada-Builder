@@ -25,6 +25,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly" as const,
       priority: 0.5,
     })),
+    { url: `${base}/guides/signature-apk`, changeFrequency: "monthly", priority: 0.6 },
+    ...["android", "flutter", "react-native", "expo", "capacitor", "depannage"].map((f) => ({
+      url: `${base}/guides/signature-apk/${f}`,
+      changeFrequency: "monthly" as const,
+      priority: 0.5,
+    })),
     { url: `${base}/about`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${base}/contact`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${base}/regles`, changeFrequency: "monthly", priority: 0.3 },
