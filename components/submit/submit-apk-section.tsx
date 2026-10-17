@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+
+import Link from "next/link";
 import {
   ApkParseError,
   blobReader,
@@ -215,6 +217,16 @@ export function SubmitApkSection({
     }
 }`}
         </pre>
+        <p className="text-[13px] font-medium text-muted-foreground">
+          Pas-à-pas complet (keystore inclus, tous frameworks) :{" "}
+          <Link
+            href="/guides/signature-apk"
+            className="font-bold text-foreground underline underline-offset-2"
+          >
+            Signer son APK release
+          </Link>
+          .
+        </p>
       </div>
 
       {!pending && !parsing && (

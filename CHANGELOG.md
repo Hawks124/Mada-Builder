@@ -6,6 +6,18 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **Guides « Signature APK » (hub + 6 fiches)** : `/guides/signature-apk`
+  (schémas v1/v2/v3, keystore = identité, pourquoi la plateforme impose les
+  trois) + fiches A→Z autonomes Android natif, Flutter, React Native, Expo
+  (EAS géré vs `credentials.json`, `eas credentials`, cas `expo prebuild`),
+  Capacitor (`npx cap build` : `--signing-type apksigner`, le défaut
+  `jarsigner` est v1-only) et « Vérifier & dépanner » (`apksigner verify
+--print-certs`, refus plateforme décryptés, clé debug, keystore perdu,
+  JKS→PKCS12). Contenu ancré sur les docs officielles (2026-10-17), logos
+  officiels des frameworks (simple-icons), renvois `DocLayout` avec
+  `logoDarkInvert`. Liens croisés : carte au hub `/guides`, footer
+  (Explorer), note écran APK de soumission/update, FAQ sidebar, sitemap (7 URLs). Portes vertes tsc/eslint/prettier/build + `verify-apk-extract`.
+
 - **Revenus vérifiés, finitions BÊTA** : slide-over « Quel prestataire ? »
   (soumission — 5 providers, format de clé, lien `#creer-la-cle`, choix
   direct) ; profil maker distingue vrai 0 en full (affiché) du masqué
