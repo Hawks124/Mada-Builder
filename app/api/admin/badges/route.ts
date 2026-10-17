@@ -6,6 +6,7 @@ import { ApiError, CACHE_PRIVATE, apiCatch, apiError, apiOk, withCache } from "@
 import { getPendingCountCached, getRejectedCountCached } from "@/services/stats.service";
 import { getBuildStats } from "@/services/builds.service";
 import { countNewContactMessages } from "@/services/contact.service";
+import { captureError } from "@/lib/monitoring";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +16,34 @@ export type BadgesResponse = Record<BadgeKey, BadgeState>;
 
 const ALL_KEYS: BadgeKey[] = ["pending", "rejected", "builds", "contact"];
 
+/**
+ * Délai par compteur (8 s, même budget que l'overview admin). Sans borne,
+ * une seule requête lente retient TOUT le lot — les autres clés, déjà
+ * prêtes, n'arrivent jamais au shell et leurs pastilles restent inconnues
+ * jusqu'au prochain focus. Un dépassement est une REJETION : la clé passe
+ * `ok: false` (« — », inconnu), jamais un 0 de remplacement.
+ */
+const BADGE_DEADLINE_MS = 8000;
+
+function withDeadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`délai dépassé (${ms} ms)`)), ms);
+  });
+  return Promise.race([p, deadline]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
+
 const COUNTERS: Record<BadgeKey, () => Promise<number>> = {
-  pending: () => getPendingCountCached(),
-  rejected: () => getRejectedCountCached(),
-  builds: () => getBuildStats().then((s) => s.pending),
-  contact: () => countNewContactMessages(),
+  pending: () => withDeadline(getPendingCountCached(), BADGE_DEADLINE_MS),
+  rejected: () => withDeadline(getRejectedCountCached(), BADGE_DEADLINE_MS),
+  builds: () =>
+    withDeadline(
+      getBuildStats().then((s) => s.pending),
+      BADGE_DEADLINE_MS,
+    ),
+  contact: () => withDeadline(countNewContactMessages(), BADGE_DEADLINE_MS),
 };
 
 /**
@@ -56,13 +80,25 @@ export async function GET(req: Request): Promise<Response> {
     if (viewer.status !== "authed") {
       return apiError("UNAUTHORIZED", "Connexion requise.", 401);
     }
-    const [row] = await db
-      .select({ role: users.role })
-      .from(users)
-      .where(eq(users.id, viewer.user.id))
-      .limit(1)
-      .catch(() => []);
-    if (!row || (row.role !== "admin" && row.role !== "moderateur")) {
+    // Rôle : DB injoignable ≠ pas staff. L'ancien `.catch(() => [])` faisait
+    // passer un hoquet backend pour un refus de rôle (403 muet, sans trace)
+    // — le shell lisait alors « aucune pastille » comme « file vide »,
+    // pendant que les pages, elles, restaient justes. Ici : 503 tracé.
+    let role: string | null = null;
+    try {
+      const [row] = await db
+        .select({ role: users.role })
+        .from(users)
+        .where(eq(users.id, viewer.user.id))
+        .limit(1);
+      role = row?.role ?? null;
+    } catch (e) {
+      captureError(e instanceof Error ? e : new Error(String(e)), {
+        op: "api.admin.badges.role",
+      });
+      return apiError("INTERNAL", "Compteurs indisponibles.", 503);
+    }
+    if (role !== "admin" && role !== "moderateur") {
       return apiError("FORBIDDEN", "Réservé à l'équipe.", 403);
     }
     const sp = new URL(req.url).searchParams;

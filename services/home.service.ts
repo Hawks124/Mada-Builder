@@ -61,6 +61,13 @@ export type FeaturedProductData = {
   votes: number;
   comments: number;
   initials: string;
+  /**
+   * Logo produit (R2). `null` = pas de logo déposé → la tuile d'initiales
+   * fait le repli. Champ OBLIGATOIRE dans le contrat featured : sans lui,
+   * le produit du jour ne pouvait structurellement pas afficher son logo
+   * (le champ existait déjà côté base, il n'était juste jamais remonté).
+   */
+  iconUrl: string | null;
   /** Libellé éditorial fixe — produit du jour, pas rang live (PRD §11). */
   dateLabel: string;
   platforms: string[];
@@ -89,6 +96,7 @@ const MOCK_FEATURED: FeaturedProductData = {
   votes: 342,
   comments: 58,
   initials: "AV",
+  iconUrl: null,
   dateLabel: "Ven. 19 Sept. 2026",
   platforms: ["Web", "iOS", "Android"],
   pricingLabel: "Freemium",

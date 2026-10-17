@@ -102,15 +102,18 @@ export async function getProductsCount(status?: ProductStatus): Promise<number> 
  * File pending mémoïsée par requête (React cache) : le layout admin (badge
  * shell) et la page overview (bouton file) partagent UN seul appel au lieu
  * de deux — même requête, zéro roundtrip doublé.
+ *
+ * **Pas de `.catch` ici** (contre-intuitif, volontaire) : transformer une
+ * erreur de lecture en `0` produit un « file vide » affirmative — le badge
+ * disparaît et l'admin croit que personne n'a rien soumis. La rejection
+ * remonte jusqu'à l'appelant, qui sait l'afficher en « inconnu » (pastille
+ * « — » côté shell, bouton sans chiffre côté overview, les deux l-catching
+ * déjà). Zéro reste un zéro : il vient de la base, pas d'un repli.
  */
-export const getPendingCountCached = cache((): Promise<number> =>
-  getProductsCount("pending").catch(() => 0),
-);
+export const getPendingCountCached = cache((): Promise<number> => getProductsCount("pending"));
 
-/** File rejetés mémoïsée par requête (badge nav, même pattern). */
-export const getRejectedCountCached = cache((): Promise<number> =>
-  getProductsCount("rejected").catch(() => 0),
-);
+/** File rejetés mémoïsée par requête (badge nav, même pattern — même règle). */
+export const getRejectedCountCached = cache((): Promise<number> => getProductsCount("rejected"));
 
 /**
  * Avis + commentaires visibles (admin) : compteurs réels (soft-deleted
