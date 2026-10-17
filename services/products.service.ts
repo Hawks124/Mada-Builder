@@ -272,7 +272,7 @@ export const submitProductSchema = z.object({
     .max(3)
     .refine((ids) => ids.every((id) => CATEGORY_IDS.has(id)), "Catégorie inconnue")
     .optional(),
-  tags: z.array(z.string().trim().min(1).max(30)).max(5).optional(),
+  tags: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
   platforms: z
     .array(z.string())
     .min(1, "Au moins une plateforme.")
