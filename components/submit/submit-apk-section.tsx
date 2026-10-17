@@ -197,6 +197,24 @@ export function SubmitApkSection({
           page — sur un bucket privé, derrière un lien valable 5 minutes, jamais une URL directe. Le
           téléphone vérifie l&apos;empreinte SHA-256 après le téléchargement.
         </p>
+        <p className="text-[14px] font-medium leading-relaxed text-muted-foreground">
+          <strong className="font-black text-foreground">
+            Debug ou signé sans schéma v1&nbsp;: refusés.
+          </strong>{" "}
+          Les téléphones sous Android&nbsp;7 ne savent vérifier que la v1. Dans{" "}
+          <code className="font-mono text-[12px]">android/app/build.gradle.kts</code>, activez les
+          trois schémas de signature (quel que soit votre outil de build) :
+        </p>
+        <pre className="overflow-x-auto rounded-xl border border-border/60 bg-muted/30 px-4 py-3 text-[12px] font-mono leading-relaxed text-foreground">
+          {`signingConfigs {
+    create("release") {
+        // … vos keyAlias / storeFile existants …
+        enableV1Signing = true
+        enableV2Signing = true
+        enableV3Signing = true
+    }
+}`}
+        </pre>
       </div>
 
       {!pending && !parsing && (

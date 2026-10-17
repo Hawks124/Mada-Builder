@@ -12,6 +12,8 @@ export type ApkParseCode =
   | "NO_MANIFEST"
   | "MANIFEST_FAILED"
   | "UNSIGNED"
+  | "BLOCK_UNREADABLE"
+  | "V1_UNREADABLE"
   | "DEBUG_CERT"
   | "CERT_FAILED"
   | "TOO_BIG";
@@ -550,10 +552,19 @@ export function bufferReader(buf: Uint8Array): SliceReader {
  * Certificats DER de TOUS les schémas (v3 > v2 > v1). En-tête + EOCD +
  * signing block + petits META-INF : quelques dizaines de Ko lus même
  * sur 150 Mo — jamais le fichier entier, jamais d'allocation géante.
+ * Les drapeaux `blockSeen`/`metaInfSeen` alimentent les refus
+ * différenciés d'`extractApkCerts` (bloc détecté mais hostile ≠
+ * fichier vraiment sans signature).
  */
-export async function extractCertDers(
-  read: SliceReader,
-): Promise<Array<{ scheme: ApkCert["scheme"]; der: Uint8Array }>> {
+type RawCertDers = {
+  ders: Array<{ scheme: ApkCert["scheme"]; der: Uint8Array }>;
+  /** Magic « APK Sig Block 42 » vu, même sans paire v2/v3 lisible. */
+  blockSeen: boolean;
+  /** Entrée META-INF/*.(RSA|DSA|EC) candidat vue, même si illisible. */
+  metaInfSeen: boolean;
+};
+
+export async function extractCertDers(read: SliceReader): Promise<RawCertDers> {
   // EOCD : 64 Ko de queue suffisent (commentaire max 65535 + 22).
   const tailSize = Math.min(read.size, 66000);
   const tailBase = read.size - tailSize;
@@ -571,13 +582,14 @@ export async function extractCertDers(
   const eocdBuf = await read.slice(eocdAbs, eocdAbs + 22);
   const cdOffset = readU32LE(eocdBuf, 16);
   const cdSize = readU32LE(eocdBuf, 12);
-  const out: Array<{ scheme: ApkCert["scheme"]; der: Uint8Array }> = [];
+  const out: RawCertDers = { ders: [], blockSeen: false, metaInfSeen: false };
 
   // Signing block v2/v3 : juste avant le central directory.
   if (cdOffset >= 32 && cdOffset <= read.size) {
     const probe = await read.slice(cdOffset - 32, cdOffset);
     const magic = String.fromCharCode(...probe.slice(16, 32));
     if (magic === SIG_BLOCK_MAGIC) {
+      out.blockSeen = true;
       const blockSize = readU64LE(probe, 8);
       const blockStart = cdOffset - 24 - blockSize;
       if (blockStart >= 0 && blockSize < 50_000_000) {
@@ -598,7 +610,7 @@ export async function extractCertDers(
             if (id === SIG_V2 || id === SIG_V3) {
               const scheme = id === SIG_V3 ? "v3" : "v2";
               for (const der of certsOfSigner(value, scheme)) {
-                out.push({ scheme, der });
+                out.ders.push({ scheme, der });
                 found = true;
               }
             }
@@ -622,10 +634,11 @@ export async function extractCertDers(
         entry.compressedSize > 0 &&
         entry.compressedSize < 100_000
       ) {
+        out.metaInfSeen = true;
         try {
           const data = await readStoredEntry(read, entry);
           // Bloc PKCS#7 : on garde le DER brut (le parse ASN.1 suit).
-          out.push({ scheme: "v1", der: data });
+          out.ders.push({ scheme: "v1", der: data });
         } catch {
           // Entrée illisible : on ignore (v2/v3 font foi si présents).
         }
@@ -638,19 +651,33 @@ export async function extractCertDers(
 /**
  * Certificats complets : parse ASN.1 + empreintes, dédupliqués par SHA-256
  * (un même cert peut apparaître en v1 + v2 — on garde le schéma le plus
- * fort : v3 > v2 > v1). Vide = non signé → refus (`UNSIGNED`).
- * Tolérance par blob : un signer résiduel non-X.509 (constaté : bloc v2
- * du vrai F-Droid) est ignoré tant qu'un autre schéma donne un cert
- * valide — sinon on rejetterait des apps légitimes. Zéro cert valide
- * au total → `UNSIGNED` (fail-closed).
+ * fort : v3 > v2 > v1). Fail-closed : zéro cert valide au total = refus,
+ * MAIS à message différencié — « vraiment non signé » (aucun bloc ni
+ * META-INF) n'est pas « bloc détecté mais illisible » (le maker doit
+ * re-signer, pas repartir de zéro). Tolérance par blob : un signer
+ * résiduel non-X.509 (constaté : bloc v2 du vrai F-Droid) est ignoré
+ * tant qu'un autre schéma donne un cert valide — sinon on rejetterait
+ * des apps légitimes.
  */
 export async function extractApkCerts(read: SliceReader): Promise<ApkCert[]> {
   const raw = await extractCertDers(read);
-  if (raw.length === 0) {
+  if (raw.ders.length === 0) {
+    if (raw.blockSeen) {
+      throw new ApkParseError(
+        "BLOCK_UNREADABLE",
+        "Signature v2/v3 présente mais illisible — activez v1, v2 et v3 dans la configuration de signature Gradle, puis vérifiez avec « apksigner verify --print-certs ».",
+      );
+    }
+    if (raw.metaInfSeen) {
+      throw new ApkParseError(
+        "V1_UNREADABLE",
+        "Fichiers de signature (v1) présents mais illisibles — re-signez en activant v1, v2 et v3 dans la configuration de signature Gradle.",
+      );
+    }
     throw new ApkParseError("UNSIGNED", "APK non signé — signature requise.");
   }
   const order = { v3: 0, v2: 1, v1: 2 } as const;
-  const sorted = [...raw].sort((a, b) => order[a.scheme] - order[b.scheme]);
+  const sorted = [...raw.ders].sort((a, b) => order[a.scheme] - order[b.scheme]);
   const seen = new Set<string>();
   const out: ApkCert[] = [];
   for (const { scheme, der } of sorted) {
@@ -673,7 +700,19 @@ export async function extractApkCerts(read: SliceReader): Promise<ApkCert[]> {
     }
   }
   if (out.length === 0) {
-    throw new ApkParseError("UNSIGNED", "APK non signé — signature requise.");
+    // Tous les blobs présents on échoué au parse : même message que
+    // « aucun DER », pointé sur le schéma le plus fort détecté.
+    const strong = raw.ders.some((d) => d.scheme === "v2" || d.scheme === "v3");
+    if (strong) {
+      throw new ApkParseError(
+        "BLOCK_UNREADABLE",
+        "Signature v2/v3 présente mais illisible — activez v1, v2 et v3 dans la configuration de signature Gradle, puis vérifiez avec « apksigner verify --print-certs ».",
+      );
+    }
+    throw new ApkParseError(
+      "V1_UNREADABLE",
+      "Fichiers de signature (v1) présents mais illisibles — re-signez en activant v1, v2 et v3 dans la configuration de signature Gradle.",
+    );
   }
   return out;
 }
