@@ -38,20 +38,24 @@ Puis :
 ```groovy
 signingConfigs {
     release {
-        storeFile file(keystoreProperties['storeFile'])
-        storePassword keystoreProperties['storePassword']
-        keyAlias keystoreProperties['keyAlias']
-        keyPassword keystoreProperties['keyPassword']
+        if (keystorePropertiesFile.exists()) {
+            storeFile file(keystoreProperties['storeFile'])
+            storePassword keystoreProperties['storePassword']
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
 
-        enableV1Signing true
-        enableV2Signing true
-        enableV3Signing true
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+        }
     }
 }
 
 buildTypes {
     release {
-        signingConfig signingConfigs.release
+        if (keystorePropertiesFile.exists()) {
+            signingConfig signingConfigs.release
+        }
     }
 }
 ```
@@ -64,7 +68,7 @@ Ajoutez à `android/.gitignore` : `keystore.properties`, `*.keystore`, `*.jks`.
 npx cap sync
 cd android && ./gradlew assembleRelease
 # android/app/build/outputs/apk/release/app-release.apk
-apksigner verify --print-certs android/app/build/outputs/apk/release/app-release.apk
+apksigner verify -v --print-certs android/app/build/outputs/apk/release/app-release.apk
 ```
 
 ## Alternative CLI : `npx cap build` (attention au défaut)

@@ -116,7 +116,7 @@ android {
 ```bash
 ./gradlew assembleRelease
 # android/app/build/outputs/apk/release/app-release.apk
-apksigner verify --print-certs android/app/build/outputs/apk/release/app-release.apk
+apksigner verify -v --print-certs android/app/build/outputs/apk/release/app-release.apk
 ```
 
 Les trois lignes `Verified using vN scheme` doivent être à `true`. Si `apksigner` n'est pas dans le PATH : `<SDK>/build-tools/<version>/apksigner`.

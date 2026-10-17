@@ -200,12 +200,15 @@ export function SubmitApkSection({
           téléphone vérifie l&apos;empreinte SHA-256 après le téléchargement.
         </p>
         <p className="text-[14px] font-medium leading-relaxed text-muted-foreground">
-          <strong className="font-black text-foreground">
-            Debug ou signé sans schéma v1&nbsp;: refusés.
-          </strong>{" "}
-          Les téléphones sous Android&nbsp;7 ne savent vérifier que la v1. Dans{" "}
-          <code className="font-mono text-[12px]">android/app/build.gradle.kts</code>, activez les
-          trois schémas de signature (quel que soit votre outil de build) :
+          <strong className="font-black text-foreground">APK de debug&nbsp;: refusés.</strong> Les
+          signatures v1+v2+v3 sont recommandées, quel que soit votre outil de build. Les APK signés
+          uniquement en v2/v3 sont acceptés si leurs certificats sont lisibles. Les téléphones sous
+          Android&nbsp;6 et moins (API &lt; 24) ne savent vérifier que la v1. Avec Gradle,
+          configurez les trois schémas dans{" "}
+          <code className="font-mono text-[12px]">app/build.gradle</code> (Groovy) ou{" "}
+          <code className="font-mono text-[12px]">app/build.gradle.kts</code> (Kotlin DSL), sous{" "}
+          <code className="font-mono text-[12px]">android/app/</code> pour Flutter, React Native et
+          Capacitor. Exemple Kotlin DSL :
         </p>
         <pre className="overflow-x-auto rounded-xl border border-border/60 bg-muted/30 px-4 py-3 text-[12px] font-mono leading-relaxed text-foreground">
           {`signingConfigs {

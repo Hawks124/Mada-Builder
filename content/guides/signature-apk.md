@@ -6,13 +6,13 @@
 
 Android vérifie une signature selon trois schémas :
 
-- **v1 (JAR)** — le plus ancien, signe chaque entrée du ZIP. Seuls les téléphones sous Android 6/7 (API < 24) savent le vérifier.
+- **v1 (JAR)** — le plus ancien, signe chaque entrée du ZIP. Nécessaire pour Android 6 et moins (API < 24), qui ne sait vérifier que ce schéma.
 - **v2 (bloc APK)** — signe le fichier entier, via une signature placée avant le répertoire central du ZIP. Nécessaire pour les téléphones modernes.
 - **v3 (rotation de clé)** — même mécanisme que v2, ajoute la rotation de clé. Coût zéro : même keystore.
 
-Un APK signé **uniquement en v2/v3** s'installe sur les téléphones récents mais est refusé sur les anciens — et la scène malgache compte beaucoup de téléphones sous Android 6-7. Un APK signé **uniquement en v1** n'est pas conforme aux attentes des stores modernes. D'où la règle de la plateforme : **les trois schémas actifs**.
+Un APK signé **uniquement en v2/v3** s'installe sur les téléphones récents mais est refusé sur Android 6 et moins (API < 24). Un APK signé **uniquement en v1** n'est pas conforme aux attentes des stores modernes. La plateforme recommande **les trois schémas actifs** pour la compatibilité ; un APK signé uniquement en v2/v3 est accepté si ses certificats sont lisibles. Les APK de debug sont refusés.
 
-Le piège classique : le plugin Android Gradle n'active la v1 par défaut que si votre `minSdk` est < 24 — sinon une valeur par défaut s'applique, sans avertissement (voir la [référence `SigningConfig`](https://developer.android.com/reference/tools/gradle-api/9.5/com/android/build/api/variant/SigningConfig)). Avec un `minSdk` à 24 ou plus, votre APK sort donc signé sans v1. D'où les trois lignes explicites imposées dans chaque fiche :
+Le piège classique : le plugin Android Gradle n'active la v1 par défaut que si votre `minSdk` est < 24 — sinon une valeur par défaut s'applique, sans avertissement (voir la [référence `SigningConfig`](https://developer.android.com/reference/tools/gradle-api/9.5/com/android/build/api/variant/SigningConfig)). Avec un `minSdk` à 24 ou plus, votre APK sort donc signé sans v1. D'où les trois lignes explicites recommandées dans chaque fiche :
 
 ```kotlin
 enableV1Signing = true
@@ -31,10 +31,10 @@ Le keystore (`.jks` ou `.keystore`, `.p12`/PKCS12 par défaut depuis Java 9) con
 ## Vérifier après chaque build (4 secondes)
 
 ```bash
-apksigner verify --print-certs app-release.apk
+apksigner verify -v --print-certs app-release.apk
 ```
 
-Les lignes `Verified using v1 scheme`, `v2`, `v3` doivent toutes afficher `true` — lecture complète et refus de la plateforme (`UNSIGNED`, `BLOCK_UNREADABLE`, `V1_UNREADABLE`) : voir la [fiche dépannage](/guides/signature-apk/depannage).
+Pour confirmer les trois schémas recommandés, les lignes `Verified using v1 scheme`, `v2`, `v3` doivent toutes afficher `true` — lecture complète et refus de la plateforme (`UNSIGNED`, `BLOCK_UNREADABLE`, `V1_UNREADABLE`, `CERT_FAILED`) : voir la [fiche dépannage](/guides/signature-apk/depannage).
 
 ## Choisir votre fiche
 

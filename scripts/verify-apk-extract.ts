@@ -101,6 +101,7 @@ function fakeApkPairs(
   signers: Uint8Array[],
   pad16: boolean,
   withBlock = true,
+  entryName = "hello.txt",
 ): Uint8Array {
   const pairs = ids.map((id, i) => cat(u32(id), signers[i]!));
   const pairFull = cat(...pairs.map((p) => cat(u64(p.length), p)));
@@ -115,7 +116,7 @@ function fakeApkPairs(
           SIG_MAGIC,
         )
       : cat(u64(pairFull.length + 8), pairFull, u64(pairFull.length + 8), SIG_MAGIC);
-  const name = new TextEncoder().encode("hello.txt");
+  const name = new TextEncoder().encode(entryName);
   const data = new TextEncoder().encode("hello");
   const local = cat(
     u32(0x04034b50),
@@ -264,6 +265,24 @@ async function main(): Promise<void> {
     scheme31 = e instanceof ApkParseError && e.code === "BLOCK_UNREADABLE";
   }
   check("bloc v3.1 seul (id inconnu) → BLOCK_UNREADABLE", scheme31);
+
+  // Blobs collectés mais aucun certificat lisible : CERT_FAILED, quel que soit le schéma.
+  for (const scheme of ["v2", "v3"] as const) {
+    let certFailed = false;
+    try {
+      await extractApkCerts(bufferReader(fakeApk(garbage, scheme)));
+    } catch (e) {
+      certFailed = e instanceof ApkParseError && e.code === "CERT_FAILED";
+    }
+    check(`${scheme} : blob non-X.509 → CERT_FAILED`, certFailed);
+  }
+  let v1CertFailed = false;
+  try {
+    await extractApkCerts(bufferReader(fakeApkPairs([], [], false, false, "META-INF/CERT.RSA")));
+  } catch (e) {
+    v1CertFailed = e instanceof ApkParseError && e.code === "CERT_FAILED";
+  }
+  check("v1 : bloc PKCS#7 illisible → CERT_FAILED", v1CertFailed);
 
   // 3b. Normalisation manifest : tout ce que la boîte noire peut cracher
   // se mappe vers du propre ou un refus franc (fonction pure testée offline).

@@ -700,18 +700,9 @@ export async function extractApkCerts(read: SliceReader): Promise<ApkCert[]> {
     }
   }
   if (out.length === 0) {
-    // Tous les blobs présents on échoué au parse : même message que
-    // « aucun DER », pointé sur le schéma le plus fort détecté.
-    const strong = raw.ders.some((d) => d.scheme === "v2" || d.scheme === "v3");
-    if (strong) {
-      throw new ApkParseError(
-        "BLOCK_UNREADABLE",
-        "Signature v2/v3 présente mais illisible — activez v1, v2 et v3 dans la configuration de signature Gradle, puis vérifiez avec « apksigner verify --print-certs ».",
-      );
-    }
     throw new ApkParseError(
-      "V1_UNREADABLE",
-      "Fichiers de signature (v1) présents mais illisibles — re-signez en activant v1, v2 et v3 dans la configuration de signature Gradle.",
+      "CERT_FAILED",
+      "Aucun certificat X.509 lisible — re-signez l'APK avec votre keystore release.",
     );
   }
   return out;

@@ -61,7 +61,7 @@ Le garde `if (project.hasProperty(...))` : sans variables configurées, le build
 npx react-native build-android --mode=release
 # ou : cd android && ./gradlew assembleRelease
 # APK : android/app/build/outputs/apk/release/app-release.apk
-apksigner verify --print-certs android/app/build/outputs/apk/release/app-release.apk
+apksigner verify -v --print-certs android/app/build/outputs/apk/release/app-release.apk
 ```
 
 Les trois lignes `Verified using vN scheme` doivent être à `true`.

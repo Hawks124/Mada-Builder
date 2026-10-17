@@ -7,7 +7,7 @@
 1. **EAS Build géré** (`credentialsSource: "remote"`, le défaut) : EAS crée et héberge votre keystore, le build sort signé. Le plus simple — et vous récupérez le keystore quand vous voulez.
 2. **Local** (`credentialsSource: "local"`) : vous créez le keystore, EAS l'utilise depuis un `credentials.json`.
 
-Que vous choisissiez l'une ou l'autre, vous aurez besoin du keystore local un jour ou l'autre : la plateforme contrôle l'empreinte du certificat, donc gardez la clé,quelle que soit la voie (voir plus bas « récupérer et sauvegarder son keystore »).
+Que vous choisissiez l'une ou l'autre, vous aurez besoin du keystore local un jour ou l'autre : la plateforme contrôle l'empreinte du certificat, donc gardez la clé, quelle que soit la voie (voir plus bas « récupérer et sauvegarder son keystore »).
 
 ## Voie gérée (défaut)
 
@@ -44,7 +44,7 @@ keytool -genkey -v -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 \
   -dname "CN=com.expo.votre.package,OU=,O=,L=,S=,C=MG"
 ```
 
-Placez-le dans `android/keystores/` (convention Expo) et git-ingnorez le répertoire, puis créez un `credentials.json` à la racine du projet :
+Placez-le dans `android/keystores/` (convention Expo) et git-ignorez le répertoire, puis créez un `credentials.json` à la racine du projet :
 
 ```json
 {

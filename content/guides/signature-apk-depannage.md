@@ -7,10 +7,10 @@
 `$ANDROID_HOME/build-tools/<dernière_version>/apksigner` — sous Windows, `apksigner.bat`. Le chemin du SDK s'affiche dans Android Studio (Settings → Languages & Frameworks → Android SDK). Sans variable d'environnement :
 
 ```powershell
-& "C:\Users\vous\AppData\Local\Android\Sdk\build-tools\36.0.0\apksigner.bat" verify --print-certs app-release.apk
+& "C:\Users\vous\AppData\Local\Android\Sdk\build-tools\36.0.0\apksigner.bat" verify -v --print-certs app-release.apk
 ```
 
-## Lire `apksigner verify --print-certs`
+## Lire `apksigner verify -v --print-certs`
 
 ```text
 Signer #1:
@@ -23,11 +23,11 @@ Verified using v3 scheme: true
 
 Versions plus anciennes d'`apksigner` : lignes légèrement différentes, même lecture.
 
-| Ligne    | Attendu                                           |
-| -------- | ------------------------------------------------- |
-| v1 (JAR) | `true` — l'installation sur Android 6/7 en dépend |
-| v2       | `true`                                            |
-| v3       | recommandé (coût zéro, rotation de clé)           |
+| Ligne    | Attendu                                                             |
+| -------- | ------------------------------------------------------------------- |
+| v1 (JAR) | `true` — l'installation sur Android 6 et moins (API < 24) en dépend |
+| v2       | `true`                                                              |
+| v3       | recommandé (coût zéro, rotation de clé)                             |
 
 Un `false` sur v1 alors que vous pensiez l'avoir activé ? Relisez la note « minSdk ≥ 24 » de la [vue d'ensemble](/guides/signature-apk) : les trois `enableV…Signing` doivent être explicites dans la `signingConfig release` effectivement utilisée par `buildTypes.release`.
 
@@ -47,7 +47,8 @@ L'analyseur de Mada-Made lit le bloc de signature v2/v3 et les entrées `META-IN
 
 - **« APK non signé — signature requise. »** (`UNSIGNED`) — aucun bloc de signature, aucune entrée JAR : l'APK n'a jamais été signé ou a été ré-empaqueté après signature. Reprenez votre fiche framework depuis le début.
 - **« Signature v2/v3 présente mais illisible — activez v1, v2 et v3… »** (`BLOCK_UNREADABLE`) — le bloc de signature existe, mais aucun certificat exploitable à l'intérieur. Cas typiques : un signer non-standard, ou un conteneur avec un format non lu (par exemple une paire de schéma inconnue seule). Un APK signé **uniquement en v2/v3 lisibles passe** (un avertissement « sans v1 » peut apparaître, pas de refus) ; ce message vise le cas où le contenu est bien là mais illisible. Action : re-signez avec les trois schémas explicites, puis contrôlez avec `apksigner verify`.
-- **« Fichiers de signature (v1) présents mais illisibles — re-signez… »** (`V1_UNREADABLE`) — des entrées `META-INF/*.RSA/.DSA/.EC` existent mais ne se décodent pas en certificat. Re-signez, les trois schémas.
+- **« Fichiers de signature (v1) présents mais illisibles — re-signez… »** (`V1_UNREADABLE`) — des entrées `META-INF/*.RSA/.DSA/.EC` existent mais aucun bloc de certificat n'a pu être lu. Re-signez, les trois schémas.
+- **« Aucun certificat X.509 lisible — re-signez l'APK avec votre keystore release. »** (`CERT_FAILED`) — des blocs de certificat ont été collectés, mais aucun n'a pu être décodé en certificat X.509. Re-signez avec votre keystore release.
 - **Refus avec empreinte différente** — le certificat reconnu est la clé de debug ou un certificat qui n'est pas celui du dépôt historique. Re-signez avec votre keystore release.
 
 Dans tous les cas, un refus au parse ne touche pas la fiche : le binaire est simplement en attente tant que l'empreinte ne correspond pas à la clé attendue.

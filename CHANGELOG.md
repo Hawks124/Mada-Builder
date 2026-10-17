@@ -7,7 +7,7 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 ### Ajouté
 
 - **Guides « Signature APK » (hub + 6 fiches)** : `/guides/signature-apk`
-  (schémas v1/v2/v3, keystore = identité, pourquoi la plateforme impose les
+  (schémas v1/v2/v3, keystore = identité, pourquoi la plateforme recommande les
   trois) + fiches A→Z autonomes Android natif, Flutter, React Native, Expo
   (EAS géré vs `credentials.json`, `eas credentials`, cas `expo prebuild`),
   Capacitor (`npx cap build` : `--signing-type apksigner`, le défaut

@@ -114,7 +114,7 @@ signingConfigs {
 flutter clean
 flutter build apk --release
 # build/app/outputs/flutter-apk/app-release.apk
-apksigner verify --list-certs app-release.apk
+apksigner verify -v --print-certs build/app/outputs/flutter-apk/app-release.apk
 ```
 
 Le `flutter clean` n'est pas anodin : la doc précise que les builds en cache peuvent conserver l'ancienne signature. Puis vérifiez les trois lignes `Verified using vN scheme`.

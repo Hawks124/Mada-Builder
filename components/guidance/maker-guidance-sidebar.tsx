@@ -97,9 +97,9 @@ const REFUSAL_FAQ = [
       "Vous recevez le motif par email, la fiche reste en ligne sans le binaire. Corrigez, renvoyez depuis le dashboard : ça repart en revue, sans pénalité.",
   },
   {
-    question: "Mon APK est refusé « signé sans v1 » ou « non signé » ?",
+    question: "Mon APK est refusé pour sa signature ?",
     answer:
-      'Activez les trois schémas dans la config de signature Gradle : enableV1Signing = true, enableV2Signing = true, enableV3Signing = true (Kotlin DSL : dans create("release") ; Groovy : dans release { … }). La v1 est indispensable : les téléphones sous Android 7 ne savent vérifier qu\'elle. Contrôle sans IDE : « apksigner verify --print-certs fichier.apk » — les trois lignes doivent afficher true. Guide complet A à Z (keystore inclus, tous frameworks) : « Signer son APK release » dans la rubrique Guides, ou /guides/signature-apk.',
+      'Un certificat v2 ou v3 lisible suffit pour la soumission : la v1 n\'est pas obligatoire. Les APK de debug sont refusés. Nous recommandons les trois schémas dans la config de signature Gradle : enableV1Signing = true, enableV2Signing = true, enableV3Signing = true (Kotlin DSL : dans create("release") ; Groovy : dans release { … }). Contrôle sans IDE : « apksigner verify -v --print-certs fichier.apk ». Guide complet A à Z (keystore inclus, tous frameworks) : « Signer son APK release » dans la rubrique Guides, ou /guides/signature-apk.',
   },
   {
     question: "J'ai changé de clé de signature ?",
