@@ -548,14 +548,6 @@ export function bufferReader(buf: Uint8Array): SliceReader {
   };
 }
 
-/**
- * Certificats DER de TOUS les schémas (v3 > v2 > v1). En-tête + EOCD +
- * signing block + petits META-INF : quelques dizaines de Ko lus même
- * sur 150 Mo — jamais le fichier entier, jamais d'allocation géante.
- * Les drapeaux `blockSeen`/`metaInfSeen` alimentent les refus
- * différenciés d'`extractApkCerts` (bloc détecté mais hostile ≠
- * fichier vraiment sans signature).
- */
 type RawCertDers = {
   ders: Array<{ scheme: ApkCert["scheme"]; der: Uint8Array }>;
   /** Magic « APK Sig Block 42 » vu, même sans paire v2/v3 lisible. */
@@ -564,6 +556,14 @@ type RawCertDers = {
   metaInfSeen: boolean;
 };
 
+/**
+ * Certificats DER de TOUS les schémas (v3 > v2 > v1). En-tête + EOCD +
+ * signing block + petits META-INF : quelques dizaines de Ko lus même
+ * sur 150 Mo — jamais le fichier entier, jamais d'allocation géante.
+ * Les drapeaux `blockSeen`/`metaInfSeen` alimentent les refus
+ * différenciés d'`extractApkCerts` (bloc détecté mais hostile ≠
+ * fichier vraiment sans signature).
+ */
 export async function extractCertDers(read: SliceReader): Promise<RawCertDers> {
   // EOCD : 64 Ko de queue suffisent (commentaire max 65535 + 22).
   const tailSize = Math.min(read.size, 66000);

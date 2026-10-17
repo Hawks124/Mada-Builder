@@ -172,6 +172,10 @@ function fakeApk(certDer: Uint8Array, scheme: "v2" | "v3"): Uint8Array {
   return fakeApkPairs([id], [fakeSigner(certDer, scheme)], false);
 }
 
+/**
+ * Vérifie l'extraction sur les APK synthétiques et, si disponible, F-Droid.
+ * Contrôle aussi la normalisation du manifest et termine avec le code 1 en cas d'échec.
+ */
 async function main(): Promise<void> {
   const certDer = new Uint8Array(Buffer.from(FIXTURE_CERT_HEX, "hex"));
   console.log(`DER fixture: ${certDer.length} octets (attendu 866)`);

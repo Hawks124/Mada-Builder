@@ -13,8 +13,9 @@ import {
 
 type Params = { framework: string };
 
-/** URL → slug du contenu : `android` → `signature-apk-android`. */
 const CHILD_SLUGS = SIGNATURE_APK_GUIDE_SLUGS.filter((s) => s !== "signature-apk");
+
+/** Résout le segment d'URL en slug de fiche, ou renvoie undefined s'il est inconnu. */
 const slugFor = (framework: string): SignatureApkGuideSlug | undefined =>
   CHILD_SLUGS.find((s) => s === `signature-apk-${framework}`);
 
@@ -54,10 +55,12 @@ const META: Partial<Record<SignatureApkGuideSlug, { title: string; description: 
   },
 };
 
+/** Énumère les segments d'URL des fiches à pré-générer, sans le hub. */
 export function generateStaticParams(): Params[] {
   return CHILD_SLUGS.map((s) => ({ framework: s.replace("signature-apk-", "") }));
 }
 
+/** Métadonnées SEO de la fiche ; désactive l'indexation pour un segment inconnu. */
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { framework } = await params;
   const slug = slugFor(framework);

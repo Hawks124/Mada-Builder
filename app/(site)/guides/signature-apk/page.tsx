@@ -31,6 +31,7 @@ function childHref(slug: string): string {
   return `${PAGE}/${slug.replace("signature-apk-", "")}`;
 }
 
+/** Charge le contenu du hub et lève une erreur s'il est absent ou illisible. */
 async function getDoc() {
   const doc = await getGuideDoc("signature-apk");
   if (!doc) throw new Error("Contenu signature-apk manquant");
