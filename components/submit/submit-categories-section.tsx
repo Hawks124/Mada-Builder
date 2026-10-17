@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { FieldBadge } from "@/components/ui/field-badge";
 import { useSubmitForm, draftJsonList } from "@/components/submit/submit-form-context";
 
-const MAX_TAGS = 5;
+const MAX_TAGS = 10;
 
 export function SubmitCategoriesSection() {
   const { editApp, errors, clearError, draft } = useSubmitForm();
@@ -110,7 +110,7 @@ export function SubmitCategoriesSection() {
         </p>
       )}
 
-      {/* ── Tags libres (optionnel, max 5) ── */}
+      {/* ── Tags libres (optionnel, max 10) ── */}
       <div className="flex flex-col gap-3 mt-2">
         <label className="text-[14px] font-bold text-foreground flex items-center gap-2">
           Tags libres
@@ -120,8 +120,8 @@ export function SubmitCategoriesSection() {
           </span>
         </label>
         <p className="text-[12px] font-medium text-muted-foreground leading-relaxed">
-          Mots-clés libres pour affiner la découverte (ex : mobile-money, offline-first). Espace,
-          Entrée ou virgule pour ajouter.
+          Mots-clés libres pour affiner la découverte (ex : mobile-money, offline-first). Entrée ou
+          virgule pour ajouter.
         </p>
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-background border border-border/60 px-4 py-3 focus-within:border-foreground/40 hover:border-foreground/20 transition-colors">
           {tags.map((tag) => (
@@ -153,14 +153,10 @@ export function SubmitCategoriesSection() {
                 }
               }}
               onKeyDown={(e) => {
-                // Standard tokenisé (Stack Overflow, GitHub) : l'espace
-                // transforme le mot en badge supprimable (les espaces sont
-                // normalisés en `-` de toute façon — commitTag).
-                if (e.key === " ") {
-                  e.preventDefault();
-                  commitTag(tagInput);
-                  setTagInput("");
-                } else if (e.key === "Enter") {
+                // Tokenisé (Entrée/virgule, comme la Config requise) : la
+                // barre ESPACE est supprimée du déclencheur — elle ne doit
+                // rien committer dans une input texte (corrections impossibles).
+                if (e.key === "Enter") {
                   e.preventDefault();
                   commitTag(tagInput);
                   setTagInput("");

@@ -91,8 +91,8 @@ export function validateSubmitClient(input: SubmitValidationInput): Record<strin
 
   if (input.categories.length === 0) set("categories", "Catégorie : au moins une requise.");
   if (input.platforms.length === 0) set("platforms", "Plateformes : au moins une requise.");
-  if (input.tags.some((t) => t.length > 30) || input.tags.length > 5) {
-    set("tags", "Tags : max 5, 30 caractères chacun.");
+  if (input.tags.some((t) => t.length > 30) || input.tags.length > 10) {
+    set("tags", "Tags : max 10, 30 caractères chacun.");
   }
   if (input.requirements.some((r) => r.length > 80) || input.requirements.length > 8) {
     set("requirements", "Configuration requise : max 8, 80 caractères chacune.");

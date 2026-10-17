@@ -17,7 +17,7 @@ RGPD ; `deleted_at` = retraits admin uniquement.
 | `description`               | `text` NOT NULL                             | Markdown, 20–20000 (sanitize import appliqué serveur)                                |
 | `category`                  | `text` NOT NULL                             | Slug `config/categories` (principale)                                                |
 | `categories`                | `text[]` NOT NULL DEFAULT `{}`              | Toutes choisies, `[0]` = principale, max 3                                           |
-| `tags`                      | `text[]` NOT NULL DEFAULT `{}`              | Libres, max 5 × 30 signes                                                            |
+| `tags`                      | `text[]` NOT NULL DEFAULT `{}`              | Libres, max 10 × 30 signes                                                           |
 | `platforms`                 | `text[]` NOT NULL DEFAULT `{}`              | Ids `config/platforms` (≥ 1)                                                         |
 | `links`                     | `jsonb` NOT NULL DEFAULT `{}`               | Map field-id → URL (`ProductLinks`, matrice `config/product-links`, ids validés Zod) |
 | `product_type`              | `product_type` NOT NULL DEFAULT `'other'`   | Enum 15 valeurs (mobile→desktop→bot…)                                                |
