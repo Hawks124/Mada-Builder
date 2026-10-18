@@ -1631,8 +1631,14 @@ async function main(): Promise<void> {
     data: { ...baseData, name: "Produit Vérif Downloads" },
     asDraft: true,
   });
-  // Le compteur part de 0 : une fiche neuve ne doit jamais hériter d'un total.
-  await db.update(products).set({ downloadCount: 999 }).where(eq(products.id, dl.id)); // cache volontairement faussé
+  // Une fiche neuve ne doit jamais hériter d'un total (le cache faussé est
+  // testé plus bas, via `recountDownloadCounts`).
+  const [fresh] = await db
+    .select({ downloadCount: products.downloadCount })
+    .from(products)
+    .where(eq(products.id, dl.id))
+    .limit(1);
+  check("download : fiche neuve à 0", fresh.downloadCount === 0);
   recordDownload(dl.id);
   // `recordDownload` est fire-and-forget : on laisse le tour de boucle livrer
   // les deux écritures (insert + update) avant de lire.

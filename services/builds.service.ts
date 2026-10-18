@@ -222,10 +222,18 @@ export type BuildListItem = typeof productBuilds.$inferSelect;
 /**
  * Téléchargement APK — événement + compteur dénormalisé.
  *
+ * **Appelé depuis la route qui signes l'URL, jamais depuis une route
+ * cachée.** Le JSON natif partait en `CACHE_PUBLIC_SHORT` : sur une fenêtre
+ * de 60 s, le handler ne réexécutait pas et le téléchargement n'était ni
+ * compté ni journalisé — et une URL signée par requête n'a de toute façon
+ * rien à faire dans un cache partagé. Le comptage vit donc sur le chemin
+ * du presign, qui est le seul chemin qui crée une URL neuve à chaque
+ * appel.
+ *
  * **Fire-and-forget assumé** : l'écriture ne doit JAMAIS retenir la réponse
- * (302 web ou JSON natif). Un téléchargement non compté est un bug d'affichage
- * ; un téléchargement bloqué ou en erreur est un produit mort. D'où le
- * `void … catch` : l'échec d'écriture est avalé, jamais remonté au client.
+ * (302 web ou JSON natif). Un téléchargement non compté est un bug d'affichage ;
+ * un téléchargement bloqué ou en erreur est un produit mort. L'échec
+ * d'écriture est avalé, jamais remonté au client.
  *
  * **Incrément atomique SQL** (`download_count + 1`) et non
  * lecture-modification-écriture en JS : deux téléchargements simultanés sur

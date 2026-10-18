@@ -68,7 +68,10 @@ export async function GET(
       throw new ApiError("NOT_FOUND", 404, "Aucun binaire vérifié pour ce produit.");
     }
     const url = await presignBuildDownload(latest.r2Key);
-    // Compteur APRÈS tous les contrôles (404 = rien), écriture non bloquante.
+    // Compteur AVANT le presign et hors de la réponse : la route est servie
+    // en cache public court, donc seule une exécution réelle du handler
+    // compte. Compter à la réponse serait aveugle aux hits servis par le
+    // cache — et l'URL signée est par nature par requête.
     recordDownload(product.id);
     return withCache(
       apiOk({
