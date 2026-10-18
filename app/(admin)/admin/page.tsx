@@ -92,6 +92,7 @@ async function getStats(): Promise<{
       views7,
       clicks,
       clicks7,
+      downloads,
       emails,
       emails7,
       feedback,
@@ -183,7 +184,13 @@ async function getStats(): Promise<{
         label: "Clics sortants",
         value: n(clicks),
         delta: `dont ${n(clicks7)} (7 j)`,
-        tone: clicks7 > 0 ? ("up" as const) : ("neutral" as const),
+        tone: "neutral" as const,
+      },
+      {
+        label: "Téléchargements APK",
+        value: n(downloads),
+        delta: "installations demandées, cumulé",
+        tone: downloads > 0 ? ("up" as const) : ("neutral" as const),
       },
       {
         label: "Notes moyennes",

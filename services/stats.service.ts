@@ -236,6 +236,7 @@ export type AdminAnalytics = {
   views7: number;
   clicks: number;
   clicks7: number;
+  downloads: number;
   emails: EmailCounters;
   emails7: EmailCounters;
   feedback: { reviews: number; comments: number; avgRating: number | null };
@@ -286,6 +287,20 @@ function stat<T>(label: string, p: Promise<T>, fallback: T): Promise<{ v: T; ok:
   });
 }
 
+/**
+ * Téléchargements APK cumulés (plateforme). Lit le compteur dénormalisé
+ * `products.download_count` — un SUM au lieu d'un COUNT sur la table
+ * d'événements : l'agrégat plateforme n'a pas besoin de l'historique, et le
+ * compteur se répare par le job.
+ */
+export async function getTotalDownloads(): Promise<number> {
+  const [{ downloads }] = await db
+    .select({ downloads: sql<number>`coalesce(sum(${products.downloadCount}), 0)::int` })
+    .from(products)
+    .where(isNull(products.deletedAt));
+  return downloads;
+}
+
 const ZERO_EMAILS: EmailCounters = { sent: 0, delivered: 0, failed: 0 };
 
 async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: boolean }> {
@@ -300,6 +315,7 @@ async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: bool
     views7,
     clicks,
     clicks7,
+    downloads,
     emails,
     emails7,
     feedback,
@@ -319,6 +335,7 @@ async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: bool
     stat("views7", getProductViewsTotal(7), 0),
     stat("clicks", getOutboundClicksTotal(), 0),
     stat("clicks7", getOutboundClicksTotal(7), 0),
+    stat("downloads", getTotalDownloads(), 0),
     stat("emails", getEmailStats(), ZERO_EMAILS),
     stat("emails7", getEmailStats(7), ZERO_EMAILS),
     stat("feedback", getFeedbackStats(), { reviews: 0, comments: 0, avgRating: null }),
@@ -334,6 +351,7 @@ async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: bool
     views7,
     clicks,
     clicks7,
+    downloads,
     emails,
     emails7,
     feedback,
@@ -355,6 +373,7 @@ async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: bool
     views7: views7.v,
     clicks: clicks.v,
     clicks7: clicks7.v,
+    downloads: downloads.v,
     emails: emails.v,
     emails7: emails7.v,
     feedback: feedback.v,
@@ -392,6 +411,7 @@ export async function getAdminAnalyticsCached(): Promise<AdminAnalytics> {
         views7: 0,
         clicks: 0,
         clicks7: 0,
+        downloads: 0,
         emails: ZERO_EMAILS,
         emails7: ZERO_EMAILS,
         feedback: { reviews: 0, comments: 0, avgRating: null },

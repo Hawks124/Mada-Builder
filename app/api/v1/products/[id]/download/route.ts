@@ -12,7 +12,7 @@ import { apiLimit } from "@/lib/api/ratelimit";
 import { db } from "@/db";
 import { products } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
-import { getApprovedBuilds } from "@/services/builds.service";
+import { getApprovedBuilds, recordDownload } from "@/services/builds.service";
 import { presignBuildDownload } from "@/lib/r2";
 
 export const OPTIONS = async () => corsPreflight();
@@ -68,6 +68,8 @@ export async function GET(
       throw new ApiError("NOT_FOUND", 404, "Aucun binaire vérifié pour ce produit.");
     }
     const url = await presignBuildDownload(latest.r2Key);
+    // Compteur APRÈS tous les contrôles (404 = rien), écriture non bloquante.
+    recordDownload(product.id);
     return withCache(
       apiOk({
         url,

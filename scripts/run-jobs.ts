@@ -5,6 +5,7 @@
 // des emails, l'autre touche l'audience Resend.
 import "./_env";
 import { purgeStaleDrafts, sweepR2Orphans } from "@/services/products.service";
+import { recountDownloadCounts } from "@/services/builds.service";
 import { recomputeScores, rotateFeaturedDaily } from "@/services/ranking.service";
 import { purgeNotifications, sendWeeklyDigest } from "@/services/notifications.service";
 import { syncRevenueHourly } from "@/services/revenue/sync";
@@ -14,6 +15,10 @@ async function main(): Promise<void> {
   if (which === "all" || which === "scores") {
     const r = await recomputeScores();
     console.log(`jobs: scores recalculés (${r.updated} fiches, ${r.promoted} poids promus)`);
+    // Compteurs dénormalisés reconstruits depuis les événements : le même
+    // passage répare le score ET les téléchargements (jamais de dérive).
+    const d = await recountDownloadCounts();
+    console.log(`jobs: téléchargements recomptés (${d.updated} fiches)`);
   }
   if (which === "all" || which === "featured") {
     const r = await rotateFeaturedDaily();

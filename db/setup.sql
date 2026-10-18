@@ -378,6 +378,7 @@ CREATE POLICY "screenshots_select_published"
   );
 ALTER TABLE public.votes ENABLE ROW LEVEL SECURITY;ALTER TABLE public.product_page_views ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_link_clicks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_downloads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.idempotency_keys ENABLE ROW LEVEL SECURITY;
 
 -- featured_products : AUCUNE policy = refusé via Data API (le produit

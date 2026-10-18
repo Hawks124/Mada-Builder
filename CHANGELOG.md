@@ -6,6 +6,21 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **Téléchargements APK (compteur réel)** : table `product_downloads`
+  (événements anonymes — ni user_id, ni IP ; RLS deny-all) + colonne
+  dénormalisée `products.download_count`, motif votes/commentaires. Un
+  compteur par produit, pas par version (le chemin sert toujours le dernier
+  build approuvé). Compté dans les deux routes de download (302 web et JSON
+  natif) **après** les contrôles, en fire-and-forget : un 404 ne compte
+  pas, l'écriture ne retarde jamais la réponse ; incrément atomique SQL,
+  reconstruit depuis les événements par le job `scores`
+  (`recountDownloadCounts`) — le compteur est un cache, jamais la vérité.
+  Exposés côté maker (stat + 3ᵉ série du graphe d'activité, token violet
+  `--chart-downloads` hors des familles de statut), côté admin (agrégat
+  plateforme), et côté API v1 (`downloadCount` — parité, le mobile peut lire
+  la colonne directement en base). Docs : `docs/data/product_downloads.md`,
+  `docs/data/products.md`, `docs/mobile-contrats.md`. Migration 0045.
+
 - **Revenus vérifiés, finitions BÊTA** : slide-over « Quel prestataire ? »
   (soumission — 5 providers, format de clé, lien `#creer-la-cle`, choix
   direct) ; profil maker distingue vrai 0 en full (affiché) du masqué

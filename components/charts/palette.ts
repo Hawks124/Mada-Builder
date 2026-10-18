@@ -8,8 +8,13 @@
  * unique reste sur le premier plan — une teinte n'y décrirait rien.
  */
 
-/** Seul bleu du dépôt : la seule paire de séries qui croise dans une même aire. */
-export const SERIES = { clicks: "var(--chart-clicks)" } as const;
+/** Séries du graphe d'activité : clics (blue) et téléchargements (violet).
+ *  Le violet est choisi hors des familles de statut (vert/ambre/rouge) pour
+ *  qu'une courbe ne soit jamais confondue avec un état. */
+export const SERIES = {
+  clicks: "var(--chart-clicks)",
+  downloads: "var(--chart-downloads)",
+} as const;
 
 /** Réservé au statut. Aucune de ces trois teintes ne sert ailleurs. */
 export const STATUS = {

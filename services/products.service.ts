@@ -6,6 +6,7 @@ import {
   productScreenshots,
   productPageViews,
   productLinkClicks,
+  productDownloads,
   votes,
   users,
   adminActions,
@@ -872,6 +873,10 @@ const publicMakerSelect = {
   ratingsSum: products.ratingsSum,
   ratingsCount: products.ratingsCount,
   commentsCount: products.commentsCount,
+  // Téléchargements APK (compteur dénormalisé, lu aussi en base par le
+  // mobile) : présent dans la lecture produit pour que l'API v1 l'expose
+  // sans requête supplémentaire.
+  downloadCount: products.downloadCount,
   curated: products.curated,
   publishedAt: products.publishedAt,
   createdAt: products.createdAt,
@@ -1205,6 +1210,8 @@ export function toDashboardApp(
     views: 0,
     clicks: 0,
     views7d: 0,
+    // Engagement réel injecté plus haut par `getMakerAppsDashboard`.
+    downloads: 0,
     comments: row.commentsCount ?? 0,
     rating: ratingsAvgOf(row.ratingsSum ?? 0, row.ratingsCount ?? 0),
     ratingsCount: row.ratingsCount ?? 0,
@@ -2063,54 +2070,94 @@ export async function getProductStats(input: {
 }
 
 /**
- * Engagement batch (4C) : vues + clics sortants par produit, 2 requêtes
- * groupées (jamais N×2). Sert le dashboard maker et le profil public.
- * Produits inconnus = absents (l'appelant complète à 0).
+ * Engagement batch (4C) : vues + clics sortants + téléchargements par
+ * produit, requêtes groupées (jamais N×k). Sert le dashboard maker et le
+ * profil public. Produits inconnus = absents (l'appelant complète à 0).
+ * Les téléchargements viennent des événements (vérité) et non du compteur
+ * dénormalisé : ici on veut l'historique (total + 7 j), pas un O(1).
  */
-export async function getProductsEngagement(
-  productIds: string[],
-): Promise<Record<string, { views: number; clicks: number; views7d: number; clicks7d: number }>> {
+export async function getProductsEngagement(productIds: string[]): Promise<
+  Record<
+    string,
+    {
+      views: number;
+      clicks: number;
+      downloads: number;
+      views7d: number;
+      clicks7d: number;
+      downloads7d: number;
+    }
+  >
+> {
   if (productIds.length === 0) return {};
   const weekAgo = new Date(Date.now() - 7 * 24 * 3_600_000).toISOString();
-  const [viewRows, clickRows, view7Rows, click7Rows] = await Promise.all([
-    db
-      .select({ productId: productPageViews.productId, n: sql<number>`count(*)::int` })
-      .from(productPageViews)
-      .where(inArray(productPageViews.productId, productIds))
-      .groupBy(productPageViews.productId),
-    db
-      .select({ productId: productLinkClicks.productId, n: sql<number>`count(*)::int` })
-      .from(productLinkClicks)
-      .where(inArray(productLinkClicks.productId, productIds))
-      .groupBy(productLinkClicks.productId),
-    db
-      .select({ productId: productPageViews.productId, n: sql<number>`count(*)::int` })
-      .from(productPageViews)
-      .where(
-        and(
-          inArray(productPageViews.productId, productIds),
-          sql`${productPageViews.createdAt} >= ${weekAgo}::timestamptz`,
-        ),
-      )
-      .groupBy(productPageViews.productId),
-    db
-      .select({ productId: productLinkClicks.productId, n: sql<number>`count(*)::int` })
-      .from(productLinkClicks)
-      .where(
-        and(
-          inArray(productLinkClicks.productId, productIds),
-          sql`${productLinkClicks.createdAt} >= ${weekAgo}::timestamptz`,
-        ),
-      )
-      .groupBy(productLinkClicks.productId),
-  ]);
-  const out: Record<string, { views: number; clicks: number; views7d: number; clicks7d: number }> =
-    {};
-  const cell = (id: string) => (out[id] ??= { views: 0, clicks: 0, views7d: 0, clicks7d: 0 });
+  const [viewRows, clickRows, downloadRows, view7Rows, click7Rows, download7Rows] =
+    await Promise.all([
+      db
+        .select({ productId: productPageViews.productId, n: sql<number>`count(*)::int` })
+        .from(productPageViews)
+        .where(inArray(productPageViews.productId, productIds))
+        .groupBy(productPageViews.productId),
+      db
+        .select({ productId: productLinkClicks.productId, n: sql<number>`count(*)::int` })
+        .from(productLinkClicks)
+        .where(inArray(productLinkClicks.productId, productIds))
+        .groupBy(productLinkClicks.productId),
+      db
+        .select({ productId: productDownloads.productId, n: sql<number>`count(*)::int` })
+        .from(productDownloads)
+        .where(inArray(productDownloads.productId, productIds))
+        .groupBy(productDownloads.productId),
+      db
+        .select({ productId: productPageViews.productId, n: sql<number>`count(*)::int` })
+        .from(productPageViews)
+        .where(
+          and(
+            inArray(productPageViews.productId, productIds),
+            sql`${productPageViews.createdAt} >= ${weekAgo}::timestamptz`,
+          ),
+        )
+        .groupBy(productPageViews.productId),
+      db
+        .select({ productId: productLinkClicks.productId, n: sql<number>`count(*)::int` })
+        .from(productLinkClicks)
+        .where(
+          and(
+            inArray(productLinkClicks.productId, productIds),
+            sql`${productLinkClicks.createdAt} >= ${weekAgo}::timestamptz`,
+          ),
+        )
+        .groupBy(productLinkClicks.productId),
+      db
+        .select({ productId: productDownloads.productId, n: sql<number>`count(*)::int` })
+        .from(productDownloads)
+        .where(
+          and(
+            inArray(productDownloads.productId, productIds),
+            sql`${productDownloads.createdAt} >= ${weekAgo}::timestamptz`,
+          ),
+        )
+        .groupBy(productDownloads.productId),
+    ]);
+  const out: Record<
+    string,
+    {
+      views: number;
+      clicks: number;
+      downloads: number;
+      views7d: number;
+      clicks7d: number;
+      downloads7d: number;
+    }
+  > = {};
+  const cell = (id: string) =>
+    (out[id] ??= { views: 0, clicks: 0, downloads: 0, views7d: 0, clicks7d: 0, downloads7d: 0 });
   for (const r of viewRows) cell(r.productId).views = r.n;
   for (const r of clickRows) cell(r.productId).clicks = r.n;
+  for (const r of downloadRows) cell(r.productId).downloads = r.n;
   for (const r of view7Rows) cell(r.productId).views7d = r.n;
   for (const r of click7Rows) cell(r.productId).clicks7d = r.n;
+  for (const r of download7Rows) cell(r.productId).downloads7d = r.n;
   return out;
 }
 

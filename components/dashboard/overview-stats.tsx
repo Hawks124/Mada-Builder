@@ -124,6 +124,15 @@ export function OverviewStats({
             tone: "neutral",
           },
           {
+            label: "Téléchargements APK",
+            value: formatCompactCount(totals.totalDownloads ?? 0),
+            delta:
+              (totals.appsWithApk ?? 0) > 0
+                ? "installations demandées, cumulé"
+                : "aucun binaire envoyé",
+            tone: (totals.totalDownloads ?? 0) > 0 ? "up" : "neutral",
+          },
+          {
             label: "Commentaires",
             value: formatCompactCount(totals.totalComments),
             delta: "total",

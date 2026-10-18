@@ -38,6 +38,8 @@ export type DashboardApp = {
   clicks: number;
   /** Vues 7 j (Lot 3) : le pouls actuel (vs cumulé). */
   views7d: number;
+  /** Téléchargements APK cumulés (D6) — absent = 0 (fixtures mock incluses). */
+  downloads: number;
   /** Rang top 15 tout temps (Lot 3) — absent = hors top, jamais de faux rang. */
   topRank?: number;
   /** Dernière notif email liée (Lot 5) — pastille non-live uniquement. */
@@ -112,6 +114,7 @@ export const MOCK_APPS: DashboardApp[] = [
     views: 12400,
     clicks: 0,
     views7d: 0,
+    downloads: 0,
     comments: 58,
     rating: 4.9,
     ratingsCount: 120,
@@ -137,6 +140,7 @@ export const MOCK_APPS: DashboardApp[] = [
     views: 8300,
     clicks: 0,
     views7d: 0,
+    downloads: 0,
     comments: 24,
     rating: 4.7,
     ratingsCount: 64,
@@ -162,6 +166,7 @@ export const MOCK_APPS: DashboardApp[] = [
     views: 4100,
     clicks: 0,
     views7d: 0,
+    downloads: 0,
     comments: 12,
     rating: 4.8,
     ratingsCount: 31,
@@ -193,6 +198,7 @@ export const MOCK_APPS: DashboardApp[] = [
     views: 0,
     clicks: 0,
     views7d: 0,
+    downloads: 0,
     comments: 0,
     rating: 0,
     ratingsCount: 0,
@@ -217,6 +223,7 @@ export const MOCK_APPS: DashboardApp[] = [
     views: 0,
     clicks: 0,
     views7d: 0,
+    downloads: 0,
     comments: 0,
     rating: 0,
     ratingsCount: 0,
@@ -243,6 +250,7 @@ export const MOCK_APPS: DashboardApp[] = [
     views: 2300,
     clicks: 0,
     views7d: 0,
+    downloads: 0,
     comments: 9,
     rating: 4.6,
     ratingsCount: 22,
@@ -268,6 +276,8 @@ export type DashboardTotals = {
   /** Binaires (D6) : total + nb de produits avec track (absents en public). */
   totalBuilds?: number;
   appsWithApk?: number;
+  /** Téléchargements APK cumulés (D6) — optionnel comme les binaires. */
+  totalDownloads?: number;
 };
 
 export function getDashboardTotals(apps: DashboardApp[]): DashboardTotals {
@@ -299,6 +309,7 @@ export function getDashboardTotals(apps: DashboardApp[]): DashboardTotals {
     totalViews: apps.reduce((acc, a) => acc + a.views, 0),
     totalClicks: apps.reduce((acc, a) => acc + a.clicks, 0),
     totalViews7d: apps.reduce((acc, a) => acc + a.views7d, 0),
+    totalDownloads: apps.reduce((acc, a) => acc + (a.downloads ?? 0), 0),
     pendingCount: apps.filter((a) => a.status === "pending").length,
     totalMrrCents,
     mrrCurrency,
