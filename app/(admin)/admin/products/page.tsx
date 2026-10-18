@@ -26,9 +26,8 @@ export default async function AdminProductsPage() {
   }).catch(() => ({
     items: [],
   }));
-  const engagement: Record<string, { views: number; clicks: number }> = await getProductsEngagement(
-    items.map((r) => r.id),
-  ).catch(() => ({}));
+  const engagement: Record<string, { views: number; clicks: number; downloads: number }> =
+    await getProductsEngagement(items.map((r) => r.id)).catch(() => ({}));
   const apps: AdminProduct[] = items.map((r) => ({
     id: r.id,
     slug: r.slug,
@@ -49,6 +48,7 @@ export default async function AdminProductsPage() {
     lifecycle: (["dev", "beta", "live"] as const).find((l) => l === r.lifecycle) ?? "live",
     votes: r.upvoteCount,
     views: engagement[r.id]?.views ?? 0,
+    downloads: engagement[r.id]?.downloads ?? 0,
     rating: 0,
     revenue: undefined,
     iconGradient: appGradientFor(r.id),

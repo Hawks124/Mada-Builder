@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Mock du panel admin — typé pour brancher Drizzle + session admin
  * sans changer les composants. Modération = ban réversible par défaut,
  * jamais de suppression user (anti-trauma-stores). La suppression
@@ -235,6 +235,8 @@ export type AdminProduct = {
   lifecycle: "dev" | "beta" | "live";
   votes: number;
   views: number;
+  /** Téléchargements APK cumulés (D6) — même source que `views`. */
+  downloads: number;
   rating: number;
   revenue?: AdminRevenueRef;
   iconGradient: string;
@@ -272,6 +274,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
     lifecycle: "live",
     votes: 342,
     views: 12400,
+    downloads: 0,
     rating: 4.9,
     revenue: { provider: "stripe", mrrCents: 25_000, currency: "USD", displayMode: "full" },
     iconGradient: "from-zinc-800 to-zinc-950",
@@ -299,6 +302,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
     lifecycle: "live",
     votes: 512,
     views: 18400,
+    downloads: 0,
     rating: 5.0,
     iconGradient: "from-blue-600 to-indigo-700",
     initials: "TA",
@@ -324,6 +328,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
     lifecycle: "live",
     votes: 187,
     views: 8300,
+    downloads: 0,
     rating: 4.7,
     iconGradient: "from-emerald-500 to-teal-600",
     initials: "TC",
@@ -350,6 +355,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
     lifecycle: "beta",
     votes: 96,
     views: 4100,
+    downloads: 0,
     rating: 4.8,
     revenue: { provider: "revenuecat", mrrCents: 9_400, currency: "USD", displayMode: "full" },
     iconGradient: "from-blue-600 to-indigo-600",
@@ -376,6 +382,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
     lifecycle: "live",
     votes: 54,
     views: 2100,
+    downloads: 0,
     rating: 4.5,
     iconGradient: "from-amber-400 to-orange-500",
     initials: "AU",
@@ -402,6 +409,7 @@ export const ADMIN_PRODUCTS: AdminProduct[] = [
     lifecycle: "live",
     votes: 58,
     views: 2300,
+    downloads: 0,
     rating: 4.6,
     iconGradient: "from-yellow-500 to-orange-500",
     initials: "SM",
