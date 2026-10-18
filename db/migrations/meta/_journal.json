@@ -302,6 +302,13 @@
       "when": 1791975600000,
       "tag": "0044_users_lock_sensitive",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792319732491,
+      "tag": "0045_product_downloads",
+      "breakpoints": true
     }
   ]
 }
