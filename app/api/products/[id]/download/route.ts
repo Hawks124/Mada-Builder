@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { ApiError, apiCatch, methodNotAllowed } from "@/lib/api/response";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
@@ -41,8 +42,8 @@ export async function GET(
     }
     const url = await presignBuildDownload(latest.r2Key);
     // Compteur APRÈS tous les contrôles : un 404 ne compte pas, et
-    // l'écriture ne retarde jamais le 302 (fire-and-forget).
-    recordDownload(product.id);
+    // l'écriture après réponse est suivie par Next.js.
+    after(() => recordDownload(product.id));
     // 302 manuel (pas `redirect()` : apiCatch avalerait son throw).
     return Response.redirect(url, 302);
   } catch (e) {

@@ -1628,7 +1628,12 @@ async function main(): Promise<void> {
   const { recordDownload, recountDownloadCounts } = await import("@/services/builds.service");
   const dl = await submitProduct({
     viewerId: submitter2,
-    data: { ...baseData, name: "Produit Vérif Downloads" },
+    data: {
+      ...baseData,
+      name: "Produit Vérif Downloads",
+      productType: "app_mobile",
+      galleryOrientation: "portrait",
+    },
     asDraft: true,
   });
   // Une fiche neuve ne doit jamais hériter d'un total (le cache faussé est
@@ -1639,10 +1644,8 @@ async function main(): Promise<void> {
     .where(eq(products.id, dl.id))
     .limit(1);
   check("download : fiche neuve à 0", fresh.downloadCount === 0);
-  recordDownload(dl.id);
-  // `recordDownload` est fire-and-forget : on laisse le tour de boucle livrer
-  // les deux écritures (insert + update) avant de lire.
-  await new Promise((r) => setTimeout(r, 250));
+  // Le compteur part de 0 : une fiche neuve ne doit jamais hériter d'un total.
+  await recordDownload(dl.id);
   const [dlRow] = await db
     .select({ downloadCount: products.downloadCount })
     .from(products)

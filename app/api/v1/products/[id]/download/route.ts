@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import {
   ApiError,
   apiCatch,
@@ -6,7 +7,7 @@ import {
   iso,
   methodNotAllowed,
   withCache,
-  CACHE_PUBLIC_SHORT,
+  CACHE_PRIVATE,
 } from "@/lib/api/response";
 import { apiLimit } from "@/lib/api/ratelimit";
 import { db } from "@/db";
@@ -67,12 +68,14 @@ export async function GET(
     if (!latest) {
       throw new ApiError("NOT_FOUND", 404, "Aucun binaire vérifié pour ce produit.");
     }
+    // Compteur AVANT le presign, après tous les contrôles (404 = rien) :
+    // seul le handler compte, donc on place l'appel avant qu'une réponse
+    // puisse être servie sans réexécuter la route. `after()` garantit que
+    // l'écriture survit à la fin de l'invocation sans jamais retarder la
+    // réponse — et la réponse reste en `no-store`, une URL signée étant
+    // par nature par requête.
+    after(() => recordDownload(product.id));
     const url = await presignBuildDownload(latest.r2Key);
-    // Compteur AVANT le presign et hors de la réponse : la route est servie
-    // en cache public court, donc seule une exécution réelle du handler
-    // compte. Compter à la réponse serait aveugle aux hits servis par le
-    // cache — et l'URL signée est par nature par requête.
-    recordDownload(product.id);
     return withCache(
       apiOk({
         url,
@@ -84,7 +87,7 @@ export async function GET(
         sizeBytes: latest.sizeBytes,
         reviewedAt: iso(latest.reviewedAt),
       }),
-      CACHE_PUBLIC_SHORT,
+      CACHE_PRIVATE,
     );
   } catch (e) {
     return apiCatch(e, "api.download.detail");

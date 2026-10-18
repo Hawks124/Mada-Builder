@@ -102,6 +102,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   React.useEffect(() => {
     let cancelled = false;
+    let generation = 0;
+    const isCurrent = (runGeneration: number) => !cancelled && runGeneration === generation;
     const controller = new AbortController();
     // Attentes de retry résolues AU MOMENT DU CLEANUP : un `clearTimeout`
     // seul laisserait la promesse d'endormie pour toujours (`await` bloqué
@@ -124,8 +126,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         return { part: null, http: null };
       }
     };
-    const merge = (part: Partial<Record<BadgeKey, BadgeState>> | null) => {
-      if (part && !cancelled) setBadges((prev) => ({ ...prev, ...part }));
+    const merge = (part: Partial<Record<BadgeKey, BadgeState>> | null, runGeneration: number) => {
+      if (part && isCurrent(runGeneration)) {
+        setBadges((prev) => (isCurrent(runGeneration) ? { ...prev, ...part } : prev));
+      }
     };
     /**
      * Réponse HTTP en erreur = chiffre INCONNU, pas une file vide. On
@@ -134,9 +138,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
      * attente » (exactement le 0 qu'il voyait). Les retries qui suivent
      * écrasent ces marqueurs par la valeur réelle quand la route répond.
      */
-    const markUnknown = (keys: BadgeKey[], http: number | null) => {
-      if (cancelled) return;
+    const markUnknown = (keys: BadgeKey[], http: number | null, runGeneration: number) => {
+      if (!isCurrent(runGeneration)) return;
       setBadges((prev) => {
+        if (!isCurrent(runGeneration)) return prev;
         const next = { ...prev };
         for (const key of keys) {
           if (next[key]?.ok === true) continue;
@@ -148,12 +153,14 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     // Retry auto des clés en échec SEULEMENT (jamais de re-clic) :
     // batch complet, puis 2 rattrapages espacés (1,5 s / 4 s), puis stop.
     const run = async () => {
+      const runGeneration = ++generation;
       const first = await load();
-      merge(first.part);
-      if (!first.part) markUnknown(ALL_BADGE_KEYS, first.http);
+      if (!isCurrent(runGeneration)) return;
+      merge(first.part, runGeneration);
+      if (!first.part) markUnknown(ALL_BADGE_KEYS, first.http, runGeneration);
       let failed = ALL_BADGE_KEYS.filter((k) => !first.part?.[k]?.ok);
       for (const delay of [1500, 4000]) {
-        if (cancelled || failed.length === 0) return;
+        if (!isCurrent(runGeneration) || failed.length === 0) return;
         await new Promise<void>((resolve) => {
           const timer = setTimeout(resolve, delay);
           waiters.push(() => {
@@ -161,10 +168,11 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             resolve();
           });
         });
-        if (cancelled) return;
+        if (!isCurrent(runGeneration)) return;
         const next = await load(failed);
-        merge(next.part);
-        if (!next.part) markUnknown(failed, next.http);
+        if (!isCurrent(runGeneration)) return;
+        merge(next.part, runGeneration);
+        if (!next.part) markUnknown(failed, next.http, runGeneration);
         failed = failed.filter((k) => !next.part?.[k]?.ok);
       }
     };

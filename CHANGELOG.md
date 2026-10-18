@@ -418,6 +418,9 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Corrigé
 
+- Téléchargements APK : URL native sans cache partagé, écritures suivies après
+  réponse via `after()` et vérification du compteur sans temporisation. Les
+  rafraîchissements des pastilles admin ignorent les réponses dépassées.
 - **Pastilles admin (« En revue », « Binaires ») qui restaient à 0/nulle** :
   deadlock du shell — le ref `inFlight`, partagé entre les effets,
   sortait immédiatement quand une navigation arrivait pendant le fetch
