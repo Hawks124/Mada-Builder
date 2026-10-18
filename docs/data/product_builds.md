@@ -34,6 +34,12 @@ Index : UNIQUE `(product_id, version_code)`, `(product_id, created_at)`.
   objet purgé ; taille menteuse = refus + objet purgé (jamais d'orphelin).
 - Doublon (produit, version) = refus + purge objet.
 - APK universel only (splits/AAB refusés avec doc). Debug/profile refusés (D2+).
+- Signature : v1+v2+v3 **recommandés** (téléphones < Android 7 n'installent
+  que sur v1) ; v2/v3-only acceptés si les certificats du bloc sont lisibles.
+  Refus différenciés de l'analyse — `UNSIGNED` : aucun bloc ni META-INF ;
+  `BLOCK_UNREADABLE` : bloc v2/v3 détecté mais certs illisibles ;
+  `V1_UNREADABLE` : entrées JAR illisibles ; `DEBUG_CERT` : clé debug ;
+  `CERT_FAILED` : blob X.509 non parsé. Fail-closed dans tous les cas.
 - RLS deny-all : service seul (`createBuild`), jamais de direct.
 
 ## Usage mobile

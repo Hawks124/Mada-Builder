@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BookOpenIcon, SealCheckIcon } from "@phosphor-icons/react/dist/ssr";
+import { BookOpenIcon, KeyIcon, SealCheckIcon } from "@phosphor-icons/react/dist/ssr";
 
 export const metadata: Metadata = {
   title: "Guides makers | Mada-Made",
@@ -29,6 +29,24 @@ export default function GuidesPage() {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Link
+            href="/guides/signature-apk"
+            className="group flex gap-4 rounded-2xl border border-border/40 bg-muted/30 p-6 hover:bg-muted/60 transition-colors"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-500/10 border border-indigo-500/25">
+              <KeyIcon weight="fill" className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+            </span>
+            <span className="flex flex-col gap-1 min-w-0">
+              <span className="text-[17px] font-extrabold tracking-tight text-foreground group-hover:text-primary transition-colors">
+                Signer son APK release
+              </span>
+              <span className="text-[14px] font-medium text-muted-foreground leading-relaxed">
+                Keystore, schémas v1/v2/v3 et vérification apksigner, pas-à-pas pour Android natif,
+                Flutter, React Native, Expo et Capacitor.
+              </span>
+            </span>
+          </Link>
+
           <Link
             href="/guides/revenus-verifies"
             className="group flex gap-4 rounded-2xl border border-border/40 bg-muted/30 p-6 hover:bg-muted/60 transition-colors"

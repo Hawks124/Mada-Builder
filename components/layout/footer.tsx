@@ -77,6 +77,7 @@ const EXPLORER: FooterItem[] = [
   { label: "Classement", href: "/leaderboard" },
   { label: "Revenus vérifiés", href: "/revenue" },
   { label: "Guides makers", href: "/guides" },
+  { label: "Signature APK", href: "/guides/signature-apk" },
 ];
 
 // Le légal est ici et pas dans une colonne à lui : il donne à ce groupe assez

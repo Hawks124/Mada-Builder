@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+
+import Link from "next/link";
 import {
   ApkParseError,
   blobReader,
@@ -196,6 +198,37 @@ export function SubmitApkSection({
           Une fois la fiche approuvée par un humain, le binaire devient téléchargeable depuis la
           page — sur un bucket privé, derrière un lien valable 5 minutes, jamais une URL directe. Le
           téléphone vérifie l&apos;empreinte SHA-256 après le téléchargement.
+        </p>
+        <p className="text-[14px] font-medium leading-relaxed text-muted-foreground">
+          <strong className="font-black text-foreground">APK de debug&nbsp;: refusés.</strong> Les
+          signatures v1+v2+v3 sont recommandées, quel que soit votre outil de build. Les APK signés
+          uniquement en v2/v3 sont acceptés si leurs certificats sont lisibles. Les téléphones sous
+          Android&nbsp;6 et moins (API &lt; 24) ne savent vérifier que la v1. Avec Gradle,
+          configurez les trois schémas dans{" "}
+          <code className="font-mono text-[12px]">app/build.gradle</code> (Groovy) ou{" "}
+          <code className="font-mono text-[12px]">app/build.gradle.kts</code> (Kotlin DSL), sous{" "}
+          <code className="font-mono text-[12px]">android/app/</code> pour Flutter, React Native et
+          Capacitor. Exemple Kotlin DSL :
+        </p>
+        <pre className="overflow-x-auto rounded-xl border border-border/60 bg-muted/30 px-4 py-3 text-[12px] font-mono leading-relaxed text-foreground">
+          {`signingConfigs {
+    create("release") {
+        // … vos keyAlias / storeFile existants …
+        enableV1Signing = true
+        enableV2Signing = true
+        enableV3Signing = true
+    }
+}`}
+        </pre>
+        <p className="text-[13px] font-medium text-muted-foreground">
+          Pas-à-pas complet (keystore inclus, tous frameworks) :{" "}
+          <Link
+            href="/guides/signature-apk"
+            className="font-bold text-foreground underline underline-offset-2"
+          >
+            Signer son APK release
+          </Link>
+          .
         </p>
       </div>
 
