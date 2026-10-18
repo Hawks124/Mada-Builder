@@ -11,6 +11,7 @@ import {
   products,
   productScreenshots,
   productLinkClicks,
+  productDownloads,
   votes,
   productPageViews,
   users,
@@ -1620,6 +1621,58 @@ async function main(): Promise<void> {
   );
   await db.delete(productScreenshots).where(eq(productScreenshots.productId, slaDraft.id));
   await db.delete(products).where(eq(products.id, slaDraft.id));
+
+  // 11b. Téléchargements APK : événement + compteur + réparation du cache.
+  // Sans R2 : on teste la logique durable (la route elle-même est gardée par
+  // les tests builds/D6, elle exige un binaire réellement signable).
+  const { recordDownload, recountDownloadCounts } = await import("@/services/builds.service");
+  const dl = await submitProduct({
+    viewerId: submitter2,
+    data: {
+      ...baseData,
+      name: "Produit Vérif Downloads",
+      productType: "app_mobile",
+      galleryOrientation: "portrait",
+    },
+    asDraft: true,
+  });
+  // Une fiche neuve ne doit jamais hériter d'un total (le cache faussé est
+  // testé plus bas, via `recountDownloadCounts`).
+  const [fresh] = await db
+    .select({ downloadCount: products.downloadCount })
+    .from(products)
+    .where(eq(products.id, dl.id))
+    .limit(1);
+  check("download : fiche neuve à 0", fresh.downloadCount === 0);
+  // Le compteur part de 0 : une fiche neuve ne doit jamais hériter d'un total.
+  await recordDownload(dl.id);
+  const [dlRow] = await db
+    .select({ downloadCount: products.downloadCount })
+    .from(products)
+    .where(eq(products.id, dl.id))
+    .limit(1);
+  const dlEvents = await db
+    .select({ id: productDownloads.id })
+    .from(productDownloads)
+    .where(eq(productDownloads.productId, dl.id));
+  check("download : compteur incrémenté", dlRow.downloadCount === 1);
+  check("download : 1 événement daté", dlEvents.length === 1);
+  const engDl = await getProductsEngagement([dl.id]);
+  check(
+    "engagement expose les téléchargements",
+    (engDl[dl.id]?.downloads ?? -1) === 1 && (engDl[dl.id]?.downloads7d ?? -1) === 1,
+  );
+  // Réparation : le cache (999) est reconstruit depuis les événements.
+  await db.update(products).set({ downloadCount: 999 }).where(eq(products.id, dl.id));
+  await recountDownloadCounts();
+  const [fixed] = await db
+    .select({ downloadCount: products.downloadCount })
+    .from(products)
+    .where(eq(products.id, dl.id))
+    .limit(1);
+  check("recount : compteur reconstruit", fixed.downloadCount === 1);
+  await db.delete(productDownloads).where(eq(productDownloads.productId, dl.id));
+  await db.delete(products).where(eq(products.id, dl.id));
 
   // 12. Nettoyage makers dédiés (ligne + auth — run suivant hermétique).  // Le maker `verify-backend@example.com` (créé §maker si absent) est
   // purgé lui aussi : sans ceci il persistait définitivement (comptes

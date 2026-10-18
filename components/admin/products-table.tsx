@@ -3,7 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { CaretUpIcon, EyeIcon, TrashIcon, StarIcon, FunnelIcon } from "@phosphor-icons/react";
+import {
+  CaretUpIcon,
+  EyeIcon,
+  DownloadSimpleIcon,
+  TrashIcon,
+  StarIcon,
+  FunnelIcon,
+} from "@phosphor-icons/react";
 import { getPlatformById } from "@/config/platforms";
 import { cn } from "@/lib/utils";
 import { SearchInput } from "@/components/ui/search-input";
@@ -352,6 +359,13 @@ function AdminProductRow({
           >
             <EyeIcon weight="bold" className="w-4 h-4 text-muted-foreground" />
             {formatCompactCount(app.views)}
+          </span>
+          <span
+            className="flex items-center gap-1 text-[13px] font-bold text-foreground tabular-nums"
+            title="Téléchargements APK"
+          >
+            <DownloadSimpleIcon weight="bold" className="w-4 h-4 text-muted-foreground" />
+            {formatCompactCount(app.downloads)}
           </span>
         </div>
         <div className="flex items-center gap-1">

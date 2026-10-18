@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { products, productBuilds, users } from "@/db/schema";
+import { products, productBuilds, productDownloads, users } from "@/db/schema";
 import { ProfileError, assertNotBanned } from "@/services/users.service";
 import { notifyAdminsReview } from "@/services/notifications.service";
 import {
@@ -218,6 +218,59 @@ export async function createBuild(input: {
 }
 
 export type BuildListItem = typeof productBuilds.$inferSelect;
+
+/**
+ * Téléchargement APK — événement + compteur dénormalisé.
+ *
+ * Les routes confient cette promesse à `after()` : les deux écritures sont
+ * suivies après la réponse (302 web ou JSON natif), donc elles ne la
+ * retiennent jamais tout en survivant à la fin de l'invocation. L'échec
+ * d'écriture est avalé, jamais remonté au client.
+ *
+ * Appelé sur le chemin du presign, jamais dans une réponse servie en cache :
+ * le handler doit s'exécuter pour qu'un téléchargement soit compté, et une
+ * URL signée est par nature par requête.
+ *
+ * **Incrément atomique SQL** (`download_count + 1`) et non
+ * lecture-modification-écriture en JS : deux téléchargements simultanés sur
+ * la même fiche ne peuvent pas s'écraser. L'événement reste la vérité — le
+ * compteur se reconstruit (`recountDownloadCounts`).
+ */
+export async function recordDownload(productId: string): Promise<void> {
+  try {
+    await db.insert(productDownloads).values({ productId });
+    await db
+      .update(products)
+      .set({ downloadCount: sql`${products.downloadCount} + 1` })
+      .where(eq(products.id, productId));
+  } catch {
+    // Compteur non tenu — la reconstruction (job) rattrape le décalage.
+  }
+}
+
+/**
+ * Reconstruction du compteur depuis les événements (job `scores`) : la
+ * colonne est un cache, jamais la source de vérité. Même philosophy que la
+ * branche « aucun vote → 0 » de `recomputeScores` : une fiche sans
+ * événement doit retomber à 0, pas garder un nombre fantôme.
+ */
+export async function recountDownloadCounts(): Promise<{ updated: number }> {
+  const r = await db.execute(sql`
+    UPDATE ${products} p SET download_count = sub.n
+    FROM (
+      SELECT product_id, COUNT(*)::int AS n FROM ${productDownloads} GROUP BY product_id
+    ) sub
+    WHERE p.id = sub.product_id
+      AND p.download_count <> sub.n
+  `);
+  const z = await db.execute(sql`
+    UPDATE ${products} p SET download_count = 0
+    WHERE p.download_count <> 0
+      AND NOT EXISTS (SELECT 1 FROM ${productDownloads} d WHERE d.product_id = p.id)
+  `);
+  const count = (r: unknown) => Number((r as { rowCount?: number }).rowCount ?? 0);
+  return { updated: count(r) + count(z) };
+}
 
 export type AdminBuildRow = {
   id: string;

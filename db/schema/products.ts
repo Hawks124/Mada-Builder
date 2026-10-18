@@ -133,6 +133,11 @@ export const products = pgTable(
     ratingsSum: integer("ratings_sum").notNull().default(0),
     ratingsCount: integer("ratings_count").notNull().default(0),
     commentsCount: integer("comments_count").notNull().default(0),
+    // Téléchargements APK : COUNT dénormalisé des événements
+    // `product_downloads`. Incrémenté à chaque download serviced, reconstruit
+    // par le job (comme le score) — une lecture à O(1) pour le mobile qui
+    // lit la table directement, sans passer par une API.
+    downloadCount: integer("download_count").notNull().default(0),
     // Curation OSS (lot curation) : produit en veille internationale —
     // exclu du classement voté + featured (catalogue oui), votes et avis
     // désactivés, commentaires ouverts. Posé auto (compte curation) ou
@@ -262,6 +267,30 @@ export const productLinkClicks = pgTable(
   (t) => [index("product_link_clicks_product_created_idx").on(t.productId, t.createdAt)],
 );
 
+/**
+ * Téléchargements APK — événements anonymes (comme `page_views` : jamais de
+ * user_id, ni IP, ni user-agent). Un compteur par PRODUIT, pas par version :
+ * les versions d'un binaire sont la même app (le chemin de téléchargement
+ * sert toujours le dernier build approuvé). `products.download_count` est le
+ * dénominé lu par le mobile directement en base ; cette table en est la
+ * vérité (reconstruction possible, série quotidienne maker).
+ * RLS deny-all (setup.sql) : écritures service seules, lectures Drizzle
+ * serveur.
+ */
+export const productDownloads = pgTable(
+  "product_downloads",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("product_downloads_product_created_idx").on(t.productId, t.createdAt)],
+);
+
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
 export type ProductScreenshot = typeof productScreenshots.$inferSelect;
@@ -269,3 +298,4 @@ export type Vote = typeof votes.$inferSelect;
 export type FeaturedProduct = typeof featuredProducts.$inferSelect;
 export type ProductPageView = typeof productPageViews.$inferSelect;
 export type ProductLinkClick = typeof productLinkClicks.$inferSelect;
+export type ProductDownload = typeof productDownloads.$inferSelect;

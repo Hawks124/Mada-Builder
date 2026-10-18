@@ -102,15 +102,18 @@ export async function getProductsCount(status?: ProductStatus): Promise<number> 
  * File pending mémoïsée par requête (React cache) : le layout admin (badge
  * shell) et la page overview (bouton file) partagent UN seul appel au lieu
  * de deux — même requête, zéro roundtrip doublé.
+ *
+ * **Pas de `.catch` ici** (contre-intuitif, volontaire) : transformer une
+ * erreur de lecture en `0` produit un « file vide » affirmative — le badge
+ * disparaît et l'admin croit que personne n'a rien soumis. La rejection
+ * remonte jusqu'à l'appelant, qui sait l'afficher en « inconnu » (pastille
+ * « — » côté shell, bouton sans chiffre côté overview, les deux l-catching
+ * déjà). Zéro reste un zéro : il vient de la base, pas d'un repli.
  */
-export const getPendingCountCached = cache((): Promise<number> =>
-  getProductsCount("pending").catch(() => 0),
-);
+export const getPendingCountCached = cache((): Promise<number> => getProductsCount("pending"));
 
-/** File rejetés mémoïsée par requête (badge nav, même pattern). */
-export const getRejectedCountCached = cache((): Promise<number> =>
-  getProductsCount("rejected").catch(() => 0),
-);
+/** File rejetés mémoïsée par requête (badge nav, même pattern — même règle). */
+export const getRejectedCountCached = cache((): Promise<number> => getProductsCount("rejected"));
 
 /**
  * Avis + commentaires visibles (admin) : compteurs réels (soft-deleted
@@ -233,6 +236,7 @@ export type AdminAnalytics = {
   views7: number;
   clicks: number;
   clicks7: number;
+  downloads: number;
   emails: EmailCounters;
   emails7: EmailCounters;
   feedback: { reviews: number; comments: number; avgRating: number | null };
@@ -283,6 +287,20 @@ function stat<T>(label: string, p: Promise<T>, fallback: T): Promise<{ v: T; ok:
   });
 }
 
+/**
+ * Téléchargements APK cumulés (plateforme). Lit le compteur dénormalisé
+ * `products.download_count` — un SUM au lieu d'un COUNT sur la table
+ * d'événements : l'agrégat plateforme n'a pas besoin de l'historique, et le
+ * compteur se répare par le job.
+ */
+export async function getTotalDownloads(): Promise<number> {
+  const [{ downloads }] = await db
+    .select({ downloads: sql<number>`coalesce(sum(${products.downloadCount}), 0)::int` })
+    .from(products)
+    .where(isNull(products.deletedAt));
+  return downloads;
+}
+
 const ZERO_EMAILS: EmailCounters = { sent: 0, delivered: 0, failed: 0 };
 
 async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: boolean }> {
@@ -297,6 +315,7 @@ async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: bool
     views7,
     clicks,
     clicks7,
+    downloads,
     emails,
     emails7,
     feedback,
@@ -316,6 +335,7 @@ async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: bool
     stat("views7", getProductViewsTotal(7), 0),
     stat("clicks", getOutboundClicksTotal(), 0),
     stat("clicks7", getOutboundClicksTotal(7), 0),
+    stat("downloads", getTotalDownloads(), 0),
     stat("emails", getEmailStats(), ZERO_EMAILS),
     stat("emails7", getEmailStats(7), ZERO_EMAILS),
     stat("feedback", getFeedbackStats(), { reviews: 0, comments: 0, avgRating: null }),
@@ -331,6 +351,7 @@ async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: bool
     views7,
     clicks,
     clicks7,
+    downloads,
     emails,
     emails7,
     feedback,
@@ -352,6 +373,7 @@ async function computeAdminAnalytics(): Promise<{ data: AdminAnalytics; ok: bool
     views7: views7.v,
     clicks: clicks.v,
     clicks7: clicks7.v,
+    downloads: downloads.v,
     emails: emails.v,
     emails7: emails7.v,
     feedback: feedback.v,
@@ -389,6 +411,7 @@ export async function getAdminAnalyticsCached(): Promise<AdminAnalytics> {
         views7: 0,
         clicks: 0,
         clicks7: 0,
+        downloads: 0,
         emails: ZERO_EMAILS,
         emails7: ZERO_EMAILS,
         feedback: { reviews: 0, comments: 0, avgRating: null },

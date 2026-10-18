@@ -1,8 +1,9 @@
+import { after } from "next/server";
 import { ApiError, apiCatch, methodNotAllowed } from "@/lib/api/response";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { products } from "@/db/schema";
-import { getApprovedBuilds } from "@/services/builds.service";
+import { getApprovedBuilds, recordDownload } from "@/services/builds.service";
 import { presignBuildDownload } from "@/lib/r2";
 
 export const POST = async () => methodNotAllowed(["GET"]);
@@ -40,6 +41,9 @@ export async function GET(
       throw new ApiError("NOT_FOUND", 404, "Aucun binaire vérifié pour ce produit.");
     }
     const url = await presignBuildDownload(latest.r2Key);
+    // Compteur APRÈS tous les contrôles : un 404 ne compte pas, et
+    // l'écriture après réponse est suivie par Next.js.
+    after(() => recordDownload(product.id));
     // 302 manuel (pas `redirect()` : apiCatch avalerait son throw).
     return Response.redirect(url, 302);
   } catch (e) {

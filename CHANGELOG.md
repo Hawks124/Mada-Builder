@@ -6,6 +6,20 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **Téléchargements APK (compteur réel)** : table `product_downloads`
+  (événements anonymes — ni user_id, ni IP ; RLS deny-all) + colonne
+  dénormalisée `products.download_count`, motif votes/commentaires. Un
+  compteur par produit, pas par version (le chemin sert toujours le dernier
+  build approuvé). Compté dans les deux routes de download (302 web et JSON
+  natif) **après** les contrôles, en fire-and-forget : un 404 ne compte
+  pas, l'écriture ne retarde jamais la réponse ; incrément atomique SQL,
+  reconstruit depuis les événements par le job `scores`
+  (`recountDownloadCounts`) — le compteur est un cache, jamais la vérité.
+  Exposés côté maker (stat + 3ᵉ série du graphe d'activité, token violet
+  `--chart-downloads` hors des familles de statut), côté admin (agrégat
+  plateforme), et côté API v1 (`downloadCount` — parité, le mobile peut lire
+  la colonne directement en base). Docs : `docs/data/product_downloads.md`,
+  `docs/data/products.md`, `docs/mobile-contrats.md`. Migration 0045.
 - **Guides « Signature APK » (hub + 6 fiches)** : `/guides/signature-apk`
   (schémas v1/v2/v3, keystore = identité, pourquoi la plateforme recommande les
   trois) + fiches A→Z autonomes Android natif, Flutter, React Native, Expo
@@ -15,9 +29,9 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 --print-certs`, refus plateforme décryptés, clé debug, keystore perdu,
   JKS→PKCS12). Contenu ancré sur les docs officielles (2026-10-17), logos
   officiels des frameworks (simple-icons), renvois `DocLayout` avec
-  `logoDarkInvert`. Liens croisés : carte au hub `/guides`, footer
-  (Explorer), note écran APK de soumission/update, FAQ sidebar, sitemap (7 URLs). Portes vertes tsc/eslint/prettier/build + `verify-apk-extract`.
-
+  `logoDarkInvert`. Liens croisés : carte au hub `/guides`, footer (Explorer),
+  note écran APK de soumission/update, FAQ sidebar, sitemap (7 URLs). Portes
+  vertes tsc/eslint/prettier/build + `verify-apk-extract`.
 - **Revenus vérifiés, finitions BÊTA** : slide-over « Quel prestataire ? »
   (soumission — 5 providers, format de clé, lien `#creer-la-cle`, choix
   direct) ; profil maker distingue vrai 0 en full (affiché) du masqué
@@ -401,6 +415,41 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   cartes), BÊTA sur submit/api/méthodologie, guides `/guides` indexables
   (hub + 5 fiches 2026 + deep-links), legal (clés 5 providers, clause bêta,
   fraude), mobile (`GET revenue`, `revenue-connections` ×3).
+
+### Corrigé
+
+- Téléchargements APK : URL native sans cache partagé, écritures suivies après
+  réponse via `after()` et vérification du compteur sans temporisation. Les
+  rafraîchissements des pastilles admin ignorent les réponses dépassées.
+- **Pastilles admin (« En revue », « Binaires ») qui restaient à 0/nulle** :
+  deadlock du shell — le ref `inFlight`, partagé entre les effets,
+  sortait immédiatement quand une navigation arrivait pendant le fetch
+  (`run()` rend la main avant que `inFlight` soit remis à false, et le
+  `merge` de l'effet abandonné était neutralisé par `cancelled`) ; les
+  compteurs n'étaient donc jamais fusionnés et la pastille restait
+  absente — lue « file vide ». Effet réécrit : plus de ref partagé,
+  `AbortController` par instance, attentes de retry résolues au cleanup.
+  Durcissement dans la foulée : une erreur de compteur ne se change plus
+  en `0` confirmé (`.catch(() => 0)` retiré de `getPendingCountCached` /
+  `getRejectedCountCached` → `ok: false` → pastille « — »), délai de 8 s par
+  compteur (un compteur lent ne retient plus tout le lot), rôle illisible =
+  **503 tracé** côté Sentry au lieu d'un 403 muet, et motif HTTP affiché
+  dans l'infobulle (401 session / 403 rôle / 503 backend).
+- **Logo du produit du jour** : `iconUrl` n'existait pas dans
+  `FeaturedProductData` et n'était pas recopié par `toFeaturedCard` —
+  alors que la requête le sélectionnait déjà. La tuile d'initiales était le
+  seul rendu possible, logo absent sur la home et `/leaderboard` pendant
+  qu'il s'affichait partout ailleurs. Champ ajouté au type + mapping, et
+  rendu image avec repli initiales aligné sur `ProductCard`.
+- **Hero catégories figé** : les slots venaient d'une liste éditoriale de 7
+  domaines, donc une catégorie ajoutée au catalogue plus tard ne pouvait
+  pas y remonter (cas `meteo`), les slots restants se remplissant de 0. Le
+  tri porte maintenant sur toutes les catégories par compte réel, le rang
+  éditorial ne servant qu'au départage ; `HERO_CATEGORIES` reste la source
+  du fallback sans données.
+- **OG `/og/leaderboard`** : le div des noms avait deux enfants, ce que
+  Satori refuse — l'erreur n'apparaissait qu'au premier classement non vide
+  (jamais en CI sans données). Rang et nom fusionnés en un seul texte.
 
 ## [0.1.0] — 2026-09-24 — Fondations, identité & modération
 

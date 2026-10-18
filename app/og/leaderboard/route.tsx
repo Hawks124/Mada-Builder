@@ -44,8 +44,12 @@ export async function GET(): Promise<Response> {
       {names.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {names.map((n, i) => (
+            // Satori : un <div> multi-enfants exige un display explicite.
+            // Ici UN seul enfant (texte interpolé) — le rang et le nom
+            // s'écrivaient en deux expressions, ce qui n'échouait qu'au
+            // premier classement non vide (donc jamais en CI sans données).
             <div key={n} style={{ fontSize: 34, color: "#a8a29e" }}>
-              {i + 1}. {n.length > 42 ? `${n.slice(0, 41).trim()}…` : n}
+              {`${i + 1}. ${n.length > 42 ? `${n.slice(0, 41).trim()}…` : n}`}
             </div>
           ))}
         </div>

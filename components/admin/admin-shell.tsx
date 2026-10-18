@@ -23,6 +23,14 @@ import type { BadgeKey, BadgeState } from "@/app/api/admin/badges/route";
 
 const ALL_BADGE_KEYS: BadgeKey[] = ["pending", "rejected", "builds", "contact"];
 
+/**
+ * État de pastille côté shell = contrat de la route + le motif de l'échec
+ * HTTP quand la route n'a pas répondu (`reason`). Affiché dans la
+ * infobulle : un compteur indisponible se diagnostique seul (401 = session,
+ * 403 = rôle, 503 = backend), sans avoir à deviner depuis un 0 silencieux.
+ */
+type ShellBadgeState = BadgeState & { reason?: number | null };
+
 const NAV_ITEMS = [
   {
     href: "/admin",
@@ -90,61 +98,94 @@ const STORAGE_KEY = "admin-sidebar-collapsed";
 // + table admin_actions (audit trail) à la migration.
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [badges, setBadges] = React.useState<Partial<Record<BadgeKey, BadgeState>>>({});
-  const inFlight = React.useRef(false);
+  const [badges, setBadges] = React.useState<Partial<Record<BadgeKey, ShellBadgeState>>>({});
 
   React.useEffect(() => {
     let cancelled = false;
-    const timers: ReturnType<typeof setTimeout>[] = [];
+    let generation = 0;
+    const isCurrent = (runGeneration: number) => !cancelled && runGeneration === generation;
+    const controller = new AbortController();
+    // Attentes de retry résolues AU MOMENT DU CLEANUP : un `clearTimeout`
+    // seul laisserait la promesse d'endormie pour toujours (`await` bloqué
+    // sur un setTimeout annulé) — l'effet fuite alors à chaque navigation.
+    const waiters: (() => void)[] = [];
 
     const load = async (
       keys?: BadgeKey[],
-    ): Promise<Partial<Record<BadgeKey, BadgeState>> | null> => {
+    ): Promise<{ part: Partial<Record<BadgeKey, BadgeState>> | null; http: number | null }> => {
       try {
         const qs = keys && keys.length > 0 ? `?keys=${keys.join(",")}` : "";
-        const res = await fetch(`/api/admin/badges${qs}`, { cache: "no-store" });
-        if (!res.ok || cancelled) return null;
+        const res = await fetch(`/api/admin/badges${qs}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!res.ok) return { part: null, http: res.status };
         const body = (await res.json()) as { data?: Partial<Record<BadgeKey, BadgeState>> };
-        return body.data ?? null;
+        return { part: body.data ?? null, http: res.status };
       } catch {
-        return null;
+        return { part: null, http: null };
       }
     };
-    const merge = (part: Partial<Record<BadgeKey, BadgeState>> | null) => {
-      if (part && !cancelled) setBadges((prev) => ({ ...prev, ...part }));
+    const merge = (part: Partial<Record<BadgeKey, BadgeState>> | null, runGeneration: number) => {
+      if (part && isCurrent(runGeneration)) {
+        setBadges((prev) => (isCurrent(runGeneration) ? { ...prev, ...part } : prev));
+      }
+    };
+    /**
+     * Réponse HTTP en erreur = chiffre INCONNU, pas une file vide. On
+     * matérialise `{ ok: false }` pour les clés visées : sans ça, aucune
+     * pastille n'est rendue et l'admin lit l'absence comme « rien en
+     * attente » (exactement le 0 qu'il voyait). Les retries qui suivent
+     * écrasent ces marqueurs par la valeur réelle quand la route répond.
+     */
+    const markUnknown = (keys: BadgeKey[], http: number | null, runGeneration: number) => {
+      if (!isCurrent(runGeneration)) return;
+      setBadges((prev) => {
+        if (!isCurrent(runGeneration)) return prev;
+        const next = { ...prev };
+        for (const key of keys) {
+          if (next[key]?.ok === true) continue;
+          next[key] = { value: 0, ok: false, at: Date.now(), reason: http };
+        }
+        return next;
+      });
     };
     // Retry auto des clés en échec SEULEMENT (jamais de re-clic) :
     // batch complet, puis 2 rattrapages espacés (1,5 s / 4 s), puis stop.
     const run = async () => {
-      if (inFlight.current) return;
-      inFlight.current = true;
-      try {
-        const first = await load();
-        merge(first);
-        let failed = ALL_BADGE_KEYS.filter((k) => !first?.[k]?.ok);
-        for (const delay of [1500, 4000]) {
-          if (cancelled || failed.length === 0) return;
-          await new Promise<void>((resolve) => {
-            timers.push(setTimeout(() => resolve(), delay));
+      const runGeneration = ++generation;
+      const first = await load();
+      if (!isCurrent(runGeneration)) return;
+      merge(first.part, runGeneration);
+      if (!first.part) markUnknown(ALL_BADGE_KEYS, first.http, runGeneration);
+      let failed = ALL_BADGE_KEYS.filter((k) => !first.part?.[k]?.ok);
+      for (const delay of [1500, 4000]) {
+        if (!isCurrent(runGeneration) || failed.length === 0) return;
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, delay);
+          waiters.push(() => {
+            clearTimeout(timer);
+            resolve();
           });
-          if (cancelled) return;
-          const next = await load(failed);
-          merge(next);
-          failed = failed.filter((k) => !next?.[k]?.ok);
-        }
-      } finally {
-        inFlight.current = false;
+        });
+        if (!isCurrent(runGeneration)) return;
+        const next = await load(failed);
+        if (!isCurrent(runGeneration)) return;
+        merge(next.part, runGeneration);
+        if (!next.part) markUnknown(failed, next.http, runGeneration);
+        failed = failed.filter((k) => !next.part?.[k]?.ok);
       }
     };
-    run();
+    void run();
     // Récupération sans clic : retour focus + navigation admin.
     const onFocus = () => {
-      run();
+      void run();
     };
     window.addEventListener("focus", onFocus);
     return () => {
       cancelled = true;
-      timers.forEach((t) => clearTimeout(t));
+      controller.abort();
+      waiters.forEach((w) => w());
       window.removeEventListener("focus", onFocus);
     };
   }, [pathname]);
@@ -260,7 +301,7 @@ function AdminSidebarBody({
   onClose?: () => void;
   onNavigate?: () => void;
   /** Pastilles lazy (endpoint batché) — absentes = pas encore chargées. */
-  badges: Partial<Record<BadgeKey, BadgeState>>;
+  badges: Partial<Record<BadgeKey, ShellBadgeState>>;
 }) {
   return (
     <>
@@ -340,6 +381,20 @@ function AdminSidebarBody({
                   second: "2-digit",
                 })
               : null;
+          const unknownTitle =
+            state?.reason != null
+              ? `Compteur indisponible (HTTP ${state.reason}${
+                  state.reason === 401
+                    ? " — session expirée"
+                    : state.reason === 403
+                      ? " — rôle non reconnu"
+                      : state.reason === 503
+                        ? " — backend injoignable"
+                        : ""
+                })`
+              : attemptedAt
+                ? `Dernière tentative à ${attemptedAt} — réessaie tout seul`
+                : "Chargement…";
           return (
             <Link
               key={item.href}
@@ -373,11 +428,7 @@ function AdminSidebarBody({
               {badge === 0 && unknown && (
                 <span
                   aria-label="Compteur indisponible"
-                  title={
-                    attemptedAt
-                      ? `Dernière tentative à ${attemptedAt} — réessaie tout seul`
-                      : "Chargement…"
-                  }
+                  title={unknownTitle}
                   className={cn(
                     "rounded-full border border-border/60 text-muted-foreground text-[10px] font-black tabular-nums leading-none flex items-center justify-center",
                     collapsed

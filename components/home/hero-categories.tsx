@@ -36,9 +36,31 @@ export async function HeroCategories() {
   }
 
   const anyLive = live && [...countsByCat.values()].some((v) => v > 0);
+  /**
+   * Slots = VRAIES top catégories quand le catalogue existe.
+   *
+   * Avant, la liste était bornée à `HERO_CATEGORIES` (7 domaines
+   * éditorialeux) : une catégorie ajoutée au catalogue plus tard — `meteo`
+   * lors du lot catégories — ne pouvait structurellement pas y remonter,
+   * même avec 100 produits, et les slots restants se remplissaient de 0.
+   * Le tri porte donc sur TOUTES les catégories ; le rang éditorial ne sert
+   * qu'au départage (les 7 domaines du hero d'abord, puis l'ordre du
+   * catalogue) pour que la home reste stable tant que les comptes sont
+   * égaux. `HERO_CATEGORIES` reste la source en fallback sans données.
+   */
+  const editorialRank = new Map<string, number>();
+  HERO_CATEGORIES.forEach((c, i) => editorialRank.set(c.id, i));
+  let extra = HERO_CATEGORIES.length;
+  for (const c of PRODUCT_CATEGORIES) {
+    if (!editorialRank.has(c.id)) editorialRank.set(c.id, extra++);
+  }
   const visible = anyLive
-    ? [...HERO_CATEGORIES]
-        .sort((a, b) => (countsByCat.get(b.id) ?? 0) - (countsByCat.get(a.id) ?? 0))
+    ? [...PRODUCT_CATEGORIES]
+        .sort((a, b) => {
+          const diff = (countsByCat.get(b.id) ?? 0) - (countsByCat.get(a.id) ?? 0);
+          if (diff !== 0) return diff;
+          return (editorialRank.get(a.id) ?? 0) - (editorialRank.get(b.id) ?? 0);
+        })
         .slice(0, 7)
     : HERO_CATEGORIES.slice(0, 7);
 

@@ -101,6 +101,9 @@ export async function GET(
         screenshots: row.screenshots,
         upvoteCount: row.upvoteCount,
         score: row.score,
+        // Téléchargements APK cumulés (compteur dénormalisé) : lu aussi
+        // directement en base par le mobile, exposé ici pour parité.
+        downloadCount: row.downloadCount,
         publishedAt: iso(row.publishedAt),
         maker: {
           username: row.makerUsername,

@@ -60,6 +60,7 @@ export function toFeaturedCard(
     votes: slot.votes,
     comments: slot.commentsCount,
     initials: slot.initials,
+    iconUrl: slot.iconUrl,
     dateLabel: `Édition du ${dateLabelFr(opts?.now ?? new Date())}`,
     platforms: slot.platforms.map((p) => PLATFORM_LABEL.get(p) ?? p),
     pricingLabel: slot.pricingLabel,

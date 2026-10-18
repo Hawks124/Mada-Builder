@@ -77,7 +77,7 @@ export function ActivityPlot({
 
   // Le libellé annonce « sur N jours » : c'est le cumul de la fenêtre. Lire le
   // dernier point affichait la journée en cours sous un titre de total.
-  const sum = (key: "views" | "clicks") => data.reduce((s, p) => s + p[key], 0);
+  const sum = (key: "views" | "clicks" | "downloads") => data.reduce((s, p) => s + p[key], 0);
 
   return (
     <section className={cn("flex flex-col gap-5", className)}>
@@ -89,6 +89,12 @@ export function ActivityPlot({
             label="clics"
             range={range}
             color={SERIES.clicks}
+          />
+          <Readout
+            value={compact(sum("downloads"))}
+            label="téléchargements"
+            range={range}
+            color={SERIES.downloads}
           />
         </div>
         <div className="flex items-center gap-1 self-start rounded-full border border-border/50 p-1">
@@ -153,6 +159,16 @@ export function ActivityPlot({
               stroke={SERIES.clicks}
               strokeWidth={2}
               strokeDasharray="4 4"
+              dot={false}
+              activeDot={activeDot}
+              animationDuration={500}
+            />
+            <Line
+              type="monotone"
+              dataKey="downloads"
+              name="téléchargements"
+              stroke={SERIES.downloads}
+              strokeWidth={2}
               dot={false}
               activeDot={activeDot}
               animationDuration={500}

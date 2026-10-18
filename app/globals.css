@@ -21,6 +21,7 @@
      aire. Les autres tracés restent sur `--foreground` — une teinte par série
      répéterait le titre du panneau. Le zinc porte le chrome : axes, filets. */
   --chart-clicks: #2563eb; /* blue-600 */
+  --chart-downloads: #7c3aed; /* violet-600 — série du graphe d'activité */
   --chart-live: #16a34a; /* green-600 */
   --chart-pending: #d97706; /* amber-600 */
   --chart-rejected: #dc2626; /* red-600 */
@@ -45,6 +46,7 @@
   /* Mêmes familles qu'en clair, sur les shades -400 : sur fond zinc-950, un -600
      ne se distingue plus du chrome. */
   --chart-clicks: #60a5fa; /* blue-400 */
+  --chart-downloads: #a78bfa; /* violet-400 */
   --chart-live: #4ade80; /* green-400 */
   --chart-pending: #fbbf24; /* amber-400 */
   --chart-rejected: #f87171; /* red-400 */

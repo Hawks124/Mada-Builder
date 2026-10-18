@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useMounted } from "@/lib/use-mounted";
 import { ArrowLeftIcon, ArrowRightIcon, ImagesIcon, XIcon } from "@phosphor-icons/react";
 import type { GalleryOrientation } from "@/config/product-types";
+import { cn } from "@/lib/utils";
 
 export type GalleryShot = {
   src: string;
@@ -20,9 +21,15 @@ export type GalleryShot = {
  * précédent/suivant + compteur (desktop et mobile, le swipe tactile
  * reste natif). Clic = lightbox plein écran (flèches, Échap, fond).
  *
- * Slots uniformes dimensionnés par `galleryOrientation` (jamais de mix
- * sur une fiche), contenu en `object-contain` : zéro recadrage, zéro
- * perte. `<img>` simple (pas next/image) : l'hôte R2 est une variable
+ * Chaque capture occupe un slot à **son** ratio mesuré à l'upload ; le ratio
+ * de l'orientation ne sert que de repli quand les dimensions manquent.
+ * `gallery_orientation` dimensionne la largeur des slots, donc des fichiers
+ * de même taille côte à côte.
+ *
+ * Contenu en `object-contain` : zéro recadrage, zéro perte. Le fond flouté est
+ * un squelette de chargement, plus un bouche-trou.
+ *
+ * `<img>` simple (pas next/image) : l'hôte R2 est une variable
  * d'environnement runtime, et la pipeline serveur sort déjà les visuels
  * à la bonne taille en WebP — l'optimiseur Next n'apporterait rien.
  */
@@ -107,41 +114,51 @@ export function ProductGallery({
           onScroll={onScroll}
           className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          {shots.map((shot, i) => (
-            <button
-              key={shot.src}
-              type="button"
-              onClick={() => setLightbox(i)}
-              aria-label={`Agrandir la capture ${i + 1}`}
-              className={
-                portrait
-                  ? "shrink-0 w-[46%] sm:w-[32%] lg:w-[24%] aspect-9/16 rounded-[5px] border border-border/40 overflow-hidden snap-center relative cursor-zoom-in group bg-black"
-                  : "shrink-0 w-[85%] md:w-[65%] aspect-video rounded-[5px] border border-border/40 overflow-hidden snap-center relative cursor-zoom-in group bg-black"
-              }
-            >
-              {/* Fond flouté : remplit le slot avec l'image elle-même —
-                  zéro vide gris, zéro recadrage (le net reste en contain).
-                  Même URL = cache navigateur, coût nul. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={shot.src}
-                alt=""
-                aria-hidden="true"
-                loading="lazy"
-                className="absolute inset-0 h-full w-full object-cover blur-xl brightness-50 scale-110 pointer-events-none"
-              />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={shot.src}
-                alt={shot.alt}
-                width={shot.width ?? undefined}
-                height={shot.height ?? undefined}
-                loading="lazy"
-                className="absolute inset-0 h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
-              />
-              <div className="absolute inset-0 ring-1 ring-inset ring-black/5 dark:ring-white/5 rounded-[5px] pointer-events-none" />
-            </button>
-          ))}
+          {shots.map((shot, i) => {
+            // Ratio mesuré à l'upload quand il est connu, sinon celui de
+            // l'orientation. Sans lui, `object-contain` lettrebox : une capture
+            // 9:20 dans un slot 9:16 ne remplit que 82 % de la largeur, donc
+            // ~9 % de vide de chaque côté. Même règle que l'aperçu du formulaire
+            // de soumission (`submit-media-section`).
+            const measured = shot.width && shot.height ? `${shot.width} / ${shot.height}` : null;
+            return (
+              <button
+                key={shot.src}
+                type="button"
+                onClick={() => setLightbox(i)}
+                aria-label={`Agrandir la capture ${i + 1}`}
+                className={cn(
+                  portrait
+                    ? "shrink-0 w-[46%] sm:w-[32%] lg:w-[24%] rounded-[5px] border border-border/40 overflow-hidden snap-center relative cursor-zoom-in group bg-black"
+                    : "shrink-0 w-[85%] md:w-[65%] rounded-[5px] border border-border/40 overflow-hidden snap-center relative cursor-zoom-in group bg-black",
+                  !measured && (portrait ? "aspect-9/16" : "aspect-video"),
+                )}
+                style={measured ? { aspectRatio: measured } : undefined}
+              >
+                {/* Fond flouté : remplit le slot pendant le chargement de
+                    l'image — le net est en contain, donc il couvre désormais
+                    tout le slot. Même URL = cache navigateur, coût nul. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shot.src}
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover blur-xl brightness-50 scale-110 pointer-events-none"
+                />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shot.src}
+                  alt={shot.alt}
+                  width={shot.width ?? undefined}
+                  height={shot.height ?? undefined}
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+                />
+                <div className="absolute inset-0 ring-1 ring-inset ring-black/5 dark:ring-white/5 rounded-[5px] pointer-events-none" />
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex items-center justify-between mt-1">

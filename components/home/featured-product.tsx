@@ -76,9 +76,22 @@ export function FeaturedProduct({
                 dense ? "w-24 h-24 md:w-28 md:h-28" : "w-28 h-28 md:w-32 md:h-32",
               )}
             >
-              <div className="absolute inset-0 bg-linear-to-br from-zinc-800 to-zinc-950 dark:from-zinc-100 dark:to-zinc-300 flex items-center justify-center text-white dark:text-zinc-900 text-5xl font-extrabold tracking-tighter">
-                {product.initials}
-              </div>
+              {product.iconUrl ? (
+                // Logo déposé par le maker — même source et même repli que
+                // `ProductCard` : image si elle existe, tuile d'initiales
+                // sinon. Avant, cette tuile était le seul rendu possible :
+                // le champ existait en base, il n'était pas remonté ici.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.iconUrl}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              ) : (
+                <div className="absolute inset-0 bg-linear-to-br from-zinc-800 to-zinc-950 dark:from-zinc-100 dark:to-zinc-300 flex items-center justify-center text-white dark:text-zinc-900 text-5xl font-extrabold tracking-tighter">
+                  {product.initials}
+                </div>
+              )}
               <div className="absolute inset-0 rounded-3xl border border-black/5 dark:border-white/10 pointer-events-none" />
             </Link>
 

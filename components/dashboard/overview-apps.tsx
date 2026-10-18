@@ -7,6 +7,7 @@ import {
   CaretUpIcon,
   EyeIcon,
   CursorClickIcon,
+  DownloadSimpleIcon,
   PencilSimpleIcon,
   TrashIcon,
   HourglassIcon,
@@ -458,6 +459,13 @@ function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) 
           >
             <CursorClickIcon weight="bold" className="w-4 h-4 text-muted-foreground" />
             {formatCompactCount(app.clicks)}
+          </span>
+          <span
+            className="flex items-center gap-1 text-[13px] font-bold text-foreground tabular-nums"
+            title="Téléchargements APK"
+          >
+            <DownloadSimpleIcon weight="bold" className="w-4 h-4 text-muted-foreground" />
+            {formatCompactCount(app.downloads)}
           </span>
           {app.views > 0 && (
             <span

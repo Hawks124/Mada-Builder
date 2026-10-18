@@ -1,6 +1,12 @@
 import { and, eq, gte, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { productLinkClicks, productPageViews, products, votes } from "@/db/schema";
+import {
+  productDownloads,
+  productLinkClicks,
+  productPageViews,
+  products,
+  votes,
+} from "@/db/schema";
 import {
   fetchMyProducts,
   getProductsEngagement,
@@ -26,7 +32,14 @@ export async function getMakerAppsDashboard(userId: string): Promise<DashboardAp
     getProductsEngagement(apps.map((a) => a.id)).catch(
       (): Record<
         string,
-        { views: number; clicks: number; views7d: number; clicks7d: number }
+        {
+          views: number;
+          clicks: number;
+          downloads: number;
+          views7d: number;
+          clicks7d: number;
+          downloads7d: number;
+        }
       > => ({}),
     ),
     getProductRanks(apps.map((a) => a.id)).catch((): Record<string, number> => ({})),
@@ -59,6 +72,7 @@ export async function getMakerAppsDashboard(userId: string): Promise<DashboardAp
     app.views = engagement[app.id]?.views ?? 0;
     app.clicks = engagement[app.id]?.clicks ?? 0;
     app.views7d = engagement[app.id]?.views7d ?? 0;
+    app.downloads = engagement[app.id]?.downloads ?? 0;
     const rank = ranks[app.id];
     if (rank !== undefined) app.topRank = rank;
     const notif = notifs[app.id];
@@ -85,6 +99,8 @@ export type ChartDay = {
   views: number;
   clicks: number;
   votes: number;
+  /** Téléchargements APK (D6) : la 4ᵉ source, même famille que les 3 autres. */
+  downloads: number;
 };
 
 const DAY_LABEL = new Intl.DateTimeFormat("fr-FR", {
@@ -107,8 +123,9 @@ export async function getMakerChartSeries(userId: string, days = 90): Promise<Ch
   const vDay = sql<string>`to_char(${productPageViews.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
   const cDay = sql<string>`to_char(${productLinkClicks.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
   const tDay = sql<string>`to_char(${votes.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
+  const dDay = sql<string>`to_char(${productDownloads.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
 
-  const [viewRows, clickRows, voteRows] = await Promise.all([
+  const [viewRows, clickRows, voteRows, downloadRows] = await Promise.all([
     db
       .select({ day: vDay, n })
       .from(productPageViews)
@@ -127,6 +144,12 @@ export async function getMakerChartSeries(userId: string, days = 90): Promise<Ch
       .innerJoin(products, eq(products.id, votes.productId))
       .where(and(owned, gte(votes.createdAt, start)))
       .groupBy(tDay),
+    db
+      .select({ day: dDay, n })
+      .from(productDownloads)
+      .innerJoin(products, eq(products.id, productDownloads.productId))
+      .where(and(owned, gte(productDownloads.createdAt, start)))
+      .groupBy(dDay),
   ]);
 
   const tally = (rows: Array<{ day: string; n: number }>) => {
@@ -137,6 +160,7 @@ export async function getMakerChartSeries(userId: string, days = 90): Promise<Ch
   const views = tally(viewRows);
   const clicks = tally(clickRows);
   const got = tally(voteRows);
+  const downloads = tally(downloadRows);
 
   return Array.from({ length: days }, (_, i) => {
     const at = new Date(end.getTime() - (days - 1 - i) * 86_400_000);
@@ -147,6 +171,7 @@ export async function getMakerChartSeries(userId: string, days = 90): Promise<Ch
       views: views.get(key) ?? 0,
       clicks: clicks.get(key) ?? 0,
       votes: got.get(key) ?? 0,
+      downloads: downloads.get(key) ?? 0,
     };
   });
 }
