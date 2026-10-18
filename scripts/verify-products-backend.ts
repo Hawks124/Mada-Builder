@@ -1628,15 +1628,16 @@ async function main(): Promise<void> {
   const { recordDownload, recountDownloadCounts } = await import("@/services/builds.service");
   const dl = await submitProduct({
     viewerId: submitter2,
-    data: { ...baseData, name: "Produit Vérif Downloads" },
+    data: {
+      ...baseData,
+      name: "Produit Vérif Downloads",
+      productType: "app_mobile",
+      galleryOrientation: "portrait",
+    },
     asDraft: true,
   });
   // Le compteur part de 0 : une fiche neuve ne doit jamais hériter d'un total.
-  await db.update(products).set({ downloadCount: 999 }).where(eq(products.id, dl.id)); // cache volontairement faussé
-  recordDownload(dl.id);
-  // `recordDownload` est fire-and-forget : on laisse le tour de boucle livrer
-  // les deux écritures (insert + update) avant de lire.
-  await new Promise((r) => setTimeout(r, 250));
+  await recordDownload(dl.id);
   const [dlRow] = await db
     .select({ downloadCount: products.downloadCount })
     .from(products)

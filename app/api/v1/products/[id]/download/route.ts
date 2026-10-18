@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import {
   ApiError,
   apiCatch,
@@ -6,7 +7,7 @@ import {
   iso,
   methodNotAllowed,
   withCache,
-  CACHE_PUBLIC_SHORT,
+  CACHE_PRIVATE,
 } from "@/lib/api/response";
 import { apiLimit } from "@/lib/api/ratelimit";
 import { db } from "@/db";
@@ -69,7 +70,7 @@ export async function GET(
     }
     const url = await presignBuildDownload(latest.r2Key);
     // Compteur APRÈS tous les contrôles (404 = rien), écriture non bloquante.
-    recordDownload(product.id);
+    after(() => recordDownload(product.id));
     return withCache(
       apiOk({
         url,
@@ -81,7 +82,7 @@ export async function GET(
         sizeBytes: latest.sizeBytes,
         reviewedAt: iso(latest.reviewedAt),
       }),
-      CACHE_PUBLIC_SHORT,
+      CACHE_PRIVATE,
     );
   } catch (e) {
     return apiCatch(e, "api.download.detail");

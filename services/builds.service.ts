@@ -222,28 +222,25 @@ export type BuildListItem = typeof productBuilds.$inferSelect;
 /**
  * Téléchargement APK — événement + compteur dénormalisé.
  *
- * **Fire-and-forget assumé** : l'écriture ne doit JAMAIS retenir la réponse
- * (302 web ou JSON natif). Un téléchargement non compté est un bug d'affichage
- * ; un téléchargement bloqué ou en erreur est un produit mort. D'où le
- * `void … catch` : l'échec d'écriture est avalé, jamais remonté au client.
+ * Les routes confient cette promesse à `after()` : les deux écritures sont
+ * suivies après la réponse (302 web ou JSON natif). L'échec d'écriture est
+ * avalé, jamais remonté au client.
  *
  * **Incrément atomique SQL** (`download_count + 1`) et non
  * lecture-modification-écriture en JS : deux téléchargements simultanés sur
  * la même fiche ne peuvent pas s'écraser. L'événement reste la vérité — le
  * compteur se reconstruit (`recountDownloadCounts`).
  */
-export function recordDownload(productId: string): void {
-  void (async () => {
-    try {
-      await db.insert(productDownloads).values({ productId });
-      await db
-        .update(products)
-        .set({ downloadCount: sql`${products.downloadCount} + 1` })
-        .where(eq(products.id, productId));
-    } catch {
-      // Compteur non tenu — la reconstruction (job) rattrape le décalage.
-    }
-  })();
+export async function recordDownload(productId: string): Promise<void> {
+  try {
+    await db.insert(productDownloads).values({ productId });
+    await db
+      .update(products)
+      .set({ downloadCount: sql`${products.downloadCount} + 1` })
+      .where(eq(products.id, productId));
+  } catch {
+    // Compteur non tenu — la reconstruction (job) rattrape le décalage.
+  }
 }
 
 /**
