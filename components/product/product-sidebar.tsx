@@ -4,16 +4,11 @@ import { AvatarImage } from "@/components/ui/avatar-image";
 import {
   SealCheckIcon,
   DownloadSimpleIcon,
-  GlobeIcon,
-  AppleLogoIcon,
   CheckCircleIcon,
   XCircleIcon,
-  MonitorIcon,
-  TerminalIcon,
   ShieldCheckIcon,
   TwitterLogoIcon,
   LinkedinLogoIcon,
-  GooglePlayLogoIcon,
 } from "@phosphor-icons/react";
 import { ProductLinks } from "@/components/product/product-links";
 import { ShareDialog } from "@/components/product/share-dialog";
@@ -21,6 +16,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { getProductTypeById } from "@/config/product-types";
+import { getPlatformById } from "@/config/platforms";
 import { getRatingById } from "@/config/ratings";
 import { PRICING_MODELS } from "@/config/pricing";
 import { AgeBadge } from "@/components/ui/age-badge";
@@ -57,15 +53,6 @@ function IndicatorBadge({ active, label }: { label: string; active: boolean }) {
     </span>
   );
 }
-
-const PLATFORM_ICONS: Record<string, React.ElementType> = {
-  web: GlobeIcon,
-  ios: AppleLogoIcon,
-  macos: AppleLogoIcon,
-  android: GooglePlayLogoIcon,
-  desktop: MonitorIcon,
-  cli: TerminalIcon,
-};
 
 export type ProductSidebarData = {
   productId: string;
@@ -120,7 +107,17 @@ function dateFr(iso: string): string {
   }).format(new Date(iso));
 }
 
-export function ProductSidebar({ product }: { product: ProductSidebarData }) {
+export function ProductSidebar({
+  product,
+  preview = false,
+}: {
+  product: ProductSidebarData;
+  /**
+   * Aperçu : les clics sortants ne sont PAS trackés — le maker qui teste
+   * sa propre fiche ne doit pas gonfler ses statistiques.
+   */
+  preview?: boolean;
+}) {
   const [shareOpen, setShareOpen] = React.useState(false);
   const category = getCategoryById(product.categoryId);
   const productType = getProductTypeById(product.productType);
@@ -175,7 +172,7 @@ export function ProductSidebar({ product }: { product: ProductSidebarData }) {
         onShare={() => setShareOpen(true)}
         unverifiedCount={product.unverifiedCount}
         productId={product.productId}
-        trackOutbound
+        trackOutbound={!preview}
         hideDirectDownload={product.platforms.includes("android")}
       />
       <ShareDialog
@@ -326,9 +323,14 @@ export function ProductSidebar({ product }: { product: ProductSidebarData }) {
               value={
                 <div className="flex items-center gap-2 text-foreground justify-end">
                   {product.platforms.map((id) => {
-                    const Icon = PLATFORM_ICONS[id] ?? GlobeIcon;
+                    // Config unique (8 plateformes) : la table locale
+                    // n'en couvrait que 6, et le reste tombait sur une
+                    // icône « globe » muette (mauvaise sémantique).
+                    const platform = getPlatformById(id);
+                    if (!platform) return null;
+                    const Icon = platform.icon;
                     return (
-                      <span key={id} title={id}>
+                      <span key={id} title={platform.label}>
                         <Icon weight="fill" className="w-4 h-4 cursor-help" />
                       </span>
                     );

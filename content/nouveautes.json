@@ -1,0 +1,73 @@
+{
+  "intro": "Ce qui change sur Mada-Made, en clair. Pas de communiqué : ce qui est en ligne, et ce que ça change pour toi.",
+  "entrees": [
+    {
+      "date": "2026-10-20",
+      "titre": "Le classement ne ment plus",
+      "resume": "Le nombre affiché sur une fiche est enfin celui qui classe la fiche.",
+      "points": [
+        "Les fenêtres « Cette semaine » et « Ce mois » classent sur les votes reçus dans la fenêtre, et la pastille affiche ce même nombre : plus de cartes classées 2ᵉ, 3ᵉ, 1ʳᵉ selon un ordre que personne ne peut retrouver.",
+        "Les compteurs de la page Catégories sont comptés en base : les catégories et les produits sans publication ne sont plus listés, et le total affiché correspond au catalogue réel.",
+        "La home bascule de fenêtre sur l'activité en votes — une fenêtre qui sort des produits mais aucun vote affiche un classement mort.",
+        "Les produits similaires ne disparaissent plus quand la catégorie est vide : la fiche complète avec les autres domaines, puis le même type de produit."
+      ],
+      "lien": { "label": "Voir le classement", "href": "/leaderboard" }
+    },
+    {
+      "date": "2026-10-18",
+      "titre": "Les téléchargements se comptent, et le binaire se met à jour",
+      "resume": "Tu peux publier une nouvelle version de ton APK depuis ton espace, et savoir combien de gens le récupèrent.",
+      "points": [
+        "Mise à jour d'un binaire : upload de l'APK signé, notes de version, numéro de version — depuis l'espace maker, sans repasser par la file de revue.",
+        "Compteur de téléchargements APK sur la fiche publique et dans ton tableau de bord.",
+        "Guides de signature d'APK par framework : Capacitor, Expo, projet natif, plus un guide de dépannage.",
+        "Galerie de captures : ratio mesuré, navigation clavier, fond flouté."
+      ],
+      "lien": { "label": "Guides de signature", "href": "/guides/signature-apk" }
+    },
+    {
+      "date": "2026-10-17",
+      "titre": "Huit catégories de plus, et des tags libres",
+      "resume": "La taxonomie colle enfin aux produits qu'on publie.",
+      "points": [
+        "Huit catégories manquantes, et des tags libres (10 maximum) pour ce qui n'entre dans aucune case.",
+        "Les listes de plateformes affichent désormais toutes les plateformes supportées, partout : fiches, cartes, file de revue, profil maker."
+      ],
+      "lien": { "label": "Explorer les catégories", "href": "/categories" }
+    },
+    {
+      "date": "2026-10-16",
+      "titre": "Les revenus vérifiés",
+      "resume": "Le chiffre affiché vient de ton prestataire de facturation, pas de toi.",
+      "points": [
+        "Connexion d'une clé en lecture seule (Stripe, RevenueCat) : le MRR est lu chez le prestataire, rafraîchi, jamais auto-déclaré.",
+        "Tu peux masquer le chiffre exact et ne laisser que le badge vérifié.",
+        "Un classement dédié des produits par revenus vérifiés."
+      ],
+      "lien": { "label": "Le guide des revenus vérifiés", "href": "/guides/revenus-verifies" }
+    },
+    {
+      "date": "2026-10-07",
+      "titre": "Voir sa fiche avant de publier",
+      "resume": "L'aperçu montre la fiche exactement comme elle sera en ligne.",
+      "points": [
+        "Aperçu privé de la fiche, avant validation : mise en page, captures, revenus, liens.",
+        "Le brouillon de soumission ne bloque plus sur les champs secondaires : un nom suffit pour enregistrer, on complète après.",
+        "Les captures GIF sont acceptées, et l'orientation (portrait / paysage) se change librement, avec confirmation si elle emporte des captures."
+      ],
+      "lien": { "label": "Publier un produit", "href": "/products/submit" }
+    },
+    {
+      "date": "2026-09-24",
+      "titre": "Le départ",
+      "resume": "L'annuaire, le classement, la revue humaine.",
+      "points": [
+        "Chaque produit a sa page : nom, description, captures, liens, auteur, votes.",
+        "Le classement ne se vend pas — jamais. Le rang vient des votes et du temps.",
+        "Chaque fiche est lue par un humain avant publication, avec une raison de rejet écrite.",
+        "API v1 mobile, et une scène qui se dote de ses propres règles."
+      ],
+      "lien": { "label": "À propos du projet", "href": "/about" }
+    }
+  ]
+}

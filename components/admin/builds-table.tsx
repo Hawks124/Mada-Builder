@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { ProductAvatar } from "@/components/ui/product-avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { HourglassIcon, ArrowSquareOutIcon, AndroidLogoIcon } from "@phosphor-icons/react";
 import type { AdminBuildRow } from "@/services/builds.service";
@@ -142,19 +143,7 @@ export function BuildsTable({
                     href={href}
                     className="w-12 h-12 rounded-2xl shrink-0 overflow-hidden shadow-sm transition-transform duration-300 group-hover:scale-105"
                   >
-                    {b.iconUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={b.iconUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <span
-                        className={cn(
-                          "flex h-full w-full items-center justify-center text-white font-black text-base bg-linear-to-br",
-                          b.gradient,
-                        )}
-                      >
-                        {b.initials}
-                      </span>
-                    )}
+                    <ProductAvatar iconUrl={b.iconUrl} initials={b.initials} />
                   </Link>
 
                   {/* Body */}

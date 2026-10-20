@@ -2,9 +2,8 @@
 
 import * as React from "react";
 import { startTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckIcon, XIcon, ArrowLeftIcon } from "@phosphor-icons/react";
+import { CheckIcon, XIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { approveProductAction, rejectProductAction } from "@/app/actions/products";
@@ -80,16 +79,9 @@ export function ReviewVerdict({
           )}
         >
           {verdict === "approved"
-            ? `${productName} publié — le maker est notifié. Retour à la file…`
-            : `${productName} rejeté — motif envoyé au maker. Retour à la file…`}
+            ? `${productName} publié — le maker est notifié.`
+            : `${productName} rejeté — motif envoyé au maker.`}
         </div>
-        <Link
-          href="/admin/review"
-          className="flex items-center gap-2 text-[14px] font-bold text-muted-foreground hover:text-foreground transition-colors w-fit"
-        >
-          <ArrowLeftIcon weight="bold" className="h-4 w-4" />
-          Retour à la file
-        </Link>
       </div>
     );
   }

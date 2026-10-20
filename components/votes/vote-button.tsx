@@ -53,29 +53,27 @@ export function VoteButton({
 
   const handleClick = () => {
     if (pending) return;
-    guardedVote(() => {
-      // Tout l'update optimiste VIT dans la transition (React l'exige :
-      // setOptimistic hors transition = erreur console + état incohérent).
-      const nextVoted = !optimistic.voted;
-      setPending(true);
-      startTransition(async () => {
-        setOptimistic(nextVoted);
-        const res = await toggleVoteAction({ productId });
-        if (res.ok) {
-          setConfirmed({ voted: res.voted, count: res.upvoteCount });
-          if (res.voted && !res.counted) {
-            // Poids 0 (< 24 h) : dialogue explicatif UNE fois (flag local),
-            // puis toast simple. Jamais de harcèlement, jamais de boîte noire.
-            let seen = false;
-            try {
-              seen = localStorage.getItem("vote-gate-seen") === "1";
-            } catch {
-              seen = true;
-            }
-            if (!seen) {
-              setGate("shadowed");
+    // Tout l'update optimiste VIT dans la transition (React l'exige :
+    // setOptimistic hors transition = erreur console + état incohérent).
+    // La transition démarre AU CLIC et le mur d'auth tranche DEDANS :
+    // l'UI est donc mise à jour immédiatement, sans attendre la
+    // vérification de session (aller-retour réseau).
+    const nextVoted = !optimistic.voted;
+    setPending(true);
+    startTransition(async () => {
+      setOptimistic(nextVoted);
+      let blocked = false;
+      await guardedVote(
+        async () => {
+          const res = await toggleVoteAction({ productId });
+          if (res.ok) {
+            setConfirmed({ voted: res.voted, count: res.upvoteCount });
+            if (res.voted && !res.counted) {
+              // Poids 0 (< 24 h) : dialogue explicatif UNE fois (flag local),
+              // puis toast simple. Jamais de harcèlement, jamais de boîte noire.
+              let seen = false;
               try {
-                localStorage.setItem("vote-gate-seen", "1");
+                seen = localStorage.getItem("vote-gate-seen") === "1";
               } catch {
                 // Stockage indisponible : toast de repli ci-dessous.
                 setGate(null);
@@ -84,24 +82,45 @@ export function VoteButton({
                   "Vote enregistré — il comptera au classement avec un compte plus ancien.",
                 );
               }
-            } else {
-              toast(
-                "info",
-                "Vote enregistré — il comptera au classement avec un compte plus ancien.",
-              );
+              if (!seen) {
+                setGate("shadowed");
+                try {
+                  localStorage.setItem("vote-gate-seen", "1");
+                } catch {
+                  // Stockage indisponible : toast de repli ci-dessous.
+                  setGate(null);
+                  toast(
+                    "info",
+                    "Vote enregistré — il comptera au classement avec un compte plus ancien.",
+                  );
+                }
+              } else {
+                toast(
+                  "info",
+                  "Vote enregistré — il comptera au classement avec un compte plus ancien.",
+                );
+              }
             }
+          } else if (res.reason === "account_too_young") {
+            // Refus < 1 h : dialogue (pas un toast sec) — le POURQUOI compte.
+            setConfirmed((prev) => ({ ...prev }));
+            setGate("too_young");
+          } else {
+            // Retour à l'état confirmé + message (pas de vote fantôme).
+            setConfirmed((prev) => ({ ...prev }));
+            toast("err", res.message ?? "Vote impossible pour le moment.");
           }
-        } else if (res.reason === "account_too_young") {
-          // Refus < 1 h : dialogue (pas un toast sec) — le POURQUOI compte.
-          setConfirmed((prev) => ({ ...prev }));
-          setGate("too_young");
-        } else {
-          // Retour à l'état confirmé + message (pas de vote fantôme).
-          setConfirmed((prev) => ({ ...prev }));
-          toast("err", res.message ?? "Vote impossible pour le moment.");
-        }
-        setPending(false);
-      });
+          setPending(false);
+        },
+        {
+          onBlocked: () => {
+            // Pas de session : la transition se termine sans `setConfirmed`
+            // -> `useOptimistic` revient à l'état confirmé (revert auto).
+            blocked = true;
+          },
+        },
+      );
+      if (blocked) setPending(false);
     });
   };
 

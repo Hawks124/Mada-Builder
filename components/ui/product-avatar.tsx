@@ -6,9 +6,16 @@ import { cn } from "@/lib/utils";
 /**
  * Logo produit — source unique.
  *
- * Règle de repli inchangée : logo R2 si fourni, sinon tuile dégradée + initiales.
- * **Jamais de visage d'emprunt**, jamais d'image cassée — si le logo échoue au
- * chargement, on retombe sur les initiales.
+ * Règle de repli : logo R2 si fourni, sinon tuile **sobre** (initiales
+ * en noir/blanc sur le fond de la page). Jamais de visage d'emprunt,
+ * jamais d'image cassée — si le logo échoue au chargement, on retombe
+ * sur les initiales.
+ *
+ * Pourquoi PAS de dégradé : la tuile colorée se voyait à travers les
+ * zones TRANSPARENTES des PNG d'icônes (cadre orange/vert autour du
+ * logo). Le fond de la tuile de repli suit donc la page (blanc ou
+ * sombre) et les initiales sont noires/blanches — lisible partout,
+ * sobre, et jamais de halo coloré.
  *
  * Le motif existait en six exemplaires (`overview-apps`, `product-header`,
  * `product-sidebar`, `related-products`, `review-queue`,
@@ -22,13 +29,13 @@ import { cn } from "@/lib/utils";
 export function ProductAvatar({
   iconUrl,
   initials,
-  gradient,
   alt = "",
   className,
 }: {
   iconUrl?: string | null;
   initials: string;
-  gradient: string;
+  /** Conservé pour l'API (tuiles legacy) — plus utilisé pour le fond. */
+  gradient?: string;
   alt?: string;
   className?: string;
 }) {
@@ -50,8 +57,7 @@ export function ProductAvatar({
     <span
       aria-hidden={alt === "" ? true : undefined}
       className={cn(
-        "flex h-full w-full items-center justify-center font-black text-white bg-linear-to-br",
-        gradient,
+        "flex h-full w-full items-center justify-center font-black text-foreground",
         className,
       )}
     >

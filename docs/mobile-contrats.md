@@ -141,15 +141,32 @@ Refetch : lancement, retour focus, pull-to-refresh, après chaque mutation
 
 Règles produits à réimplémenter à l'identique : types/catégories/platforms/
 pricing = vocabulaires fermés (`GET /meta` quand exposés — jamais hardcodés
-côté Dart) ; **`galleryOrientation` pilotée par le type** (`app_mobile` =
-portrait, desktop/saas/cli/… = paysage, `app_web`/`game`/`bot`/`other` =
-choix libre, défaut paysage pour le web) — toute capture hors orientation
-= `FILE_REJECTED` (jamais recadrée) ; tagline 1–220 ; logo ≥ 256 px,
-captures ≥ 400 px, ratio hors 1:3…3:1 refusé ; quota 6 ;
+côté Dart) ; **9 plateformes** — les 8 historiques
+(`ios`, `macos`, `android`, `web`, `desktop`, `cli`, `windows`, `linux`)
+**+ `embarque`** (label « Embarqué » : IoT, capteurs, objets connectés —
+nouvelle plateforme, à ajouter à la liste de filtre du client mobile ; la
+colonne reste un `text[]`, l'API filtre librement — aucune migration) ;
+**`galleryOrientation` : le type SUGGÈRE, il n'impose plus** (le type
+propose un défaut — `app_mobile` = portrait, desktop/saas/cli/… = paysage —
+mais le maker bascule librement, même en création) ; la **barrière reste
+integre** : une galerie = une seule orientation, toute capture hors
+orientation = `FILE_REJECTED` (jamais recadrée) ; un changement
+d'orientation **purge** les captures de l'orientation abandonnée (le web
+le demande avant, l'API doit le faire) ; tagline 1–220 ; logo ≥ 256 px ;
+captures ≥ 400 px — **côté LONG pour un GIF** (un export d'animation
+fait 240×480 : la règle du côté court le refusait à tort) —
+ratio hors 1:3…3:1 refusé ; quota 6 ;
 **compresser côté Flutter (< 2 Mo)** comme §4 (le serveur plafonne à 10 Mo
 mais tronque serverless vers ~4,5 Mo) ; `requirements` = **tableau JSON**
 de strings (config requise, game/desktop/os — max 8 × 80, jamais du texte
 brut : le serveur refuse les strings depuis la migration 0038).
+
+Notes de version : le champ `whatsnew` est accepté dès le
+**premier** APK (le serveur ne l'exige que sur une mise à jour — 1000 signes
+max) ; elles sont affichées publiquement sur la fiche, sous le bouton
+« Installer l'APK ». Compteur de téléchargements : `products.download_count`
+(`downloadCount` dans l'API, déjà exposé) — cumulé par produit,
+reconstruit par le job ; il est désormais affiché sur la fiche publique.
 
 Règles produit à réimplémenter à l'identique : nom ≥ 2 caractères ;
 occupation = `GET /meta` (vocabulaire fermé servi par le backend — jamais

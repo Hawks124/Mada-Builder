@@ -12,7 +12,12 @@ import { FeaturedProduct } from "@/components/home/featured-product";
 import type { FeaturedProductData } from "@/services/home.service";
 import { LeaderboardList } from "@/components/ranking/leaderboard-list";
 import { RankingFilterBar } from "@/components/ranking/ranking-filter-bar";
-import { RANKING_WINDOWS, getWindowLabel, type RankingWindow } from "@/services/home.service";
+import {
+  RANKING_WINDOWS,
+  getWindowLabel,
+  getWindowVotesLabel,
+  type RankingWindow,
+} from "@/services/home.service";
 import { getCategoryById } from "@/config/categories";
 import { getProductTypeById } from "@/config/product-types";
 import { cn } from "@/lib/utils";
@@ -181,6 +186,8 @@ export function LeaderboardContent({
             votedIds={votedIds}
             startRank={1}
             kickerLabel=""
+            pillMode="window"
+            pillLabel={getWindowVotesLabel(w)}
             emptyTitle={
               w === "today"
                 ? "Rien publié aujourd'hui — pour l'instant"

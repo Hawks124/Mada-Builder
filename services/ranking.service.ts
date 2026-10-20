@@ -1,11 +1,10 @@
-import { and, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
-import type { SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
+import type { SQL, SQLWrapper } from "drizzle-orm";
 import { db } from "@/db";
 import { featuredProducts, products, users, votes } from "@/db/schema";
 import { ProfileError } from "@/services/users.service";
 import { PRICING_MODELS } from "@/config/pricing";
 import { getProductTypeById } from "@/config/product-types";
-import { PLATFORMS } from "@/config/platforms";
 import { getRatingById } from "@/config/ratings";
 import { appGradientFor, appInitialsFor, ratingsAvgOf } from "@/services/products.service";
 import type { FeaturedProductData } from "@/services/home.service";
@@ -24,8 +23,6 @@ import type { FeaturedProductData } from "@/services/home.service";
  */
 
 export type RankingWindow = "today" | "week" | "month" | "all";
-
-const PLATFORM_LABEL = new Map(PLATFORMS.map((p) => [p.id, p.label]));
 const PRICING_LABEL = new Map(PRICING_MODELS.map((p) => [p.id, p.label]));
 
 function dateLabelFr(d: Date): string {
@@ -62,7 +59,7 @@ export function toFeaturedCard(
     initials: slot.initials,
     iconUrl: slot.iconUrl,
     dateLabel: `Édition du ${dateLabelFr(opts?.now ?? new Date())}`,
-    platforms: slot.platforms.map((p) => PLATFORM_LABEL.get(p) ?? p),
+    platforms: slot.platforms,
     pricingLabel: slot.pricingLabel,
     pricingDetail: "",
     ageRating: rating.badge,
@@ -186,6 +183,9 @@ export type LeaderboardItem = {
   votes: number;
   weightedVotes: number;
   dailyVotes: number;
+  /** Votes reçus DANS la fenêtre courante (aujourd'hui / semaine / mois).
+   *  C'est ce nombre qui classe la carte, et c'est celui qu'elle affiche. */
+  windowVotes?: number;
   iconUrl: string | null;
   iconGradient: string;
   initials: string;
@@ -234,15 +234,14 @@ export async function getLeaderboard(input: {
   }
   if (input.productType) conditions.push(eq(products.productType, input.productType as never));
 
-  let orderBy: SQL;
-  if (input.window === "today" || input.order === "weighted") {
-    if (input.window === "today") {
-      conditions.push(gte(products.publishedAt, startOfTodayUTC(now)));
-    }
+  // ── RANG TAXONOMIQUE (poids all-time) ──────────────────────────
+  // La fenêtre NE change rien ici : c'est le second classement de la
+  // page, pas une surcharge du podium.
+  if (input.order === "weighted") {
     // Votes pondérés : jointure + groupe (pas de colonne dédiée —
     // le dénormalisé upvote_count est brut, le rang est pondéré).
     // Taxonomique : plus récent d'abord à égalité (page vivante).
-    const tiebreak = input.order === "weighted" ? desc(products.publishedAt) : products.publishedAt;
+    const tiebreak = desc(products.publishedAt);
     const rows = await db
       .select({
         id: products.id,
@@ -274,13 +273,76 @@ export async function getLeaderboard(input: {
     return { items: rows.map((r) => toLeaderboardItem(r, r.daily)), ...totals };
   }
 
-  if (input.window === "week" || input.window === "month") {
-    const days = input.window === "week" ? 7 : 30;
-    conditions.push(gte(products.publishedAt, new Date(now.getTime() - days * 86_400_000)));
-    orderBy = desc(products.score);
-  } else {
-    orderBy = desc(products.upvoteCount);
+  // ── FENÊTRES TEMPORELLES ───────────────────────────────────────
+  // Le rang EST le nombre de votes cumulés dans la fenêtre, et c'est ce
+  // nombre que la carte affiche : avant, la fenêtre « semaine » ordonnait
+  // par `score` (décroissance temporelle) mais affichait le total de
+  // votes → les numéros ne correspondaient pas à l'ordre affiché.
+  const windowStart: Date | null =
+    input.window === "today"
+      ? startOfTodayUTC(now)
+      : input.window === "week"
+        ? new Date(now.getTime() - 7 * 86_400_000)
+        : input.window === "month"
+          ? new Date(now.getTime() - 30 * 86_400_000)
+          : null;
+
+  if (windowStart) {
+    conditions.push(gte(products.publishedAt, windowStart));
+    // Même expression au SELECT et à l'ORDER BY : le nombre affiché EST
+    // celui qui classe.
+    const votesFenetre = sql<number>`count(${votes.id}) FILTER (WHERE ${votes.createdAt} >= ${windowStart.toISOString()}::timestamptz)::int`;
+    // Départage : le plus ancien d'abord aujourd'hui (PRD §11), le plus
+    // récent d'abord sur les fenêtres longues (page vivante).
+    const tiebreak = input.window === "today" ? products.publishedAt : desc(products.publishedAt);
+    const rows = await db
+      .select({
+        id: products.id,
+        slug: products.slug,
+        name: products.name,
+        tagline: products.tagline,
+        category: products.category,
+        productType: products.productType,
+        makerUsername: users.username,
+        makerDisplayName: users.displayName,
+        makerAvatarUrl: users.avatarUrl,
+        upvoteCount: products.upvoteCount,
+        weighted: sql<number>`coalesce(sum(${votes.weight}), 0)::int`,
+        daily: sql<number>`count(${votes.id}) FILTER (WHERE ${votes.createdAt} >= ${startOfTodayUTC(now).toISOString()}::timestamptz)::int`,
+        windowVotes: votesFenetre,
+        iconUrl: products.iconUrl,
+        pricingModel: products.pricingModel,
+        publishedAt: products.publishedAt,
+      })
+      .from(products)
+      .innerJoin(users, eq(products.makerId, users.id))
+      .leftJoin(votes, eq(votes.productId, products.id))
+      .where(and(...conditions))
+      .groupBy(products.id, users.id)
+      .orderBy(sql`${votesFenetre} DESC`, tiebreak)
+      .limit(LEADERBOARD_PAGE_SIZE)
+      .offset(offset);
+    const totals = await countLeaderboard(conditions);
+    // Le total de votes de la fenêtre (pas le cumul des produits) : c'est
+    // ce qui dit si une fenêtre « vit ».
+    const [windowTotals] = await db
+      .select({
+        windowTotal: sql<number>`coalesce(count(${votes.id}) FILTER (WHERE ${votes.createdAt} >= ${windowStart.toISOString()}::timestamptz), 0)::int`,
+      })
+      .from(products)
+      .innerJoin(users, eq(products.makerId, users.id))
+      .leftJoin(votes, eq(votes.productId, products.id))
+      .where(and(...conditions));
+    return {
+      items: rows.map((r) => toLeaderboardItem(r, r.daily, r.windowVotes)),
+      ...totals,
+      totalVotes: windowTotals?.windowTotal ?? 0,
+    };
   }
+
+  // ── FENÊTRE « TOUT LE TEMPS » ──────────────────────────────────
+  // Aucun filtre de date : le rang est le total de votes (le nombre
+  // affiché par le bouton de vote), le plus récent d'abord à égalité.
   const rows = await db
     .select({
       id: products.id,
@@ -302,7 +364,7 @@ export async function getLeaderboard(input: {
     .from(products)
     .innerJoin(users, eq(products.makerId, users.id))
     .where(and(...conditions))
-    .orderBy(orderBy, desc(products.publishedAt))
+    .orderBy(desc(products.upvoteCount), desc(products.publishedAt))
     .limit(LEADERBOARD_PAGE_SIZE)
     .offset(offset);
   const totals = await countLeaderboard(conditions);
@@ -389,6 +451,7 @@ function toLeaderboardItem(
     publishedAt: Date | null;
   },
   dailyVotes: number,
+  windowVotes?: number,
 ): LeaderboardItem {
   return {
     id: r.id,
@@ -404,6 +467,7 @@ function toLeaderboardItem(
     votes: r.upvoteCount,
     weightedVotes: r.weighted,
     dailyVotes,
+    ...(windowVotes === undefined ? {} : { windowVotes }),
     iconUrl: r.iconUrl,
     iconGradient: appGradientFor(r.id),
     initials: appInitialsFor(r.name),
@@ -853,11 +917,21 @@ async function computeFeaturedRotationFallback(now: Date): Promise<ComputedFeatu
   return { row: rest, tier: "rotation", productId: rest.id };
 }
 
-/** Fiche : produits liés (même catégorie primaire, hors soi, par score). */
+/**
+ * Fiche : produits liés.
+ *
+ * ALGO : même catégorie primaire d'abord (par score) ; si la section est
+ * trop maigre, on complète avec les **autres catégories** du produit
+ * (sous-catégories), puis avec le **même type de produit** (les
+ * alternatives). Sans ce repli, une fiche dans une catégorie vide
+ * n'affiche aucun voisin — la section disparaît alors qu'il existe des
+ * produits proches.
+ */
 export async function getRelatedProducts(
   productId: string,
   categoryId: string,
   limit = 3,
+  input?: { otherCategories?: string[]; productType?: string },
 ): Promise<
   Array<{
     id: string;
@@ -871,41 +945,105 @@ export async function getRelatedProducts(
     makerUsername: string;
     makerDisplayName: string;
     makerAvatarUrl: string | null;
+    /** Plateformes supportées (ids de la config). */
+    platforms: string[];
+    /** Veille : hors classement, votes désactivés. */
+    curated: boolean;
+    /** Catégorie du produit lié (le badge n'est plus affiché, mais le
+     *  titre de section doit rester honnête). */
+    categoryId: string;
   }>
 > {
-  const rows = await db
-    .select({
-      id: products.id,
-      slug: products.slug,
-      name: products.name,
-      tagline: products.tagline,
-      iconUrl: products.iconUrl,
-      upvoteCount: products.upvoteCount,
-      makerUsername: users.username,
-      makerDisplayName: users.displayName,
-      makerAvatarUrl: users.avatarUrl,
-    })
+  // ALGO : même catégorie d'abord ; si la section est trop maigre, on
+  // complète avec les AUTRES catégories du produit (sous-catégories), puis
+  // avec le MÊME type de produit (les alternatives). Sans ça, une fiche
+  // dans une catégorie vide n'affiche aucun produit voisin.
+  const max = Math.min(Math.max(limit, 1), 6);
+  const autresCategories = (input?.otherCategories ?? []).filter((c) => c !== categoryId);
+  const productType = input?.productType ?? "";
+  // Conditions communes. `and()` de Drizzle exige un premier argument
+  // (tuple) : on passe donc les conditions additionnelles en fin de spread.
+  const commun = (...extra: SQLWrapper[]): SQL =>
+    and(
+      eq(products.status, "published"),
+      isNull(products.deletedAt),
+      sql`${products.id} <> ${productId}::uuid`,
+      ...extra,
+    ) as SQL;
+  const colonnes = {
+    id: products.id,
+    slug: products.slug,
+    name: products.name,
+    tagline: products.tagline,
+    category: products.category,
+    iconUrl: products.iconUrl,
+    upvoteCount: products.upvoteCount,
+    platforms: products.platforms,
+    curated: products.curated,
+    makerUsername: users.username,
+    makerDisplayName: users.displayName,
+    makerAvatarUrl: users.avatarUrl,
+  };
+  const parCategorie = await db
+    .select(colonnes)
     .from(products)
     .innerJoin(users, eq(products.makerId, users.id))
-    .where(
-      and(
-        eq(products.status, "published"),
-        isNull(products.deletedAt),
-        eq(products.category, categoryId),
-        sql`${products.id} <> ${productId}::uuid`,
-      ),
-    )
+    .where(commun(eq(products.category, categoryId)))
     .orderBy(desc(products.score), desc(products.publishedAt))
-    .limit(Math.min(Math.max(limit, 1), 6));
+    .limit(max);
+  const vus = new Set(parCategorie.map((r) => r.id));
+  let rows = parCategorie;
+  if (rows.length < max && autresCategories.length > 0) {
+    const vusIds = [...vus];
+    const complement = await db
+      .select(colonnes)
+      .from(products)
+      .innerJoin(users, eq(products.makerId, users.id))
+      .where(
+        commun(
+          inArray(products.category, autresCategories),
+          // `notInArray` (et non un `ANY()` artisanal) : avec un seul
+          // élément, un tableau passé en paramètre est sérialisé en
+          // scalaire → « cannot cast type uuid to uuid[] » → la page
+          // plante. `notInArray` gère le binding.
+          ...(vusIds.length > 0 ? [notInArray(products.id, vusIds)] : []),
+        ),
+      )
+      .orderBy(desc(products.score), desc(products.publishedAt))
+      .limit(max - rows.length);
+    for (const r of complement)
+      if (!vus.has(r.id)) {
+        rows = [...rows, r];
+        vus.add(r.id);
+      }
+  }
+  if (rows.length < max && productType !== "") {
+    const complement = await db
+      .select(colonnes)
+      .from(products)
+      .innerJoin(users, eq(products.makerId, users.id))
+      .where(commun(sql`${products.productType} = ${productType}`))
+      .orderBy(desc(products.score), desc(products.publishedAt))
+      .limit(max * 2);
+    for (const r of complement) {
+      if (rows.length >= max) break;
+      if (vus.has(r.id)) continue;
+      rows = [...rows, r];
+      vus.add(r.id);
+    }
+  }
   return rows.map((r) => ({
     id: r.id,
     slug: r.slug,
     name: r.name,
     tagline: r.tagline,
+    categoryId: r.category,
     iconUrl: r.iconUrl,
     iconGradient: appGradientFor(r.id),
     initials: appInitialsFor(r.name),
     votes: r.upvoteCount,
+    platforms: r.platforms,
+    curated: r.curated,
     makerUsername: r.makerUsername,
     makerDisplayName: r.makerDisplayName,
     makerAvatarUrl: r.makerAvatarUrl,

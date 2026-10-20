@@ -2,17 +2,15 @@ import {
   ChatCircleTextIcon,
   StarIcon,
   SealCheckIcon,
-  AppleLogoIcon,
-  AndroidLogoIcon,
-  WindowsLogoIcon,
   UsersIcon,
-  GlobeIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { ProductAvatar } from "@/components/ui/product-avatar";
 import { ActionButton } from "@/components/ui/action-button";
 import { cn, slugifyName } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
+import { getPlatformById } from "@/config/platforms";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { VoteButton } from "@/components/votes/vote-button";
 import { RevenueBadge } from "@/components/revenue/verified-revenue-badge";
@@ -76,22 +74,17 @@ export function FeaturedProduct({
                 dense ? "w-24 h-24 md:w-28 md:h-28" : "w-28 h-28 md:w-32 md:h-32",
               )}
             >
-              {product.iconUrl ? (
-                // Logo déposé par le maker — même source et même repli que
-                // `ProductCard` : image si elle existe, tuile d'initiales
-                // sinon. Avant, cette tuile était le seul rendu possible :
-                // le champ existait en base, il n'était pas remonté ici.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={product.iconUrl}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover"
+              {/* Logo déposé par le maker, sinon tuile d'initiales —
+                  `ProductAvatar` couvre les deux et replie aussi si
+                  l'image ne charge pas. */}
+              <span className="absolute inset-0">
+                <ProductAvatar
+                  iconUrl={product.iconUrl}
+                  initials={product.initials}
+                  gradient="from-zinc-800 to-zinc-950 dark:from-zinc-100 dark:to-zinc-300"
+                  className="text-5xl font-extrabold tracking-tighter"
                 />
-              ) : (
-                <div className="absolute inset-0 bg-linear-to-br from-zinc-800 to-zinc-950 dark:from-zinc-100 dark:to-zinc-300 flex items-center justify-center text-white dark:text-zinc-900 text-5xl font-extrabold tracking-tighter">
-                  {product.initials}
-                </div>
-              )}
+              </span>
               <div className="absolute inset-0 rounded-3xl border border-black/5 dark:border-white/10 pointer-events-none" />
             </Link>
 
@@ -259,30 +252,29 @@ export function FeaturedProduct({
           </Link>
         </div>
 
-        {/* 2. Plateformes — each icon in a <span> for reliable hover */}
+        {/* 2. Plateformes — les vraies (ids de la config), toutes
+            affichées : avant, trois libellés testés à la main +
+            une icône Windows inconditionnelle (un Windows fantôme sur
+            les fiches qui ne le gèrent pas). */}
         <div className="flex flex-col gap-2">
           <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">
             Plateformes
           </span>
-          <div className="flex items-center gap-3 pl-1">
-            {product.platforms.includes("Web") && (
-              <span className="text-foreground hover:text-sky-500 transition-colors cursor-pointer">
-                <GlobeIcon weight="bold" className="w-4.5 h-4.5" />
-              </span>
-            )}
-            {product.platforms.includes("iOS") && (
-              <span className="text-foreground hover:text-foreground/50 transition-colors cursor-pointer">
-                <AppleLogoIcon weight="fill" className="w-4.5 h-4.5" />
-              </span>
-            )}
-            {product.platforms.includes("Android") && (
-              <span className="text-foreground hover:text-green-500 transition-colors cursor-pointer">
-                <AndroidLogoIcon weight="fill" className="w-4.5 h-4.5" />
-              </span>
-            )}
-            <span className="text-foreground hover:text-blue-500 transition-colors cursor-pointer">
-              <WindowsLogoIcon weight="fill" className="w-4.5 h-4.5" />
-            </span>
+          <div className="flex items-center gap-2 pl-1 flex-wrap">
+            {product.platforms.map((id) => {
+              const platform = getPlatformById(id);
+              if (!platform) return null;
+              const PlatformIcon = platform.icon;
+              return (
+                <span
+                  key={id}
+                  title={platform.label}
+                  className="text-foreground transition-colors cursor-pointer"
+                >
+                  <PlatformIcon weight="fill" className="w-4.5 h-4.5" />
+                </span>
+              );
+            })}
           </div>
         </div>
 

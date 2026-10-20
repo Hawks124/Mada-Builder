@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { ProductAvatar } from "@/components/ui/product-avatar";
 import { ChatCircleTextIcon, SealCheckIcon, TrendUpIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
@@ -22,6 +23,17 @@ interface LeaderboardListProps {
   /** Empty state contextuel (fenêtre/filtre) — défauts génériques. */
   emptyTitle?: string;
   emptyDescription?: string;
+  /**
+   * Ce que compte la pastille « vitesse ».
+   *
+   * `window` = les votes de la fenêtre courante (aujourd'hui / semaine /
+   * mois) : c'est le nombre qui classe la carte, donc celui qu'elle doit
+   * afficher. `daily` = les votes du jour (second classement, classé par
+   * poids cumulé : la pastille y est une vitesse, pas un rang).
+   */
+  pillMode?: "window" | "daily";
+  /** Libellé de la fenêtre dans la pastille (« cette semaine »…). */
+  pillLabel?: string;
 }
 
 /** Médailles 1-3 (mêmes tokens que partout), 4+ neutre. */
@@ -48,6 +60,8 @@ export function LeaderboardList({
   emptyAction,
   emptyTitle = "Aucun produit ici pour le moment",
   emptyDescription = "Cette sélection est encore vide — les prochains votes la rempliront.",
+  pillMode = "daily",
+  pillLabel = "aujourd'hui",
 }: LeaderboardListProps) {
   if (products.length === 0) {
     return <EmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} />;
@@ -59,6 +73,7 @@ export function LeaderboardList({
         const rank = startRank + i;
         const category = getCategoryById(product.categoryId);
         const voted = votedIds.includes(product.id);
+        const pillValue = pillMode === "window" ? (product.windowVotes ?? 0) : product.dailyVotes;
         return (
           <div
             key={product.id}
@@ -76,15 +91,21 @@ export function LeaderboardList({
               </span>
             </div>
 
-            {/* ICON */}
+            {/* ICON — logo R2 si le produit en a un, sinon tuile dégradée +
+                initiales. `ProductAvatar` gère le repli sur erreur de
+                chargement ; sans lui, le classement affichait les
+                initiales même pour les produits avec logo. */}
             <Link
               href={`/products/${product.slug}`}
               className={cn(
-                "w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-2xl flex items-center justify-center text-white font-black text-lg bg-linear-to-br shadow-sm transition-all duration-300 group-hover:scale-105 group-hover:-rotate-3 group-hover:shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:group-hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]",
-                product.iconGradient,
+                "w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-2xl overflow-hidden flex items-center justify-center font-black text-lg shadow-sm transition-all duration-300 group-hover:scale-105 group-hover:-rotate-3 group-hover:shadow-[0_0_15px_rgba(0,0,0,0.1)] dark:group-hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]",
               )}
             >
-              {product.initials}
+              <ProductAvatar
+                iconUrl={product.iconUrl}
+                initials={product.initials}
+                gradient={product.iconGradient}
+              />
             </Link>
 
             {/* INFOS — nom, tagline, chips sur une ligne basse. Kicker
@@ -160,14 +181,15 @@ export function LeaderboardList({
 
               <div className="flex items-center gap-3 shrink-0">
                 {/* Vélocité : signal le plus « vendeur » pour un maker, donc
-                    visible même sur mobile (40px). */}
+                    visible même sur mobile (40px). En mode `window`, c'est
+                    le nombre qui classe la ligne (fenêtre choisie). */}
                 <span
                   className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums"
-                  aria-label={`${product.dailyVotes} votes aujourd'hui`}
-                  title="Votes ajoutés aujourd'hui"
+                  aria-label={`${pillValue} votes ${pillLabel}`}
+                  title={`Votes ajoutés ${pillLabel}`}
                 >
                   <TrendUpIcon weight="bold" className="w-3 h-3" />
-                  {product.dailyVotes}
+                  {pillValue}
                 </span>
 
                 <div className="hidden md:block">

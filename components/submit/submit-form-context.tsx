@@ -27,12 +27,20 @@ interface SubmitFormState {
   errors: Record<string, string>;
   /** Résumé médias (validation publish : logo + ≥1 capture). */
   mediaSummary: { hasLogo: boolean; shotCount: number };
+  /** Notes de version du binaire (premier APK) — visibles sur la fiche. */
+  buildNotes: string;
   /** Brouillon local (création) — null en édition ou si vide. */
   draft: Record<string, string> | null;
   /** Médias existants (édition) — affichage seul, absents = conservés. */
   existingMedia: {
     iconUrl: string | null;
-    shots: { url: string; width: number | null; height: number | null }[];
+    shots: {
+      url: string;
+      width: number | null;
+      height: number | null;
+      /** Orientation mesurée à l'upload (bascule + purge côté serveur). */
+      orientation: "portrait" | "landscape";
+    }[];
   } | null;
 }
 
@@ -47,6 +55,8 @@ interface SubmitFormContextValue extends SubmitFormState {
   setErrors: (errors: Record<string, string>) => void;
   clearError: (key: string) => void;
   setMediaSummary: (summary: { hasLogo: boolean; shotCount: number }) => void;
+  /** Notes de version (champ libre, 1000 signes max). */
+  setBuildNotes: (value: string) => void;
 }
 
 const SubmitFormContext = React.createContext<SubmitFormContextValue | null>(null);
@@ -104,7 +114,13 @@ export function SubmitFormProvider({
   /** Médias existants (édition) — affichage seul. */
   existingMedia?: {
     iconUrl: string | null;
-    shots: { url: string; width: number | null; height: number | null }[];
+    shots: {
+      url: string;
+      width: number | null;
+      height: number | null;
+      /** Orientation mesurée à l'upload (bascule + purge côté serveur). */
+      orientation: "portrait" | "landscape";
+    }[];
   } | null;
   /** Track binaire (édition) — faux en création. */
   hasTrack?: boolean;
@@ -143,6 +159,8 @@ export function SubmitFormProvider({
   const [linkPolicies, setLinkPolicies] = React.useState<Record<string, UrlPolicy>>({});
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [mediaSummary, setMediaSummary] = React.useState({ hasLogo: false, shotCount: 0 });
+  // Notes de version du premier APK (champ libre) - envoyées avec le build.
+  const [buildNotes, setBuildNotes] = React.useState("");
 
   const setLinkValue = React.useCallback((id: string, value: string) => {
     setLinkValues((prev) => (prev[id] === value ? prev : { ...prev, [id]: value }));
@@ -183,6 +201,7 @@ export function SubmitFormProvider({
       linkPolicies,
       errors,
       mediaSummary,
+      buildNotes,
       draft,
       existingMedia: existingMedia ?? null,
       setProductType,
@@ -195,6 +214,7 @@ export function SubmitFormProvider({
       setErrors,
       clearError,
       setMediaSummary,
+      setBuildNotes,
     }),
     [
       productType,
@@ -208,6 +228,7 @@ export function SubmitFormProvider({
       linkPolicies,
       errors,
       mediaSummary,
+      buildNotes,
       draft,
       existingMedia,
       setLinkPolicy,

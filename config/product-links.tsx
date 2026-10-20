@@ -125,8 +125,8 @@ export const PRODUCT_LINK_FIELDS: Record<string, LinkFieldDef> = {
   registry: {
     id: "registry",
     label: "Registre",
-    placeholder: "ex : npm i mon-package",
-    hint: "npm, PyPI, crates.io, pub.dev, Packagist, Go, Maven, NuGet, RubyGems…",
+    placeholder: "ex : https://www.npmjs.com/package/mon-package",
+    hint: "L'adresse de votre paquet sur le registre : elle porte le bouton d'accès sur la fiche et affiche le logo du registre (npm, PyPI, crates.io, pub.dev…). La commande d'installation se saisit à part, dans « Commande d'installation ».",
     required: "access",
     accessPoint: true,
     icon: "registry",
@@ -327,6 +327,25 @@ export function linkIdsForType(productType: string): string[] {
     ...BASE_LINK_FIELDS,
     ...(PRODUCT_LINKS_BY_TYPE[productType] ?? PRODUCT_LINKS_BY_TYPE.other ?? []),
   ];
+}
+
+/**
+ * Champ sur lequel ancrer l'erreur « au moins un point d'accès » : le
+ * premier point d'accès proposé POUR CE TYPE et laissé vide. Sans ça,
+ * l'erreur tombait toujours sur `website` — affiché comme recommandé /
+ * optionnel, donc une erreur pointait un champ que le maker n'a pas à
+ * remplir, et le vrai champ manquant restait muet. Repli `website` si la
+ * matrice du type n'expose aucun point d'accès.
+ */
+export function firstEmptyAccessPointId(
+  productType: string,
+  values: Record<string, string | undefined>,
+): string {
+  for (const id of linkIdsForType(productType)) {
+    const f = PRODUCT_LINK_FIELDS[id];
+    if (f?.accessPoint && (values[id] ?? "").trim() === "") return id;
+  }
+  return "website";
 }
 
 /**

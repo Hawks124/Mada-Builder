@@ -31,7 +31,7 @@ export function NewestProducts({
         </div>
 
         <Link
-          href="/discover"
+          href="/discover?sort=newest"
           className="group flex items-center gap-2 text-sm font-bold text-foreground hover:text-primary transition-colors cursor-pointer"
         >
           Parcourir tout

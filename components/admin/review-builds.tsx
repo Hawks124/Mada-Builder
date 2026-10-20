@@ -10,6 +10,7 @@ import {
   HourglassIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { ProductAvatar } from "@/components/ui/product-avatar";
 import { waitingFr } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { BuildPlayTable, formatMo } from "@/components/builds/build-play-table";
@@ -177,14 +178,12 @@ export function ReviewBuilds({
   builds,
   productIconUrl,
   productInitials,
-  productGradient,
 }: {
   builds: ReviewBuildItem[];
   /** Logo fiche en repli (D6) : l'icône APK n'est pas stockée en base. */
   productIconUrl?: string | null;
   /** Repli initiales (calculé serveur, comme la file fiches). */
   productInitials?: string;
-  productGradient?: string;
 }) {
   if (builds.length === 0) {
     return (
@@ -217,19 +216,7 @@ export function ReviewBuilds({
             <div className="group flex gap-4 py-5 px-3 rounded-2xl hover:bg-muted/40 transition-colors">
               {/* Logo fiche (même repli que partout), sinon initiales */}
               <span className="w-12 h-12 rounded-2xl shrink-0 overflow-hidden shadow-sm">
-                {productIconUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={productIconUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span
-                    className={cn(
-                      "flex h-full w-full items-center justify-center text-white font-black text-base bg-linear-to-br",
-                      productGradient ?? "from-zinc-500 to-zinc-700",
-                    )}
-                  >
-                    {productInitials ?? "?"}
-                  </span>
-                )}
+                <ProductAvatar iconUrl={productIconUrl} initials={productInitials ?? "?"} />
               </span>
 
               {/* Body */}

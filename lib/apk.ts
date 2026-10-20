@@ -144,8 +144,12 @@ function encodeTlv(tag: number, value: Uint8Array): Uint8Array {
   return out;
 }
 
-/** Certificats DER d'un signer v2/v3 (sequence length-prefixed). */
-function certsOfSigner(signer: Uint8Array, scheme: "v2" | "v3"): Uint8Array[] {
+/**
+ * Certificats DER d'un signer v2/v3 (sequence length-prefixed).
+ * La structure est identique en v2 et en v3 : la différence (minSdk /
+ * maxSdk) est dans les ATTRIBUTS ADDITIONNELS, en fin de signed data.
+ */
+function certsOfSigner(signer: Uint8Array): Uint8Array[] {
   let o = 0;
   const seqLen = ((): number => {
     const n = readU32LE(signer, o);
@@ -153,10 +157,6 @@ function certsOfSigner(signer: Uint8Array, scheme: "v2" | "v3"): Uint8Array[] {
     return n;
   })();
   void seqLen;
-  if (scheme === "v3") {
-    // v3 : minSdk + maxSdk (2× uint32) avant signedData.
-    o += 8;
-  }
   // signedData (length-prefixed) : digests, certificates, ...
   const signedLen = readU32LE(signer, o);
   o += 4;
@@ -180,6 +180,22 @@ function certsOfSigner(signer: Uint8Array, scheme: "v2" | "v3"): Uint8Array[] {
   return out;
 }
 
+/**
+ * Forme minimale d'un certificat X.509 : SEQUENCE { tbs, sigAlg, sig }
+ * avec un TBSCertificate d'au moins 6 champs. Sert de garde : un
+ * décalage de lecture dans le bloc de signature produit des octets
+ * arbitraires, jamais un certificat bien formé.
+ */
+function isX509Shape(der: Uint8Array): boolean {
+  try {
+    const { node } = parseTlv(der, 0);
+    if (node.tag !== 0x30 || node.children.length < 3) return false;
+    const tbs = node.children[0]!;
+    return tbs.tag === 0x30 && tbs.children.length >= 6;
+  } catch {
+    return false;
+  }
+}
 // ── ASN.1 minimal (v1 PKCS#7 + X.509) ─────────────────────────────────
 
 export type Tlv = { tag: number; value: Uint8Array; children: Tlv[]; start: number; total: number };
@@ -597,27 +613,47 @@ export async function extractCertDers(read: SliceReader): Promise<RawCertDers> {
         // Position des paires : +8 en spec, mais des outils réels
         // insèrent 16 octets de zéros devant (constaté sur F-Droid
         // et Facebook : v2/v3/Brew chaînés à +24, fin exacte).
-        // On essaie chaque candidat, spec d'abord.
+        // On essaie chaque candidat et on retient celui qui produit de
+        // VRAIS certificats X.509 : un décalage de lecture n'en produit
+        // aucun (l'ancien « premier offset qui trouve un id v2/v3 »
+        // acceptait n'importe quoi et rejetait l'APK à tort).
         const end = blockBuf.length;
+        const candidates: { ders: RawCertDers["ders"]; x509: number }[] = [];
         for (const start of [8, 16, 24]) {
+          const collected: RawCertDers["ders"] = [];
+          let x509 = 0;
           let o = start;
-          let found = false;
-          while (o + 12 <= end) {
+          while (o + 16 <= end) {
             const pairSize = readU64LE(blockBuf, o);
             const id = readU32LE(blockBuf, o + 8);
-            if (pairSize < 4 || o + 8 + pairSize > end) break;
-            const value = blockBuf.slice(o + 12, o + 8 + pairSize);
+            if (pairSize < 8 || o + 8 + pairSize > end) break;
             if (id === SIG_V2 || id === SIG_V3) {
               const scheme = id === SIG_V3 ? "v3" : "v2";
-              for (const der of certsOfSigner(value, scheme)) {
-                out.ders.push({ scheme, der });
-                found = true;
+              // La VALEUR d'une paire est elle-même préfixée par sa
+              // longueur (uint32) : d'où le +16, et non +12. Sans ce
+              // saut, tout le contenu est décalé de 4 octets — le
+              // « certificat » extrait commence par 0x03, le parse
+              // X.509 échoue, et l'APK est refusé alors qu'il est
+              // parfaitement signé (constaté sur 3 APK réels).
+              const valueLen = readU32LE(blockBuf, o + 12);
+              const valueStart = o + 16;
+              if (valueStart + valueLen <= end) {
+                const value = blockBuf.slice(valueStart, valueStart + valueLen);
+                for (const der of certsOfSigner(value)) {
+                  collected.push({ scheme, der });
+                  if (isX509Shape(der)) x509++;
+                }
               }
             }
             o += 8 + pairSize;
           }
-          if (found) break;
+          if (collected.length > 0) candidates.push({ ders: collected, x509 });
         }
+        // Le bon offset = celui qui a produit le plus de X.509 valides.
+        // On garde ses blobs bruts (même les non-X.509) pour que la
+        // taxonomie d'erreur reste la même qu'avant.
+        const best = candidates.sort((a, b) => b.x509 - a.x509)[0];
+        if (best) out.ders.push(...best.ders);
       }
     }
   }
@@ -680,18 +716,24 @@ export async function extractApkCerts(read: SliceReader): Promise<ApkCert[]> {
   const sorted = [...raw.ders].sort((a, b) => order[a.scheme] - order[b.scheme]);
   const seen = new Set<string>();
   const out: ApkCert[] = [];
+  // On garde la PREMIÈRE raison d'échec : sans elle, le message final
+  // (« aucun certificat lisible ») ne disait rien du tout et un bug
+  // de lecture restait invisible. Diagnostic, pas d'aveu.
+  let firstError: string | null = null;
   for (const { scheme, der } of sorted) {
     let ders: Uint8Array[];
     try {
       ders = scheme === "v1" ? certsOfPkcs7(der) : [der];
-    } catch {
+    } catch (e) {
+      firstError ??= e instanceof Error ? e.message : String(e);
       continue; // Bloc PKCS#7 illisible : on ignore ce blob.
     }
     for (const d of ders) {
       let cert: ApkCert;
       try {
         cert = await certDetails(d, scheme);
-      } catch {
+      } catch (e) {
+        firstError ??= e instanceof Error ? e.message : String(e);
         continue; // Blob non-X.509 (résidu d'outil) : on ignore.
       }
       if (seen.has(cert.sha256)) continue;
@@ -702,7 +744,9 @@ export async function extractApkCerts(read: SliceReader): Promise<ApkCert[]> {
   if (out.length === 0) {
     throw new ApkParseError(
       "CERT_FAILED",
-      "Aucun certificat X.509 lisible — re-signez l'APK avec votre keystore release.",
+      firstError
+        ? `Aucun certificat X.509 lisible (${firstError}) — re-signez l'APK avec votre keystore release.`
+        : "Aucun certificat X.509 lisible — re-signez l'APK avec votre keystore release.",
     );
   }
   return out;

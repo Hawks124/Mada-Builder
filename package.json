@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:isolated": "node scripts/build-isolated.mjs",
     "start": "next start",
     "lint": "eslint",
     "fix": "prettier --write . && eslint . --fix",

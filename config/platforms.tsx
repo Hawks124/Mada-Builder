@@ -6,6 +6,7 @@ import {
   Terminal,
   WindowsLogo,
   LinuxLogo,
+  Circuitry,
 } from "@phosphor-icons/react/dist/ssr";
 import type { Icon } from "@phosphor-icons/react";
 
@@ -64,6 +65,13 @@ export const PLATFORMS: Platform[] = [
   },
   { id: "windows", label: "Windows", description: "PC Windows", count: 31, icon: WindowsLogo },
   { id: "linux", label: "Linux", description: "Distributions Linux", count: 12, icon: LinuxLogo },
+  {
+    id: "embarque",
+    label: "Embarqué",
+    description: "IoT, capteurs, objets connectés",
+    count: 4,
+    icon: Circuitry,
+  },
 ];
 
 export function getPlatformById(id: string): Platform | undefined {
@@ -73,7 +81,11 @@ export function getPlatformById(id: string): Platform | undefined {
 /**
  * Plateformes suggérées par type de produit (le formulaire les pré-coche
  * en création — décochables, jamais imposées : suggestion, pas friction).
- * Types absents = aucune suggestion (l'utilisateur choisit).
+ *
+ * Tous les types ont une suggestion : sans elle, le maker starting from a
+ * blank slate coche n'importe quoi (une app mobile qui se dit « macOS +
+ * Windows + CLI »). Les plateformes hors suggestion restent accessibles
+ * (groupe « autres plateformes ») — la suggestion n'interdit rien.
  */
 export const PLATFORMS_BY_TYPE: Record<string, string[]> = {
   app_mobile: ["ios", "android"],
@@ -84,4 +96,18 @@ export const PLATFORMS_BY_TYPE: Record<string, string[]> = {
   api: ["cli"],
   bot: ["web"],
   game: ["android", "ios", "web", "windows", "linux"],
+  // Un paquet s'installe par une CLI et tourne sur les trois OS.
+  package: ["cli", "windows", "macos", "linux"],
+  // Un framework sert le web et se paramètre en CLI.
+  framework: ["web", "cli"],
+  // Extension de navigateur (web) ou extension d'app desktop (VS Code…).
+  extension: ["web", "desktop"],
+  // Plugin navigateur ou plugin d'application desktop.
+  plugin: ["web", "desktop"],
+  // Un OS : ce sont les trois systèmes qu'il peutinstaller.
+  os: ["windows", "macos", "linux"],
+  // IoT : matériel embarqué (ni desktop, ni mobile).
+  iot: ["embarque"],
+  // « Autre » : aucun a priori, le maker choisit (les 8 restent dispo).
+  other: ["ios", "macos", "android", "web", "desktop", "cli", "windows", "linux", "embarque"],
 };

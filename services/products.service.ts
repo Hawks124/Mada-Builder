@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, count, desc, eq, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   products,
@@ -115,30 +115,27 @@ import { captureError } from "@/lib/monitoring";
  */
 
 const TYPE_IDS = new Set(PRODUCT_TYPES.map((t) => t.id));
-/** Orientation imposée par type ("both" = le maker choisit). */
-const TYPE_ORIENTATION = new Map(PRODUCT_TYPES.map((t) => [t.id, t.orientation] as const));
-
 /**
- * Pilotage auto : l'orientation déclarée doit être compatible avec le
- * type (un SaaS desktop en portrait n'existe pas — rejet, pas recadrage).
+ * Orientation de départ d'un type : imposée si fixe, `defaultOrientation`
+ * si "both". C'est une SUGGESTION, pas un verrou — le maker peut
+ * changer l'orientation de sa galerie quand il veut ; la barrière, elle,
+ * reste entière : une fois l'orientation choisie, TOUTES les captures
+ * doivent la respecter (portrait ⇒ portrait only, paysage ⇒ paysage
+ * only) — cf. `uploadProductFiles` et la purge au basculement.
  */
-function assertOrientationAllowed(
-  productType: string,
-  galleryOrientation: GalleryOrientation,
-): void {
-  const imposed = TYPE_ORIENTATION.get(productType);
-  if (imposed && imposed !== "both" && imposed !== galleryOrientation) {
-    const want = imposed === "portrait" ? "portrait" : "paysage";
-    throw new ProfileError("VALIDATION", `Captures ${want} requises pour ce type de produit.`);
-  }
-}
+const DEFAULT_ORIENTATION = new Map<string, GalleryOrientation>(
+  PRODUCT_TYPES.map((t) => [
+    t.id,
+    t.orientation === "both" ? (t.defaultOrientation ?? "landscape") : t.orientation,
+  ]),
+);
 const CATEGORY_IDS = new Set(PRODUCT_CATEGORIES.map((c) => c.id));
 const PLATFORM_IDS = new Set(PLATFORMS.map((p) => p.id));
 const PRICING_IDS = new Set(PRICING_MODELS.map((p) => p.id));
+function defaultOrientationFor(productType: string): GalleryOrientation {
+  return DEFAULT_ORIENTATION.get(productType) ?? "landscape";
+}
 const AUDIENCE_IDS = new Set(AGE_RATINGS.map((r) => r.id));
-
-/** Types dev-facing : install command requise (miroir du formulaire). */
-const DEV_FACING = new Set(["cli", "package", "framework", "plugin"]);
 
 const optionalUrlSchema = z.preprocess(
   (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
@@ -302,6 +299,67 @@ export const submitProductSchema = z.object({
   links: linksSchema.optional(),
 });
 
+/**
+ * Brouillon = travail en cours (`submitProductSchema` reste le contrat de
+ * PUBLICATION, inchangé). Un seul champ strictement nécessaire : `name`
+ * (identité + slug). Tout le reste retombe sur les valeurs par défaut —
+ * celles de la base (`platforms` `[]`, `pricingModel` "free", `lifecycle`
+ * "live", `audience` "all", orientation pilotée par le type). Un brouillon
+ * peut donc être un simple nom ; les badges « Requis » de l'UI décrivent
+ * la publication, pas l'enregistrement d'une saisie en cours.
+ */
+export const submitDraftSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  productType: z.string().refine((id) => TYPE_IDS.has(id), "Type inconnu"),
+  // notNull en base, valeur neutre : un brouillon n'est jamais public.
+  tagline: z.string().trim().max(220).default(""),
+  description: z.string().trim().max(20000).default(""),
+  // Alimente `categories[0]` (notNull) : repli sur la 1re catégorie tant
+  // que le maker n'en a pas choisi — exigée au publish.
+  category: z
+    .string()
+    .refine((id) => CATEGORY_IDS.has(id), "Catégorie inconnue")
+    .default(PRODUCT_CATEGORIES[0]?.id ?? ""),
+  categories: z
+    .array(z.string())
+    .max(3)
+    .refine((ids) => ids.every((id) => CATEGORY_IDS.has(id)), "Catégorie inconnue")
+    .optional(),
+  tags: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
+  platforms: z
+    .array(z.string())
+    .max(10)
+    .refine((ids) => ids.every((id) => PLATFORM_IDS.has(id)), "Plateforme inconnue")
+    .default([]),
+  pricingModel: z
+    .string()
+    .default("free")
+    .refine((id) => PRICING_IDS.has(id), "Modèle inconnu"),
+  lifecycle: z
+    .string()
+    .default("live")
+    .refine((id) => ["dev", "beta", "live"].includes(id), "Avancement inconnu"),
+  audience: z
+    .string()
+    .default("all")
+    .refine((id) => AUDIENCE_IDS.has(id), "Audience inconnue"),
+  license: z.string().trim().max(60).optional(),
+  installCommand: z.string().trim().max(200).optional(),
+  version: z.string().trim().max(20).optional(),
+  requirements: z.array(z.string().trim().min(1).max(80)).max(8).optional(),
+  changelogUrl: optionalUrlSchema,
+  hasAds: z.boolean().optional(),
+  hasInAppPurchase: z.boolean().optional(),
+  sharesData: z.boolean().optional(),
+  isChildDirected: z.boolean().optional(),
+  // Absent en brouillon si le maker n'a pas touché au toggle : résolu par
+  // le type (`defaultOrientationFor`) juste après le parse.
+  galleryOrientation: z.enum(["portrait", "landscape"]).optional(),
+  targetCountries: z.array(z.string().trim().max(60)).max(10).optional(),
+  languagesSupported: z.array(z.string().trim().max(30)).max(20).optional(),
+  links: linksSchema.optional(),
+});
+
 export type SubmitProductInput = z.infer<typeof submitProductSchema>;
 
 // ── Slugs ─────────────────────────────────────────────────────────────────
@@ -423,6 +481,8 @@ async function assertLinksReachable(links: Record<string, string>): Promise<void
 // ── Fichiers ──────────────────────────────────────────────────────────────
 // Logo : contain carré sur fond transparent (jamais de recadrage — un
 // wordmark large ne doit pas être coupé), 256 px min (comme l'UI promet).
+// Le GIF n'est PAS accepté ici : un logo animé n'apporte rien et le
+// passthrough du GIF sauterait le recadrage carré (tuile non carrée).
 const LOGO_OPTS = {
   maxInputBytes: 10 * 1024 * 1024,
   minPx: 256,
@@ -432,7 +492,8 @@ const LOGO_OPTS = {
   fit: "contain-square",
 } as const;
 // Captures : ratio source préservé (inside, côté long ≤ 1600), côté court
-// ≥ 400 px. L'uniformité par fiche est imposée par l'orientation déclarée
+// ≥ 400 px (200 px pour un GIF animé, format lourd par nature).
+// L'uniformité par fiche est imposée par l'orientation déclarée
 // (rejet des intrus, jamais de recadrage) — pas par la sortie.
 const SHOT_OPTS = {
   maxInputBytes: 10 * 1024 * 1024,
@@ -442,6 +503,7 @@ const SHOT_OPTS = {
   maxOutBytes: 4 * 1024 * 1024,
   fit: "inside",
   maxLongEdge: 1600,
+  allowGif: true,
 } as const;
 const MAX_SHOTS = 6;
 
@@ -490,7 +552,7 @@ async function uploadProductFiles(
     if (!kind) {
       throw new ProfileError(
         "FILE_REJECTED",
-        `Capture ${n} : format non supporté — PNG, JPG ou WebP uniquement.`,
+        `Capture ${n} : format non supporté — PNG, JPG, WebP ou GIF uniquement.`,
       );
     }
     const { width, height } = await measureImage(buffer).catch(() => {
@@ -501,7 +563,7 @@ async function uploadProductFiles(
       const gotFr = orientation === "portrait" ? "portrait" : "paysage";
       throw new ProfileError(
         "FILE_REJECTED",
-        `Capture ${n} : orientation ${gotFr} rejetée — ce produit est déclaré ${declaredFr}.`,
+        `Capture ${n} : orientation ${gotFr} rejetée — la galerie est en ${declaredFr}. Basculez l'orientation en ${gotFr} pour l'ajouter.`,
       );
     }
     measured.push({ file, width, height, orientation });
@@ -548,11 +610,16 @@ async function uploadProductFiles(
           throw new ProfileError("FILE_REJECTED", `Capture ${n} : ${e.message}`);
         throw e;
       });
-      const key = r2Key(productId, `shot-${n}`, "webp");
+      // GIF : `processImage` renvoie les octets d'origine (animation
+      // préservée) — la clé et le content-type doivent donc suivre le
+      // format réel, pas WebP.
+      const ext = detectImageKind(buffer) === "gif" ? "gif" : "webp";
+      const contentType = ext === "gif" ? "image/gif" : "image/webp";
+      const key = r2Key(productId, `shot-${n}`, ext);
       const url = await track(
         PRODUCT_SHOTS_BUCKET,
         key,
-        putR2Object(PRODUCT_SHOTS_BUCKET, key, processed, "image/webp"),
+        putR2Object(PRODUCT_SHOTS_BUCKET, key, processed, contentType),
       );
       // Dimensions de sortie (inside + withoutEnlargement : jamais au-delà
       // de la source) — recalculées, pas supposées.
@@ -598,11 +665,50 @@ export type StagedMedia = {
   screenshots?: string[];
 };
 
-const STAGED_KEY_RE = /^staging\/[0-9a-f-]{36}\/\d+-[a-z0-9]+\.(png|jpg|webp)$/;
+/**
+ * Bascule d'orientation : purge les captures MESURÉES dans l'autre
+ * orientation (lignes + objets R2). Une fiche n'est jamais mixte — le
+ * type peut imposer l'orientation, le maker la choisit quand le type est
+ * "both" ; dans les deux cas la galerie reste homogène. Le refus
+ * « fournissez de nouvelles captures » a été remplacé par ce purge : le
+ * maker garde son choix, les images incompatibles partent (R2 compris,
+ * donc aucun orphelin).
+ */
+async function purgeScreenshotsOffOrientation(
+  productId: string,
+  orientation: GalleryOrientation,
+): Promise<number> {
+  const stale = await db
+    .select({ url: productScreenshots.url })
+    .from(productScreenshots)
+    .where(
+      and(
+        eq(productScreenshots.productId, productId),
+        ne(productScreenshots.orientation, orientation),
+      ),
+    );
+  if (stale.length === 0) return 0;
+  for (const s of stale) {
+    const key = r2KeyFromUrl(s.url);
+    if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+  }
+  await db
+    .delete(productScreenshots)
+    .where(
+      and(
+        eq(productScreenshots.productId, productId),
+        ne(productScreenshots.orientation, orientation),
+      ),
+    );
+  return stale.length;
+}
+
+const STAGED_KEY_RE = /^staging\/[0-9a-f-]{36}\/\d+-[a-z0-9]+\.(png|jpg|webp|gif)$/;
 const STAGED_MIME: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
   webp: "image/webp",
+  gif: "image/gif",
 };
 
 /**
@@ -702,15 +808,18 @@ export async function submitProduct(input: {
           ).text,
         }
       : input.data;
-  const parsed = submitProductSchema.safeParse(rawData);
+  // Brouillon : schéma allégé (travail en cours, MediaField contraints
+  // seulement au publish). Publication : `submitProductSchema` strict.
+  const parsed = (input.asDraft ? submitDraftSchema : submitProductSchema).safeParse(rawData);
   if (!parsed.success) {
     throw new ProfileError("VALIDATION", zodFieldMessage(parsed.error));
   }
   const data = parsed.data;
-  assertOrientationAllowed(data.productType, data.galleryOrientation);
-  if (DEV_FACING.has(data.productType) && !data.installCommand) {
-    throw new ProfileError("VALIDATION", "Commande d'installation requise pour ce type.");
-  }
+  // Brouillon sans toggle touché : orientation déduite du type (notNull en base).
+  const galleryOrientation = data.galleryOrientation ?? defaultOrientationFor(data.productType);
+  // Pas de garde d'orientation ici : le type SUGGÈRE une orientation, il ne
+  // l'impose plus — le maker bascule librement (la barrière ratio, elle,
+  // reste appliquée au moment de l'upload).
   // Staging présigné (mobile) : clés → File, mergés aux directs.
   const staged = input.staged
     ? await resolveStagedMedia(input.viewerId, input.staged)
@@ -759,6 +868,13 @@ export async function submitProduct(input: {
     category: categories[0],
     categories,
     tags: data.tags ?? [],
+    // Plateformes ET configuration requise : ces deux clés ÉTAIENT
+    // ABSENTES de l'objet inserté — l'INSERT les omettait et le défaut
+    // SQL (`platforms` = []) s'appliquait. Les plateformes étaient
+    // donc validées puis jetées à la création, en brouillon comme en
+    // publication (constaté sur des fiches réelles sans plateforme).
+    platforms: data.platforms,
+    requirements: data.requirements ?? [],
     productType: data.productType as NewProduct["productType"],
     pricingModel: data.pricingModel as NewProduct["pricingModel"],
     lifecycle: data.lifecycle as NewProduct["lifecycle"],
@@ -773,7 +889,7 @@ export async function submitProduct(input: {
     targetCountries: data.targetCountries ?? [],
     languagesSupported: data.languagesSupported ?? [],
     links,
-    galleryOrientation: data.galleryOrientation,
+    galleryOrientation: galleryOrientation,
     status: input.asDraft ? ("draft" as const) : ("pending" as const),
     // Soumission directe en file (D0) : le SLA part d'ici. Brouillon =
     // jamais soumis (NULL) — la date est posée à la (re-)soumission.
@@ -802,7 +918,7 @@ export async function submitProduct(input: {
   const files = [...(logo ? [logo] : []), ...screenshots];
   if (files.length > 0) {
     try {
-      const prepared = await uploadProductFiles(row.id, logo, screenshots, data.galleryOrientation);
+      const prepared = await uploadProductFiles(row.id, logo, screenshots, galleryOrientation);
       await db
         .update(products)
         .set({ iconUrl: prepared.logoUrl, updatedAt: new Date() })
@@ -917,6 +1033,58 @@ export async function fetchProductBySlug(slug: string) {
     .where(eq(productScreenshots.productId, row.id))
     .orderBy(productScreenshots.position);
   return { ...row, screenshots: shots };
+}
+
+/**
+ * APERÇU d'une fiche — propriétaire OU staff.
+ *
+ * Doublette de `fetchProductBySlug` SANS le filtre `published` : l'aperçu
+ * montre une fiche encore en brouillon / en revue / rejetée, exactement
+ * telle qu'elle paraîtra. La garde vit ICI (pas seulement dans la page) :
+ * `null` = indisponible pour ce viewer → la route répond 404, jamais 403
+ * (on ne confirme pas l'existence d'une fiche non publiée).
+ *
+ * `isStaff` est décidé par l'appelant (rôle en base, jamais le miroir
+ * JWT). Un tiers ne reçoit RIEN : la ligne n'est même pas lue.
+ */
+export async function fetchProductForPreview(
+  viewerId: string,
+  productId: string,
+  opts?: { isStaff?: boolean },
+) {
+  const [row] = await db
+    .select({
+      ...publicMakerSelect,
+      makerId: products.makerId,
+      status: products.status,
+      rejectionReason: products.rejectionReason,
+      publishedAt: products.publishedAt,
+      createdAt: products.createdAt,
+      makerUsername: users.username,
+      makerDisplayName: users.displayName,
+      makerAvatarUrl: users.avatarUrl,
+      makerWebsiteUrl: users.websiteUrl,
+      makerSocialLinks: users.socialLinks,
+    })
+    .from(products)
+    .innerJoin(users, eq(products.makerId, users.id))
+    .where(and(eq(products.id, productId), isNull(products.deletedAt)))
+    .limit(1);
+  if (!row) return null;
+  // Garde : le propriétaire, ou un staff. Un tiers → null (404 en route).
+  if (row.makerId !== viewerId && opts?.isStaff !== true) return null;
+  const shots = await db
+    .select({
+      url: productScreenshots.url,
+      caption: productScreenshots.caption,
+      orientation: productScreenshots.orientation,
+      width: productScreenshots.width,
+      height: productScreenshots.height,
+    })
+    .from(productScreenshots)
+    .where(eq(productScreenshots.productId, row.id))
+    .orderBy(productScreenshots.position);
+  return { product: row, shots };
 }
 
 /** Dashboard maker : tout ses produits (draft/pending/rejected inclus).
@@ -1192,6 +1360,7 @@ export function toDashboardApp(
   const lifecycle = (["dev", "beta", "live"] as const).find((l) => l === row.lifecycle) ?? "live";
   return {
     id: row.id,
+    slug: row.slug,
     name: row.name,
     tagline: row.tagline,
     description: row.description,
@@ -1455,7 +1624,14 @@ export async function getEditMedia(
   productId: string,
 ): Promise<{
   iconUrl: string | null;
-  shots: { url: string; width: number | null; height: number | null }[];
+  // `orientation` mesurée à l'upload : la dialog de bascule affiche
+  // exactement les miniatures que la purge serveur va supprimer.
+  shots: {
+    url: string;
+    width: number | null;
+    height: number | null;
+    orientation: GalleryOrientation;
+  }[];
 }> {
   const [row] = await db
     .select({ id: products.id, makerId: products.makerId, iconUrl: products.iconUrl })
@@ -1470,11 +1646,15 @@ export async function getEditMedia(
       url: productScreenshots.url,
       width: productScreenshots.width,
       height: productScreenshots.height,
+      orientation: productScreenshots.orientation,
     })
     .from(productScreenshots)
     .where(eq(productScreenshots.productId, productId))
     .orderBy(productScreenshots.position);
-  return { iconUrl: row.iconUrl, shots };
+  return {
+    iconUrl: row.iconUrl,
+    shots: shots.map((s) => ({ ...s, orientation: s.orientation as GalleryOrientation })),
+  };
 }
 
 /**
@@ -1525,16 +1705,13 @@ export async function updateProduct(
       mergedLinks.changelog = row.links.changelog;
     }
   }
-  // Type et/ou orientation modifiés : re-valider le couple (l'orientation
-  // effective = la nouvelle si fournie, sinon celle stockée).
-  if (data.productType !== undefined || data.galleryOrientation !== undefined) {
-    assertOrientationAllowed(
-      data.productType ?? row.productType,
-      data.galleryOrientation ?? (row.galleryOrientation as GalleryOrientation),
-    );
-  }
-  // Guard AVANT tout commit (M1) : orientation changée sans captures
-  // compatibles = refus, zéro écriture (jamais de fiche mixte persistée).
+  // Orientation : plus aucune contrainte de type (le type propose, le maker
+  // choisit). La bascule est libre ; c'est la purge plus bas qui écarte les
+  // captures de l'orientation abandonnée.
+  // Bascule d'orientation : PAS de refus (l'ancien « fournissez aussi de
+  // nouvelles captures » bloquait le toggle). La purge des captures
+  // mesurées dans l'autre orientation a lieu plus bas, après le bloc
+  // média — donc après l'upload éventuel de nouvelles captures.
   // Staging présigné mergé aux directs (même pipeline, mêmes règles).
   const staged = files?.staged
     ? await resolveStagedMedia(viewerId, files.staged)
@@ -1543,12 +1720,6 @@ export async function updateProduct(
   const newShots = [...(files?.screenshots ?? []).filter((f) => f.size > 0), ...staged.screenshots];
   const effectiveOrientation =
     data.galleryOrientation ?? (row.galleryOrientation as GalleryOrientation);
-  if (effectiveOrientation !== row.galleryOrientation && newShots.length === 0) {
-    throw new ProfileError(
-      "VALIDATION",
-      "Orientation modifiée — fournissez aussi de nouvelles captures compatibles.",
-    );
-  }
   if (data.categories !== undefined && data.categories.length === 0) {
     throw new ProfileError("VALIDATION", "Au moins une catégorie.");
   }
@@ -1581,6 +1752,21 @@ export async function updateProduct(
     }
     if (newShots.length === 0 && existingShots === 0) {
       throw new ProfileError("VALIDATION", "Au moins une capture requise pour publier.");
+    }
+    // Contrat de PUBLICATION, revalidé sur la fiche EFFECTIVE (champs
+    // modifiés + fiche existante) : un brouillon peut être allégé
+    // (travail en cours), sa publication non. Avant, ce chemin ne
+    // validait QUE les médias et les liens — une fiche sans
+    // plateforme, sans tagline ou sans description partait en file
+    // telle quelle. On réutilise `submitProductSchema` (le contrat de
+    // la création publish) : un seul contrat, deux chemins.
+    const effective = effectiveProductForPublish(row, {
+      ...data,
+      ...(mergedLinks !== undefined ? { links: mergedLinks } : {}),
+    });
+    const republished = submitProductSchema.safeParse(effective);
+    if (!republished.success) {
+      throw new ProfileError("VALIDATION", zodFieldMessage(republished.error));
     }
   }
 
@@ -1618,14 +1804,6 @@ export async function updateProduct(
     (patch as Record<string, unknown>)[key] = value;
   }
   if (mergedLinks !== undefined) patch.links = mergedLinks;
-  if (
-    data.productType !== undefined &&
-    DEV_FACING.has(data.productType) &&
-    data.installCommand === undefined &&
-    !row.installCommand
-  ) {
-    throw new ProfileError("VALIDATION", "Commande d'installation requise pour ce type.");
-  }
   if (rereview) {
     patch.status = "pending";
     patch.rejectionReason = null;
@@ -1689,6 +1867,12 @@ export async function updateProduct(
     }
     await cleanupStaged(staged.stagedKeys);
   }
+  // Bascule d'orientation = purge des captures de l'autre orientation
+  // (après le bloc média : les nouvelles captures sont déjà en base, on
+  // écarte donc aussi celles qu'un re-upload aurait conservées).
+  if (effectiveOrientation !== row.galleryOrientation) {
+    await purgeScreenshotsOffOrientation(productId, effectiveOrientation);
+  }
   // Staff : entrée en file uniquement (un edit qui reste pending ne
   // re-notifie pas — pas de spam à chaque sauvegarde).
   if (updated.status === "pending" && row.status !== "pending") {
@@ -1703,6 +1887,57 @@ export async function updateProduct(
  * rejected (motif OBLIGATOIRE — emailé). Retourne l'identité pour la
  * notification (best-effort, comme appeals).
  */
+/**
+ * Fiche EFFECTIVE au format du schéma de publication : la fiche en base
+ * + les champs modifiés. Les colonnes NULL de la base sont converties
+ * en `undefined` (le schéma connaît `optional()`, pas `null`) et les
+ * liens vides sont retirés (le schéma refuse une URL vide).
+ */
+function effectiveProductForPublish(
+  row: typeof products.$inferSelect,
+  patch: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    name: row.name,
+    tagline: row.tagline,
+    description: row.description,
+    category: row.category,
+    categories: row.categories ?? [],
+    tags: row.tags ?? [],
+    platforms: row.platforms ?? [],
+    productType: row.productType,
+    pricingModel: row.pricingModel,
+    lifecycle: row.lifecycle,
+    audience: row.audience,
+    license: row.license ?? undefined,
+    installCommand: row.installCommand ?? undefined,
+    version: row.version ?? undefined,
+    requirements: row.requirements ?? [],
+    targetCountries: row.targetCountries ?? [],
+    languagesSupported: row.languagesSupported ?? [],
+    hasAds: row.hasAds,
+    hasInAppPurchase: row.hasInAppPurchase,
+    sharesData: row.sharesData,
+    isChildDirected: row.isChildDirected,
+    galleryOrientation: row.galleryOrientation,
+    // `changelog` n'est PAS un champ de lien connu (il est fusionné
+    // dans `links` APRÈS le parse du schéma de publication) : on le
+    // sort d'ici et on le rend via `changelogUrl`, sinon toute fiche
+    // avec un journal de modifications passerait « Champ de lien
+    // inconnu » à la revalidation.
+    links: Object.fromEntries(
+      Object.entries((row.links ?? {}) as Record<string, string>).filter(
+        ([id, v]) => id !== "changelog" && typeof v === "string" && v.trim() !== "",
+      ),
+    ),
+    changelogUrl:
+      typeof (row.links as Record<string, string> | null)?.changelog === "string"
+        ? (row.links as Record<string, string>).changelog
+        : undefined,
+    ...patch,
+  };
+}
+
 export async function reviewProduct(input: {
   isStaff: boolean;
   productId: string;
@@ -1716,11 +1951,7 @@ export async function reviewProduct(input: {
   timeZone: string | null;
 }> {
   if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
-  const [row] = await db
-    .select({ id: products.id, name: products.name, status: products.status })
-    .from(products)
-    .where(eq(products.id, input.productId))
-    .limit(1);
+  const [row] = await db.select().from(products).where(eq(products.id, input.productId)).limit(1);
   if (!row) throw new ProfileError("NOT_FOUND", "Produit introuvable.");
   if (row.status !== "pending") {
     throw new ProfileError("CONFLICT", "Seules les soumissions en attente se tranchent.");
@@ -1728,6 +1959,20 @@ export async function reviewProduct(input: {
   const reason = (input.reason ?? "").trim();
   if (input.decision === "rejected" && reason === "") {
     throw new ProfileError("VALIDATION", "Motif de rejet requis (emailé au maker).");
+  }
+  if (input.decision === "approved") {
+    // L'approbation ne publie QUE si la fiche respecte le contrat de
+    // publication. Sans cette garde, une fiche entrée en file par un
+    // chemin allégé (brouillon sans plateforme, tagline, description…)
+    // était publiée telle quelle — l'annuaire se remplissait de fiches
+    // sans plateforme, que le staff ne voit qu'à l'écran.
+    const republished = submitProductSchema.safeParse(effectiveProductForPublish(row));
+    if (!republished.success) {
+      throw new ProfileError(
+        "VALIDATION",
+        `Fiche incomplète — ${zodFieldMessage(republished.error)}`,
+      );
+    }
   }
   // Atomique : seul le premier verdict compte (double-clic, deux onglets,
   // deux staffs la même seconde) — 0 ligne affectée = déjà tranchée, jamais

@@ -12,7 +12,7 @@ public est `username` (immuable) — **jamais l'id dans les URLs**.
 | `display_name`         | `text` NOT NULL                       | 2–50 signes (Zod)                                                                               |
 | `email`                | `text` UNIQUE NOT NULL                | **JAMAIS exposé en public** (voir RLS)                                                          |
 | `avatar_url`           | `text` NULL                           | CDN public, `null` = initiales                                                                  |
-| `bio`                  | `text` NULL                           | max 160                                                                                         |
+| `bio`                  | `text` NULL                           | max 400                                                                                         |
 | `occupation`           | `text` NOT NULL DEFAULT `'maker'`     | Vocabulaire fermé `config/occupations`                                                          |
 | `website_url`          | `text` NULL                           | http(s) uniquement                                                                              |
 | `social_links`         | `jsonb` NOT NULL DEFAULT `{}`         | Clés fermées : github, x, facebook, instagram, linkedin, tiktok, whatsapp, website (URLs https) |

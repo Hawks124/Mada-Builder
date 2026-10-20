@@ -11,17 +11,16 @@ import {
   PencilSimpleIcon,
   TrashIcon,
   HourglassIcon,
-  GlobeIcon,
-  AppleLogoIcon,
-  AndroidLogoIcon,
   ArrowSquareUpIcon,
 } from "@phosphor-icons/react";
 import { cn, formatMoney } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ProductAvatar } from "@/components/ui/product-avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { deleteMyProductAction } from "@/app/actions/products";
 import { getLifecycleById } from "@/config/lifecycle";
+import { getPlatformById } from "@/config/platforms";
 import {
   STATUS_META,
   formatCompactCount,
@@ -61,12 +60,6 @@ const EMPTY_COPY: Record<Filter, { title: string; description: string; cta: bool
     description: "Les produits refusés (avec leur motif) apparaîtront ici.",
     cta: false,
   },
-};
-
-const PLATFORM_ICONS: Record<string, React.ReactNode> = {
-  web: <GlobeIcon weight="fill" className="w-3.5 h-3.5" />,
-  ios: <AppleLogoIcon weight="fill" className="w-3.5 h-3.5" />,
-  android: <AndroidLogoIcon weight="fill" className="w-3.5 h-3.5" />,
 };
 
 // Maker apps — leaderboard-style rows, no cards.
@@ -264,11 +257,25 @@ function AppPlatforms({ app }: { app: DashboardApp }) {
   return (
     <span className="flex items-center gap-1.5 text-muted-foreground">
       <span className="flex items-center gap-1">
-        {app.platforms.map((p) => (
-          <span key={p} title={p}>
-            {PLATFORM_ICONS[p]}
+        {app.platforms.map((p) => {
+          // Les 8 plateformes de la config (macos, desktop, cli,
+          // windows, linux incluses) : une table codée en dur n'en
+          // montrait que 3, les autres rendant un span VIDE — le maker
+          // voyait sa fiche amputée sans aucun signal.
+          const platform = getPlatformById(p);
+          if (!platform) return null;
+          const PlatformIcon = platform.icon;
+          return (
+            <span key={p} title={platform.label}>
+              <PlatformIcon weight="fill" className="w-3.5 h-3.5" />
+            </span>
+          );
+        })}
+        {app.platforms.length === 0 && (
+          <span className="text-[11px] font-bold text-red-600 dark:text-red-400">
+            aucune plateforme
           </span>
-        ))}
+        )}
       </span>
       <span aria-hidden="true">·</span>
       <span className="text-[11px] font-semibold">{app.productType}</span>
@@ -349,58 +356,29 @@ function DeleteButton({ appName, onDelete }: { appName: string; onDelete: () => 
  * Icône produit : logo R2 si fourni (avec repli si l'image casse),
  * sinon tuile gradient + initiales (design historique inchangé).
  */
-function AppIcon({
-  iconUrl,
-  initials,
-  gradient,
-}: {
-  iconUrl?: string | null;
-  initials: string;
-  gradient: string;
-}) {
-  const [failed, setFailed] = React.useState(false);
-  if (iconUrl && !failed) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={iconUrl}
-        alt=""
-        onError={() => setFailed(true)}
-        className="h-full w-full object-cover"
-      />
-    );
-  }
-  return (
-    <span
-      className={cn(
-        "flex h-full w-full items-center justify-center text-white font-black text-[15px] bg-linear-to-br",
-        gradient,
-      )}
-    >
-      {initials}
-    </span>
-  );
-}
-
 function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) {
   const status = STATUS_META[app.status];
+  // Publiée → la vraie page. Sinon (en revue / rejetée) → l'APERÇU, qui
+  // rend la fiche en ligne tel qu'elle sera. (Avant : `/products/{id}` —
+  // l'id n'est jamais le slug → 404 pour tout le monde.)
+  const href = app.status === "live" ? `/products/${app.slug}` : `/preview/${app.id}`;
 
   return (
     <div className="flex items-center gap-4 py-4 px-3 rounded-2xl hover:bg-muted/40 transition-colors">
       {/* Icon : logo réel si fourni, sinon tuile initiales (design inchangé) */}
       <Link
-        href={`/products/${app.id}`}
+        href={href}
         className="w-11 h-11 rounded-2xl shrink-0 overflow-hidden shadow-sm"
         aria-label={`Voir ${app.name}`}
       >
-        <AppIcon iconUrl={app.iconUrl} initials={app.initials} gradient={app.iconGradient} />
+        <ProductAvatar iconUrl={app.iconUrl} initials={app.initials} />
       </Link>
 
       {/* Name + tagline + platform/type + status extras */}
       <div className="flex flex-col gap-1 min-w-0 flex-1">
         <div className="flex items-center gap-2.5 flex-wrap">
           <Link
-            href={`/products/${app.id}`}
+            href={href}
             className="text-[15px] font-extrabold tracking-tight text-foreground hover:text-primary transition-colors truncate"
           >
             {app.name}
@@ -516,17 +494,32 @@ function AppRow({ app, onDelete }: { app: DashboardApp; onDelete: () => void }) 
               {app.notifStatus === "ok" ? "Notifié par email" : "Échec notif email"}
             </span>
           )}
-          <button
-            type="button"
-            className="text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:underline underline-offset-4 transition-colors cursor-pointer"
+          <Link
+            href={
+              "/contact?sujet=autre&message=" +
+              encodeURIComponent(
+                `Concernant la fiche « ${app.name} » (${app.status === "pending" ? "en revue" : "en attente de validation"}) : `,
+              )
+            }
+            className="text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:underline underline-offset-4 transition-colors"
           >
             Contacter la revue
-          </button>
+          </Link>
         </div>
       )}
 
       {/* Actions */}
       <div className="flex items-center gap-1 shrink-0">
+        {/* Aperçu de la fiche (comme le store preview) : le maker voit ce
+            qu'un visiteur verra, même avant publication. */}
+        <Link
+          href={`/preview/${app.id}`}
+          title="Voir la fiche comme un visiteur la verra"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-[12px] font-bold text-muted-foreground border border-border/50 hover:text-foreground hover:border-foreground/30 transition-colors"
+        >
+          <EyeIcon weight="bold" className="w-3.5 h-3.5" />
+          Aperçu
+        </Link>
         {app.status !== "pending" && <EditButton appId={app.id} appName={app.name} />}
         {app.status !== "pending" && app.platforms.includes("android") && (
           <UpdateButton

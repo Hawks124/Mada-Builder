@@ -207,6 +207,7 @@ export const STAGED_EXTS = {
   "image/png": "png",
   "image/jpeg": "jpg",
   "image/webp": "webp",
+  "image/gif": "gif",
 } as const;
 
 /**

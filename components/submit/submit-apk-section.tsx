@@ -12,7 +12,7 @@ import {
   type ApkManifest,
 } from "@/lib/apk";
 import { BuildPlayTable, formatMo } from "@/components/builds/build-play-table";
-import { MAX_APK_BYTES } from "@/lib/apk-limits";
+import { MAX_APK_BYTES, NOTES_MAX } from "@/lib/apk-limits";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { CheckCircleIcon, FileArrowUpIcon, TrashIcon } from "@phosphor-icons/react";
@@ -123,6 +123,9 @@ export function SubmitApkSection({
   onClear,
   onBusyChange,
   actionsLocked,
+  notes,
+  onNotesChange,
+  notesRequired = false,
 }: {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   pending: PendingApk | null;
@@ -132,6 +135,17 @@ export function SubmitApkSection({
   onBusyChange?: (busy: boolean) => void;
   /** Envoi en cours côté parent : Retirer verrouillé (le File part en PUT). */
   actionsLocked?: boolean;
+  /**
+   * Notes de version — **prop, pas contexte** : cette section est
+   * rendue par la création (dans le provider du formulaire) ET par la
+   * mise à jour d'un binaire (hors provider) ; lire le contexte ici
+   * plantait la page Update (« useSubmitForm must be used inside
+   * <SubmitFormProvider> »). Chaque parent garde son propre état.
+   */
+  notes: string;
+  onNotesChange: (value: string) => void;
+  /** Notes obligatoires (mise à jour d'un binaire) — le serveur les exige. */
+  notesRequired?: boolean;
 }) {
   const [parsing, setParsing] = React.useState(false);
   const [stage, setStage] = React.useState<ApkStage | null>(null);
@@ -140,6 +154,7 @@ export function SubmitApkSection({
   const [oversize, setOversize] = React.useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = React.useState(false);
   const runId = React.useRef(0);
+  const setNotes = onNotesChange;
 
   const pick = async (file: File | undefined) => {
     if (!file) return;
@@ -307,6 +322,48 @@ export function SubmitApkSection({
           )}
         </div>
       )}
+
+      {/* Notes de version : optionnelles sur le premier APK, REQUISES
+          sur une mise à jour (le serveur les exige alors). Elles sont
+          affichées publiquement sur la fiche, sous le bouton de
+          téléchargement.
+
+          HORS de la branche « pas encore de fichier » : le champ doit
+          rester accessible une fois l'APK ajouté et parsé — sinon
+          impossible de le remplir, et la mise à jour est refusée par le
+          serveur (« notes de version requises »). */}
+      <div className="flex flex-col gap-2">
+        <label
+          htmlFor="build-notes"
+          className="text-[14px] font-bold text-foreground flex items-center gap-2"
+        >
+          Notes de version
+          {notesRequired ? (
+            <span className="text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              requis
+            </span>
+          ) : (
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              optionnel
+            </span>
+          )}
+        </label>
+        <textarea
+          id="build-notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value.slice(0, NOTES_MAX))}
+          rows={4}
+          disabled={parsing || actionsLocked}
+          placeholder="Quoi de neuf dans cette version ? (visible dans l'historique)"
+          className="w-full bg-background border border-border/60 rounded-2xl px-5 py-4 text-[15px] font-medium placeholder:text-muted-foreground/40 text-foreground outline-none focus:border-foreground/40 transition-colors resize-y"
+        />
+        <p className="text-[13px] font-medium text-muted-foreground">
+          {notes.length}/{NOTES_MAX}
+          {notesRequired
+            ? " — obligatoires pour une mise à jour."
+            : " — visible par vos visiteurs, sous le bouton « Installer l'APK »."}
+        </p>
+      </div>
 
       {parsing && (
         <div className="flex min-h-[15rem] flex-col items-center justify-center gap-4 rounded-4xl border border-border/60 bg-muted/20 px-6 py-10 text-center">

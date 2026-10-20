@@ -12,6 +12,7 @@ import {
   getCriteriaGroups,
   getDomainGroups,
 } from "@/components/categories/category-data";
+import { getRealCounts } from "@/services/catalog-counts.service";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -44,10 +45,15 @@ export default async function CategoriesPage({
   const sp = await searchParams;
   const view: CategoryView = sp.vue === "criteres" ? "critere" : "domaine";
 
+  // Compteurs RÉELS (produits publiés) : les compteurs de config
+  // (« 691 produits ») étaient un mock — la page mentait sur la taille du
+  // catalogue. `null` si la DB est injoignable → repli sur les configs.
+  const counts = await getRealCounts();
+
   // Résolu et sérialisé côté serveur : les icônes des configs sont
   // serveur-only (cf. category-data.ts).
-  const stats = getCategoryStats();
-  const groups = view === "critere" ? getCriteriaGroups() : getDomainGroups();
+  const stats = getCategoryStats(counts);
+  const groups = view === "critere" ? getCriteriaGroups(counts) : getDomainGroups(counts);
 
   return (
     <CategoriesFilterProvider view={view} groups={groups}>
@@ -75,6 +81,12 @@ export default async function CategoriesPage({
               typeCount={stats.typeCount}
               productCount={stats.productCount}
             />
+            {stats.real && stats.productCount > 0 && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Le catalogue démarre : les compteurs ci-dessus sont les produits réellement publiés,
+                pas une estimation.
+              </p>
+            )}
           </div>
 
           <div className="relative container px-4 md:px-8 max-w-7xl mx-auto pt-10 pb-16">

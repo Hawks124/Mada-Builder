@@ -49,6 +49,12 @@ export type DashboardApp = {
   ratingsCount: number;
   status: AppStatus;
   rejectionReason?: string;
+  /**
+   * Slug PUBLIC de la fiche — la route publique est `/products/{slug}`.
+   * (Le dashboard pointait sur `/products/{id}` : l'id n'est jamais le
+   * slug → 404 pour TOUT produit, publié compris.)
+   */
+  slug?: string;
   /** Veille (D6) : badge + rang masqué (hors classement), stats privées gardées. */
   curated?: boolean;
   /** Track binaire (D4) : ≥1 build → Update (APK+notes requis), sinon CTA rattrapage. */

@@ -9,3 +9,10 @@
  * broncher ; ce sont le navigateur et le réseau qui bornent.
  */
 export const MAX_APK_BYTES = 300 * 1024 * 1024;
+
+/**
+ * Notes de version (whatsnew) : 1000 signes max — même plafond que le
+ * serveur (`recordBuild`), pour que le formulaire ne puisse pas envoyer
+ * une valeur que le serveur refusera.
+ */
+export const NOTES_MAX = 1000;

@@ -91,7 +91,13 @@ const socialLinksSchema = z
 
 export const updateProfileSchema = z.object({
   displayName: z.string().trim().min(2).max(50),
-  bio: z.string().trim().max(160).optional(),
+  // 400 (et non 160) : la bio est le seul endroit où le maker raconte
+  // ce qu'il fait — 160 caractères ne disaient rien. La colonne est
+  // `text` (aucune migration). Le bug associé : une bio déjà plus
+  // longue que la limite rendait TOUTE sauvegarde impossible
+  // (« Champs invalides. »), donc le maker ne pouvait plus changer son
+  // nom ni son occupation.
+  bio: z.string().trim().max(400).optional(),
   occupation: z
     .string()
     .refine((id) => OCCUPATIONS.some((o) => o.id === id), "Occupation inconnue"),

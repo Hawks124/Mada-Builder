@@ -95,6 +95,7 @@ const PLATEFORME: FooterItem[] = [
 /** Code source et vie du projet. Les deux seuls liens GitHub / Facebook du site. */
 const PROJET: FooterItem[] = [
   { label: "À propos", href: "/about" },
+  { label: "Nouveautés", href: "/nouveautes" },
   { label: "Code source", href: GITHUB_URL, external: true, icon: "github" },
   { label: "Signaler un problème", href: `${GITHUB_URL}/issues/new`, external: true },
   {

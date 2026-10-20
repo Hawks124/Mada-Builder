@@ -5,12 +5,12 @@ import { DeviceMobileIcon, MonitorIcon } from "@phosphor-icons/react/dist/ssr";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { FieldBadge } from "@/components/ui/field-badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useSubmitForm } from "@/components/submit/submit-form-context";
 import { getProductTypeById, type GalleryOrientation } from "@/config/product-types";
+import { LOGO_MIN_PX, isShotTooSmall, shotTooSmallMessage } from "@/lib/media-limits";
 
 const MAX_SHOTS = 6;
-const LOGO_MIN_PX = 256;
-const SHOT_MIN_PX = 400;
 
 type ShotPreview = {
   file: File;
@@ -53,22 +53,49 @@ export function SubmitMediaSection() {
   const { productType, setMediaSummary, errors, clearError, existingMedia, isEditing, editApp } =
     useSubmitForm();
   const productTypeEntry = getProductTypeById(productType);
-  // Pilotage auto : l'orientation suit le type. Le toggle n'est actif que
-  // pour les types "both" (web, jeu, bot, autre) — partout ailleurs il affiche
-  // la déclaration, verrouillé. Jamais d'effect : dérivé au rendu.
-  // Défaut "both" = defaultOrientation du type ; en édition, l'orientation
-  // stockée prime (sinon flip + guard au save sans toucher).
+  // Orientation de la galerie : le type en propose une (portrait pour une
+  // app mobile, paysage pour un CLI/SaaS…), le maker peut la CHANGER
+  // librement — plus de verrou. Le défaut du type ne s'applique que
+  // tant que le maker n'a rien choisi. Jamais d'effect : dérivé au rendu.
+  // En édition, l'orientation stockée prime (sinon flip + purge au save
+  // sans que le maker l'ait demandé).
   const [manual, setManual] = useState<GalleryOrientation | null>(
     editApp?.galleryOrientation ?? null,
   );
-  const orientation: GalleryOrientation =
+  const suggestedOrientation: GalleryOrientation =
     productTypeEntry.orientation === "both"
-      ? (manual ?? productTypeEntry.defaultOrientation ?? "portrait")
+      ? (productTypeEntry.defaultOrientation ?? "portrait")
       : productTypeEntry.orientation;
-  const locked = productTypeEntry.orientation !== "both";
+  const orientation: GalleryOrientation = manual ?? suggestedOrientation;
+
+  /**
+   * Bascule portrait ↔ paysage. Si des captures existent déjà dans
+   * l'orientation opposée (déjà en base, ou sélectionnées dans cette
+   * session), confirmation avant de basculer : ces images seront
+   * supprimées à l'enregistrement. Annuler ne change rien.
+   */
+  const requestOrientation = (next: GalleryOrientation): void => {
+    if (next === orientation) return;
+    const stale = [
+      ...(existingMedia?.shots ?? []).filter((s) => s.orientation !== next).map((s) => s.url),
+      ...shots.filter((s) => s.bucket !== next).map((s) => s.url),
+    ];
+    if (stale.length === 0) {
+      setManual(next);
+      return;
+    }
+    setPendingFlip({ next, stale });
+  };
 
   const shotsInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  // Bascule d'orientation : les captures de l'orientation opposée ne sont
+  // pas conservables (galerie jamais mixte) — le serveur les purge à
+  // l'enregistrement. On les montre donc avant, avec leur nombre exact.
+  const [pendingFlip, setPendingFlip] = useState<{
+    next: GalleryOrientation;
+    stale: string[];
+  } | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [shots, setShots] = useState<ShotPreview[]>([]);
@@ -86,7 +113,7 @@ export function SubmitMediaSection() {
   const hiddenCount = shots.length - visibleShots.length;
 
   const acceptFile = (f: File): string | null => {
-    if (!/^image\/(png|jpe?g|webp)$/.test(f.type)) return "PNG, JPG ou WebP uniquement.";
+    if (!/^image\/(png|jpe?g|webp|gif)$/.test(f.type)) return "PNG, JPG, WebP ou GIF uniquement.";
     if (f.size > 10 * 1024 * 1024) return "10 Mo maximum par fichier.";
     return null;
   };
@@ -164,14 +191,19 @@ export function SubmitMediaSection() {
           // Illisible côté client : accepté sous réserve, serveur tranche.
         }
         if (dims) {
-          if (Math.min(dims.width, dims.height) < SHOT_MIN_PX) {
-            setShotsError(`« ${f.name} » trop petite — ${SHOT_MIN_PX} px minimum.`);
+          // Règle de résolution : côté court pour les images fixes, côté
+          // LONG pour les GIF (format lourd, dimensions petites, et la
+          // règle doit être la même en portrait et en paysage).
+          if (isShotTooSmall(dims.width, dims.height, f.type)) {
+            setShotsError(`« ${f.name} » trop petite — ${shotTooSmallMessage(f.type)}.`);
             return;
           }
           const bucket = bucketOf(dims.width, dims.height, orientation);
           if (bucket !== orientation) {
             setShotsError(
-              `« ${f.name} » : ${orientationFr(bucket)} rejeté — captures ${orientationFr(orientation)} uniquement.`,
+              `« ${f.name} » : ${orientationFr(bucket)} rejeté — la galerie est en ${orientationFr(
+                orientation,
+              )}. Basculez l'orientation en ${orientationFr(bucket)} pour l'ajouter.`,
             );
             return;
           }
@@ -311,29 +343,29 @@ export function SubmitMediaSection() {
               <FieldBadge variant="required" />
             </label>
             <p className="text-[12px] font-medium text-muted-foreground leading-relaxed">
-              Au moins 1 capture requise, jusqu&apos;à {MAX_SHOTS} — PNG, JPG, ou WebP, max 10 Mo
-              chacune,
-              {orientation === "portrait" ? " portrait" : " paysage"} uniquement, 400 px minimum.
+              Au moins 1 capture requise, jusqu&apos;à {MAX_SHOTS} — PNG, JPG, WebP ou GIF, max 10
+              Mo chacune,
+              {orientation === "portrait" ? " portrait" : " paysage"} uniquement, 400 px minimum
+              (côté court ; côté long pour un GIF).
             </p>
           </div>
 
-          {/* Orientation : pilotée par le type, toggle actif seulement en "both" */}
+          {/* Orientation : le type en propose une, le maker peut la changer.
+              La barrière reste : une fois choisie, toutes les captures
+              doivent la respecter. */}
           <div className="flex flex-col items-end gap-1.5">
             <div className="flex items-center p-1 rounded-full border border-border/40 bg-transparent">
               <button
                 type="button"
-                onClick={() => setManual("portrait")}
-                disabled={locked || checking}
+                onClick={() => requestOrientation("portrait")}
+                disabled={checking}
                 aria-pressed={orientation === "portrait"}
-                title={
-                  locked ? `Imposé par le type « ${productTypeEntry.label} »` : "Captures portrait"
-                }
+                title="Captures portrait"
                 className={cn(
-                  "px-5 py-2.5 text-[13px] font-bold rounded-full transition-all flex items-center gap-2",
+                  "px-5 py-2.5 text-[13px] font-bold rounded-full transition-all flex items-center gap-2 cursor-pointer",
                   orientation === "portrait"
                     ? "bg-background text-foreground shadow-md ring-1 ring-border/20"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/30",
-                  locked ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                 )}
               >
                 <DeviceMobileIcon
@@ -344,18 +376,15 @@ export function SubmitMediaSection() {
               </button>
               <button
                 type="button"
-                onClick={() => setManual("landscape")}
-                disabled={locked || checking}
+                onClick={() => requestOrientation("landscape")}
+                disabled={checking}
                 aria-pressed={orientation === "landscape"}
-                title={
-                  locked ? `Imposé par le type « ${productTypeEntry.label} »` : "Captures paysage"
-                }
+                title="Captures paysage"
                 className={cn(
-                  "px-5 py-2.5 text-[13px] font-bold rounded-full transition-all flex items-center gap-2",
+                  "px-5 py-2.5 text-[13px] font-bold rounded-full transition-all flex items-center gap-2 cursor-pointer",
                   orientation === "landscape"
                     ? "bg-background text-foreground shadow-md ring-1 ring-border/20"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/30",
-                  locked ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                 )}
               >
                 <MonitorIcon
@@ -366,9 +395,9 @@ export function SubmitMediaSection() {
               </button>
             </div>
             <p className="text-[11px] font-medium text-muted-foreground">
-              {locked
-                ? `Piloté par le type « ${productTypeEntry.label} »`
-                : "Type ambigu : à vous de choisir"}
+              {manual === null
+                ? `Suggéré par le type « ${productTypeEntry.label} » — modifiable`
+                : "Toutes les captures doivent suivre cette orientation"}
             </p>
           </div>
         </div>
@@ -381,7 +410,7 @@ export function SubmitMediaSection() {
           ref={shotsInputRef}
           type="file"
           name="screenshots"
-          accept="image/png,image/jpeg,image/webp"
+          accept="image/png,image/jpeg,image/webp,image/gif"
           multiple
           onChange={onShots}
           className="sr-only"
@@ -490,6 +519,47 @@ export function SubmitMediaSection() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingFlip !== null}
+        title="Changer l'orientation de la galerie"
+        description={
+          pendingFlip ? (
+            <div className="flex flex-col gap-4">
+              <p>
+                {pendingFlip.stale.length} capture
+                {pendingFlip.stale.length > 1 ? "s" : ""} en{" "}
+                {orientationFr(pendingFlip.next === "portrait" ? "landscape" : "portrait")} ne
+                peuvent pas rester dans une galerie {orientationFr(pendingFlip.next)} : elles seront
+                supprimées à l&apos;enregistrement.
+              </p>
+              <ul className="flex flex-wrap gap-2 justify-center">
+                {pendingFlip.stale.map((url) => (
+                  <li
+                    key={url}
+                    className="relative h-16 w-12 overflow-hidden rounded-md border border-red-500/40"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt="Capture qui sera supprimée"
+                      className="h-full w-full object-contain opacity-60"
+                      loading="lazy"
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null
+        }
+        confirmLabel="Changer et supprimer"
+        tone="danger"
+        onConfirm={() => {
+          if (pendingFlip) setManual(pendingFlip.next);
+          setPendingFlip(null);
+        }}
+        onCancel={() => setPendingFlip(null)}
+      />
     </div>
   );
 }

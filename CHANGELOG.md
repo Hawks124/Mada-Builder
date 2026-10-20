@@ -4,6 +4,341 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ## [Non versionné]
 
+### Corrigé
+
+- **Le classement affichait des nombres qui ne correspondaient pas à l'ordre**
+  : les fenêtres « Cette semaine » et « Ce mois » ordonnaient par `score`
+  (décroissance temporelle) mais affichaient le total de votes du produit —
+  on obtenait un podium « 2, 3, 1 » impossible à retrouver. Le rang est
+  désormais **le nombre de votes reçus dans la fenêtre**, et c'est ce
+  nombre que la pastille affiche (« 12 votes cette semaine »). La fenêtre
+  « Aujourd'hui » est alignée sur la même règle, et la fenêtre « Tout le
+  temps » reste classée sur le total (déjà visible sur le bouton de vote).
+  Le classement taxonomique (par poids, hors chronologie) n'est pas touché.
+- **Les compteurs de `/categories` étaient des mocks** : la page annonçait
+  « 691 produits » alors que la base en compte 11, et listait des catégories
+  sans aucun produit. Les compteurs sont maintenant **comptés en base**
+  (`services/catalog-counts.service.ts`) ; les entrées vides sont masquées,
+  et la page assume le chiffre réel (« le catalogue démarre »). Repli sur
+  les compteurs de config si la base est injoignable.
+- **La home bascule de fenêtre sur le nombre d'items** : une fenêtre qui
+  sort des produits mais aucun vote affichait un classement mort. Le
+  basculement se fait désormais sur l'activité en votes.
+- **La page de mise à jour d'un binaire demandait les notes de version dans
+  le contexte du formulaire de création** (`useSubmitForm`) : la page
+  plantait à l'ouverture. Les notes sont désormais des props de la section
+  APK, avec un champ obligatoire clair quand le fichier est déjà en ligne.
+- **La description longue d'une fiche débordait** : elle est désormais
+  repliée sur 700 caractères, avec un dégradé et un « Voir plus / Voir
+  moins » — le reste de la fiche reste visible.
+- **Le type de produit ne verrouille plus l'orientation des captures** : le
+  type ne fait plus que _suggérer_ une orientation, le maker peut la changer
+  librement, et la bascule prévient quand elle emporte des captures de
+  l'autre format.
+
+- **Les fiches produit plantaient sur les produits à sous-catégories** : le
+  complément des produits similaires écartait les ids déjà vus avec un
+  `ANY()` artisanal — avec un seul élément, le tableau part en scalaire et
+  Postgres refuse (« cannot cast type uuid to uuid[] »). Remplacé par
+  `notInArray`, qui gère le binding.
+- **Le compte à profil était bloqué (« Champs invalides. »)** : une bio
+  de 278 caractères (la limite était 160) était renvoyée telle quelle à
+  chaque sauvegarde — impossible de changer son nom ou son occupation sans
+  raccourcir sa bio à la main. Bio portée à **400 caractères** (colonne
+  `text`, aucune migration) avec un compteur live ; le profil débloqué l'est
+  désormais.
+- **L'avatar restait en placeholder jusqu'au refresh** : le preview local est une
+  URL `blob:`, que l'optimiseur d'images ne sait pas traiter ni allowlister — il
+  rendait le placeholder. Et ce preview gardait la priorité sur l'URL déjà
+  uploadée, donc l'image non recadrée était affichée. Les sources
+  locales passent maintenant par un `<img>` simple, et l'URL serveur (cadrée,
+  persistée) prend le relais dès l'upload réussi.
+- **La carte écrasait le nom du produit** : le badge version + date était planté
+  dans la rangée du titre (avec le badge Veille) — le nom débordait. La version
+  et la date passent sur une **ligne dédiée sous le titre**, en texte simple
+  (plus de pastille), et les séparateurs de la ligne technique sont
+  intercalés entre les segments présents (plus de point orphelin).
+- **Les cartes n'affichaient que 3 plateformes** (web / iOS / Android codées en
+  dur) : les 5 autres étaient invisibles. Elles passent par la configuration,
+  comme le reste du site.
+
+### Ajouté
+
+- **9 cartes au lieu de 6** sur « Fraîtchement shippé » et « Mises à jour
+  récentes » (3 rangées de 3) : 6 était une troncature invisible — le
+  lien « Parcourir tout » ne menait pas au tri par récence, donc les
+  mises à jour au-delà de 6 n'étaient atteignables nulle part. Ces liens
+  pointent désormais vers le tri par récence (`/discover?sort=newest`).
+- **Non-régression sécurité** (`scripts/verify-security.ts`, 16
+  vérifications) : RLS activée sur toutes les tables, trigger
+  `users_lock_sensitive` présent et activé, la clé anonyme ne lit rien sur
+  les tables sensibles (users, revenus, audit, logs d'email, OTP), le rôle
+  `authenticated` n'écrit que les colonnes de profil, et aucune fonction
+  SECURITY DEFINER inattendue n'est grantée à `anon`. Ces protections
+  sont invisibles dans le code applicatif : sans ce script, une nouvelle
+  table sans RLS passerait inaperçue.
+- **Privilèges d'écriture resserrés sur `users`** (migration 0046) : le
+  rôle `authenticated` avait `UPDATE` sur les **22 colonnes** de la table — il
+  pouvait donc écrire directement en base (PostgREST, clé anonyme publique +
+  son JWT), en contournant toute la validation serveur (occupation hors
+  vocabulaire, bio hors limite). Désormais, seules les 10 colonnes de profil
+  restent écrivables — les colonnes sensibles étaient déjà protégées par le
+  trigger (migration 0044), le rôle `authenticated` n'était pas concerné.
+
+### Ajouté
+
+- **Page publique « Nouveautés »** (`/nouveautes`, lien dans la colonne
+  « Le projet » du pied de page) : le journal daté de la plateforme, lisible
+  par les visiteurs et indexable. Le contenu vit dans
+  `content/nouveautes.json` — hors du code, donc modifiable et relisible
+  sans toucher au composant.
+
+- **La page de mise à jour d'un binaire plantait** (« useSubmitForm must be
+  used inside <SubmitFormProvider>) : la section APK lisait les notes de
+  version dans le contexte du formulaire de **création**, que la page
+  Update n'a pas. Les notes sont désormais une **prop** : chaque parent
+  garde son état, la section fonctionne dans les deux cas, et le champ
+  « Notes de version » n'existe plus qu'une fois (il était dupliqué).
+- **Plateformes manquantes sur le produit du jour** : la carte affichait
+  trois icônes testées sur des **libellés** (« Web », « iOS », « Android »)
+  **plus une icône Windows inconditionnelle** — d'où un Windows fantôme sur
+  les fiches qui ne le gèrent pas, et macOS/Linux invisibles. La donnée
+  porte désormais les **ids** et la carte rend **toutes** les plateformes via
+  la configuration (icône + libellé).
+- **Les produits en veille affichaient un bouton de vote** : le vote y est
+  désactivé (hors classement) — une pastille de vote sur un produit non
+  votable est un mensonge d'interface. La carte affiche désormais le
+  badge « Veille ».
+- **Les produits similaires disparaçaient quand la catégorie était
+  vide** : l'algorithme ne cherchait que la catégorie primaire. Il
+  complète désormais avec les **autres catégories** du produit (ses
+  sous-catégories) puis avec les produits du **même type** (les
+  alternatives) — une fiche dans une catégorie rare a enfin des voisins.
+- **Les plateformes n'étaient pas affichées sur les produits similaires** :
+  la carte affiche maintenant les plateformes réelles.
+
+- **Le vote attendait le serveur avant de bouger** : le mur d'auth vérifiait
+  la session (`await getSession()`) **avant** d'appliquer l'update
+  optimiste — le clic déclenchait un aller-retour réseau et l'UI restait
+  figée. L'update part désormais **au clic** ; le mur tranche ensuite et
+  revient en arrière si le visiteur n'a pas de session (le vote reste mis en
+  attente et rejoué au retour). Les deux boutons sont concernés (fiche
+  publique et cartes/classements).
+- **Halo coloré derrière les logos** : le conteneur peignait un dégradé
+  **derrière** l'image — les icônes d'app étant des PNG à zones
+  transparentes, l'orange/vert transparaissait (cadre orange autour du logo
+  d'ATMOX, halo vert sur Onyx Calc). Le dégradé a disparu : le fond suit la
+  page (blanc ou sombre) et la tuile de repli passe en initiales
+  **noires/blanches**, sobres. Les huit rendus de logo du site sont
+  désormais un seul composant (`ProductAvatar`) — deux doublons ont été
+  supprimés au passage (dont un composant mort).
+- **Double « Retour à la file »** dans la revue : après un verdict, le
+  composant en rendait un, et le rail de la page en rendait un autre (le
+  bandeau se terminait en plus par « Retour à la file… »). Il n'en reste
+  qu'un, et le bandeau est reformulé.
+- **« Contacter la revue » ne faisait rien** (bouton sans `onClick`) sur
+  les fiches en revue du dashboard. Il ouvre maintenant le formulaire de
+  contact avec le contexte de la fiche pré-rempli (le maker garde la main
+  sur le texte).
+- **Plateformes (et configuration requise) perdues à la création** : l'objet
+  inserté par `submitProduct` ne portait **ni `platforms` ni `requirements`** —
+  l'INSERT les omettait et le défaut SQL (`[]`) s'appliquait. Les
+  plateformes étaient donc **validées puis jetées** : une fiche soumise par
+  le formulaire arrivait en revue sans plateforme, et une publication
+  pouvait partir sans (constaté sur plusieurs fiches réelles). Les deux
+  champs sont désormais insérés, et deux régressions le verrouillent.
+- **La fiche de revue annonçait « ✓ Plateformes » sur une fiche qui n'en a
+  pas** : la liste des champs requis était une **liste de libellés en dur**
+  (le commentaire jure pourtant « jamais de liste en dur »), tous rendus
+  cochés en vert. Le remplissage est désormais calculé champ par champ :
+  un champ manquant s'affiche en rouge, et le titre de la section annonce
+  ce qui manque (« Requis — 1 manquant (Plateformes) »). Le staff voit
+  enfin ce qui bloque l'approbation — d'autant que l'approbation refuse
+  maintenant les fiches incomplètes.
+- **Plateformes invisibles dans le dashboard du maker, la page maker et la
+  sidebar de fiche** : quatre listes avaient leur **propre** table
+  d'icônes codée en dur (web / iOS / Android, et 6 entrées sur la sidebar) —
+  les autres plateformes (macOS, desktop, CLI, Windows, Linux) rendaient un
+  span vide, ou pire une icône « globe » muette côté fiche. Le maker voyait
+  sa fiche amputée sans aucun signal. Les quatre listes utilisent désormais
+  la configuration unique (8 plateformes, icône + libellé), et signalent
+  explicitement « aucune plateforme » quand c'est le cas.
+- **La revue des fiches plantait (« Event handlers cannot be passed to
+  Client Component props »)**, et la fiche publique de tout produit dont la
+  description contient une image aurait planté de la même façon : `Prose`
+  est un composant **serveur** qui passait un `onError` sur l'image du
+  markdown — interdit en rendu serveur, la page entière tombait. L'image
+  markdown est désormais isolée dans un micro-composant client
+  (`ProseImage`) ; `Prose` reste serveur (aucun coût JS sur les fiches
+  publiques). Vérifié en rendu réel : HTTP 200, image rendue.
+- **La file de revue n'affichait que 3 plateformes sur 8** : la table
+  d'icônes était codée en dur (web / iOS / Android), les 5 autres
+  plateformes (macOS, desktop, CLI, Windows, Linux) rendaient unSpan vide
+  — le staff ne voyait qu'une partie de la fiche, sans aucun signal. La
+  file utilise maintenant la configuration (icône + libellé pour les 8) et
+  affiche explicitement « aucune plateforme » quand la fiche n'en a pas.
+- **Le contrat de publication n'était revalidé ni à la publication ni à
+  l'approbation** : le chemin « brouillon → publication » ne vérifiait que
+  les médias et les liens, et l'approbation staff ne vérifiait rien. Une
+  fiche entrée en file par un chemin allégé (sans plateforme, sans tagline,
+  sans description) pouvait être publiée telle quelle. Les deux étapes
+  revalident désormais la fiche effective avec le **schéma de publication**
+  (le même que la création) : l'annuaire ne peut plus se remplir de
+  fiches incomplètes, et l'admin reçoit le champ fautif nommé au lieu
+  d'approuver à l'aveugle.
+- **APK signés refusés à tort — erreur de lecture du bloc de signature** :
+  la plateforme rejetait des APK **parfaitement signés** avec « Aucun certificat
+  X.509 lisible ». La cause : dans un bloc de signature APK, la valeur d'une
+  paire est elle-même préfixée par sa longueur (`uint32`) ; le parseur lisait
+  la valeur 4 octets trop tôt, donc tout le contenu était décalé — le
+  « certificat » extrait ne commençait pas par `0x30` et le parse X.509
+  échouait. Le message d'erreur masquait la cause réelle (elle est avalée
+  puis remplacée par un message générique) ; elle est désormais conservée et
+  affichée. Deux autres défauts corrigés au passage : en v3, les `minSdk` /
+  `maxSdk` sont dans la **section attributs** du signed data et non en tête
+  (le saut de 8 octets cassait l'extraction v3), et le choix de l'offset du
+  bloc ne se fait plus sur « le premier id v2/v3 trouvé » mais sur « celui qui
+  produit de vrais certificats X.509 ». Vérifié sur trois APK réels signés,
+  tous désormais acceptés : `ketch-android-0.10.0.apk` (v2, CN=linroid),
+  `Streak-arm64-v8a.apk` (v2, CN=Inlitx / O=Streak) et `OnyxCalc.apk`
+  (v3, CN=Onyx Calc / O=RiRi) — les deux premiers étaient refusés à tort.
+  Le test de régression encodait une **autre** structure que le format APK
+  réel, ce qui validait le bug : il encode désormais le format exact, et les
+  paires v2/v3 réelles sont embarquées (octets byte-exact) pour qu'aucune
+  dérive ne soit possible.
+- **Orientation des captures : le type ne verrouille plus** : le type de
+  produit _suggère_ une orientation (portrait pour une app mobile, paysage
+  pour un CLI/SaaS/package…) mais ne l'impose pas — le maker ne pouvait
+  pas la changer, et une capture d'un autre format était refusée sans
+  issue (« paysage rejeté — captures portrait uniquement »). Le toggle est
+  désormais toujours actif, le défaut du type est modifiable, et le message
+  d'erreur indique la marche à suivre (« basculez l'orientation en paysage
+  pour l'ajouter »). La barrière, elle, est inchangée : une fois
+  l'orientation choisie, toutes les captures doivent la respecter, et le
+  basculement purge celles de l'orientation abandonnée.
+- **Brouillon de soumission enfin allégé** : « Enregistrer le brouillon »
+  n'exigeait en pratique que le nom, alors que le formulaire refusait tout
+  le reste (tagline, description, catégories, plateformes, média, liens) — la
+  validation client et le schéma serveur s'exécutaient en entier avant de
+  regarder l'intention. Nouveau `submitDraftSchema` (serveur) + miroir client
+  : `name` seul est requis, les longueurs et formats restent contrôlés dans
+  les deux cas. Les valeurs par défaut reprennent celles de la base
+  (`platforms` `[]`, `pricingModel` "free", `lifecycle` "live",
+  `audience` "all", orientation dérivée du type pour un type `both`). Les
+  badges « Requis » **n'ont pas bougé** : ils décrivent la publication, pas la
+  sauvegarde d'une saisie en cours. Une note sous les boutons le dit.
+- **Erreur « point d'accès » sur le bon champ** : elle tombait toujours sur
+  `website`, affiché comme recommandé/optionnel — donc sur un champ que le
+  maker n'a pas à remplir, en laissant muet le vrai champ manquant. Elle
+  s'ancre désormais sur le premier point d'accès **proposé pour ce type** et
+  laissé vide (`firstEmptyAccessPointId`).
+- **Registre : placeholder incohérent** : le champ `registry` affichait
+  `ex : npm i mon-package` (une commande) alors qu'il est traité comme une
+  **URL** (point d'accès, bouton, logo du registre, contrôle de
+  joignabilité) — un maker suivant le placeholder se faisait refuser au
+  publish. Placeholder et aide corrigés.
+- **Bascule d'orientation bloquée à tort** : changer portrait ↔ paysage était
+  refusé (« fournissez aussi de nouvelles captures compatibles ») dès que les
+  captures existantes n'étaient pas déjà dans la nouvelle orientation. Le
+  refus est remplacé par la purge des captures mesurées dans l'orientation
+  opposée (lignes + objets R2), après confirmation côté formulaire avec les
+  miniatures concernées. La galerie reste donc toujours homogène, sans
+  jamais bloquer le toggle. `getEditMedia` expose désormais l'orientation
+  mesurée de chaque capture (elle est déjà stockée par ligne depuis l'upload).
+
+### Ajouté
+
+- **« What's new » sur la soumission** : le formulaire ne proposait aucun
+  champ de notes de version et l'envoi passait `whatsnew: null` en dur —
+  alors que le serveur accepte déjà les notes sur un **premier** APK (il ne
+  les exige que sur une mise à jour) et que la fiche les affiche publiquement
+  sous le bouton de téléchargement. Le champ est là, les notes partent avec
+  le build, et un rappel le dit.
+- **Compteur de téléchargements sur la fiche publique** : il existait déjà
+  (table `product_downloads` + colonne dénormalisée, alimenté par les deux
+  routes de téléchargement), mais seuls le maker et le staff le voyaient. Il
+  s'affiche maintenant dans le bloc APK — seulement si le produit a un
+  binaire approuvé (un « 0 téléchargements » sans binaire serait du bruit).
+- **Plateformes : la liste est calibrée sur le type** — les plateformes du
+  type d'abord (déjà cochées), les autres derrière un dépliage « autres
+  plateformes » (la suggestion n'interdit rien : un produit peut
+  légitimement viser plusieurs OS). `PLATFORMS_BY_TYPE` est désormais
+  complet : `package` (CLI + les 3 OS), `extension` (web + desktop),
+  `framework` (web + CLI), `plugin` (web + desktop), `os` (les 3 OS),
+  `other` (les 9), et **`iot` → « embarqué »**, une 9ᵉ plateforme ajoutée
+  (colonne `text[]` en base, API sans liste blanche, facettes automatiques :
+  côté web, rien à migrer ; l'app mobile doit ajouter la plateforme dans
+  son filtre).
+- **Aperçu de la fiche (store preview)** : le maker voit sa fiche **exactement
+  telle qu'un visiteur la verra** avant qu'elle soit publiée — comme le
+  preview de Google Play Console. `/preview/{id}`, sous le shell public
+  (navbar + footer), avec un bandeau « Aperçu — ceci n'est pas encore la page
+  publique » et le statut réel (brouillon / en revue / rejetée + motif).
+  **Une seule vue, deux portes** : la fiche publique et l'aperçu rendent le
+  même composant (`ProductSheet`) — un aperçu.renderé à part dérive de la
+  réalité et le maker se fait avoir. Pas de vote, pas de tracking des clics
+  sortants, pas de comptage de vue dans l'aperçu : il ne pollue rien.
+  **Sécurité** : propriétaire ou staff (rôle lu en base, jamais le miroir
+  JWT) ; sinon **404** — jamais 403, on ne confirme pas l'existence d'une
+  fiche non publiée. La garde est aussi dans le service (un tiers ne voit
+  pas la ligne), la route est `noindex` + `X-Robots-Tag` + cache privé.
+  Le staff y accède depuis la page de revue, le maker depuis son dashboard.
+- **Le lien « Voir la fiche » du dashboard pointait dans le vide** : il
+  visait `/products/{id}` alors que la route publique cherche par **slug** —
+  l'id n'est jamais le slug, donc **tous** les produits renvoyaient 404 (pas
+  seulement ceux en revue). Le dashboard pointe maintenant sur la page
+  publique pour une fiche publiée, et sur l'aperçu sinon.
+- **Build de production isolé (`npm run build:isolated`)** : `next dev` et
+  `next build` partagent `.next` — un build lancé pendant que le serveur
+  dev tourne **écrase ses chunks et le tue** (« destination stream closed
+  early »), la page bascule en « network error » et le spinner tourne
+  indéfiniment. Le build isolé écrit dans `.next-build` (ignoré par git et
+  par le scan Tailwind, sinon le CSS compilé générait des sélecteurs
+  invalides → 500 « Parsing CSS source code failed »). Les deux peuvent
+  désormais tourner en parallèle.
+- **Plateformes : « Tout » / « Aucun » en un clic** : les plateformes
+  suggérées par le type sont déjà cochées (puce sombre) — cliquer dessus les
+  décoche, ce qui produit l'inverse de l'intention. Deux boutons et un
+  rappel de la suggestion (« Suggéré pour App Mobile : iOS, Android —
+  modifiable ») lèvent l'ambiguïté.
+- **Logos produits réellement affichés** : le classement (et plusieurs
+  autres listes) affichaient des **initiales** au lieu du logo déposé par le
+  maker, alors que la donnée `iconUrl` était bien présente et l'image
+  parfaitement joignable — le rendu ne la consultait pas. Huit composants
+  dupliquaient la tuile (logo ou initiales) : ils sont désormais unifiés sur
+  le composant partagé `ProductAvatar`, qui affiche le logo R2 et retombe
+  sur les initiales non seulement quand il n'y a pas d'image, mais aussi
+  quand l'image ne charge pas (plus jamais d'image cassée).
+
+- **Captures GIF acceptées** : `accept` (logo + captures) et le garde-fou
+  client admetten `image/gif`, côté serveur comme sur le chemin d'upload
+  direct. Le GIF est validé (poids, dimensions, ratio) puis **stocké tel
+  quel** — il ne passe pas par la conversion WebP, qui aplatirait
+  l'animation ; la clé et le `contentType` R2 suivent donc le format réel
+  (`image/gif`). C'est le comportement attendu pour une capture de produit
+  animée. Un GIF dispose en outre de sa **propre règle de résolution** :
+  400 px sur le **côté long** (contre le côté court pour les images fixes).
+  Un GIF est un format lourd, les exporteurs le produisent petit
+  (240×480, 320×568…) — juger sur le côté court punissait injustement le
+  portrait, alors que 480 de haut est une vraie définition. La règle
+  reste **indépendante de l'orientation** : un 240×480 portrait et un
+  480×240 paysage sont acceptés ou refusés ensemble, et un GIF petit
+  dans les deux sens (240×240) reste refusé. Les **avatars** et les
+  **logos** refusent toujours le GIF (animation inutile, et le passthrough
+  ne ferait pas le recadrage carré attendu).
+- **Commande d'installation devient informative** : `registry` porte déjà
+  l'accès (bouton + logo du registre) ; la commande d'installation est un
+  complément affiché dans le bloc technique de la fiche. Elle n'est donc plus
+  exigée (plus de rejet au submit ni à l'édition, plus de badge « Requis »),
+  et son aide le dit. Aucun champ d'accès n'est relâché : `platforms` reste
+  obligatoire au publish.
+- **Régression crash-safe** : `verify-products-backend` purge ses fixtures
+  (comptes factices + produits) dans un filet joué même en cas de crash —
+  auparavant la purge était du code inliné en fin de `main`, qu'un `throw`
+  court-circuitait et laissait les comptes derrière lui. Une garde refuse en
+  outre de tourner sur une base Supabase managée sans opt-in explicite
+  (`VERIFY_ALLOW_PROD=1`).
+
 ### Ajouté
 
 - **Téléchargements APK (compteur réel)** : table `product_downloads`

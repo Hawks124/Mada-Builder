@@ -34,15 +34,23 @@ export function ProductBuilds({
   builds,
   downloadPath,
   downloadUrl,
+  downloadCount,
 }: {
   builds: PublicBuildItem[];
   /** Chemin relatif stable (bouton Installer). */
   downloadPath: string;
   /** URL absolue stable (QR téléphone). */
   downloadUrl: string;
+  /**
+   * Téléchargements cumulés du produit (compteur reconstruit par le job).
+   * `null` = pas de binaire approuvé → on n'affiche rien (un « 0
+   * téléchargements » sur une fiche sans binaire serait du bruit).
+   */
+  downloadCount?: number | null;
 }) {
   if (builds.length === 0) return null;
   const [latest, ...older] = builds as [PublicBuildItem, ...PublicBuildItem[]];
+  const downloads = downloadCount ?? 0;
   return (
     <section className="flex flex-col gap-4" aria-label="Télécharger">
       <h2 className="text-2xl font-extrabold tracking-tight text-foreground">Télécharger</h2>
@@ -57,6 +65,14 @@ export function ProductBuilds({
           </div>
           <p className="text-[13px] font-medium text-muted-foreground">
             {formatMo(latest.sizeBytes)} · publié le {formatDate(latest.createdAt)}
+            {downloadCount !== null && downloadCount !== undefined && (
+              <>
+                {" · "}
+                <span className="font-bold text-foreground">
+                  {downloads.toLocaleString("fr-FR")} téléchargement{downloads > 1 ? "s" : ""}
+                </span>
+              </>
+            )}
           </p>
           {latest.whatsnew && (
             <p className="text-[14px] font-medium text-foreground/90 leading-relaxed whitespace-pre-line">
