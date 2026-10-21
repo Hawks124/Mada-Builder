@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { pageViews } from "@/db/schema";
 import { users } from "@/db/schema";
 import { getMakersCount } from "@/services/users.service";
+import { countPublishedByCategory } from "@/services/catalog-counts.service";
 import { getEmailStats } from "@/services/emails.service";
 import {
   comments,
@@ -179,13 +180,18 @@ export async function getProductsCountByStatus(): Promise<Record<ProductStatus, 
 /** Produits publiés par slug de catégorie — hero Écosystème (1 requête,
  *  GROUP BY). Remplace les compteurs mockés en dur de la config : avec
  *  backend, on n'affiche QUE du réel (même des zéros pré-lancement). */
+/**
+ * Compteur par catégorie pour le hero — TOUTES les catégories d'un produit
+ * (pas seulement la principale).
+ *
+ * Même règle que les compteurs de `/categories` et que le listing des
+ * pages de catégorie (qui listent les produits dont le tableau
+ * `categories` CONTIENT le slug) : le compteur annonce ce que la page
+ * montre. Delegue à la même fonction que `/categories` (une seule
+ * implémentation, pas de divergence).
+ */
 export async function getPublishedCountByCategory(): Promise<Map<string, number>> {
-  const rows = await db
-    .select({ category: products.category, value: sql<number>`count(*)::int` })
-    .from(products)
-    .where(and(isNull(products.deletedAt), eq(products.status, "published")))
-    .groupBy(products.category);
-  return new Map(rows.map((r) => [r.category, r.value]));
+  return countPublishedByCategory();
 }
 
 /** Upvotes totaux (tous produits, tous statuts — recompte exact live). */

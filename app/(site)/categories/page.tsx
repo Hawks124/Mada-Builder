@@ -84,7 +84,8 @@ export default async function CategoriesPage({
             {stats.real && stats.productCount > 0 && (
               <p className="mt-2 text-sm text-muted-foreground">
                 Le catalogue démarre : les compteurs ci-dessus sont les produits réellement publiés,
-                pas une estimation.
+                pas une estimation. Un produit peut compter dans plusieurs catégories — le total,
+                lui, compte chaque produit une seule fois.
               </p>
             )}
           </div>

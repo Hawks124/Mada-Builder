@@ -479,6 +479,14 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Corrigé
 
+- **Les compteurs de catégories ne tenaient pas compte des sous-catégories** : ils
+  ne comptaient que la catégorie PRINCIPALE, alors que la page
+  `/categories/[slug]` liste les produits dont le tableau `categories`
+  CONTIENT la catégorie (comme le filtre du flux). Le compteur annonçait
+  « 1 produit » sur une page qui en listait 7. Le compteur compte désormais
+  TOUTES les catégories d'un produit — même règle partout (hero
+  compris, qui se re-classe sur les mêmes chiffres que la page).
+
 - **Une fiche publiée disparut du site a chaque retouche** : le
   nom et les liens modifiaient le statut en `pending` → la fiche n'était
   plus servie publiquement (`fetchProductBySlug` ne sert que les

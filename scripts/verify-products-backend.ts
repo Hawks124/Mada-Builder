@@ -61,6 +61,7 @@ import { deleteAccount } from "@/services/users.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { eq, and, sql } from "drizzle-orm";
 import { assertVersionAllowed, diffBuildIdentity } from "@/services/builds.service";
+import { countPublishedByCategory, getRealCounts } from "@/services/catalog-counts.service";
 import { productBuilds } from "@/db/schema";
 import { KNOWN_LINK_IDS } from "@/services/products.service";
 
@@ -2474,6 +2475,64 @@ async function main(): Promise<void> {
   }
   check("règles : monétisé sans privacy refusé", regleRefusee);
   await db.delete(products).where(eq(products.id, regleProduct.id));
+
+  // 16. Compteurs de catégories : le compteur doit annoncer ce que la
+  //     PAGE de la catégorie montre (les produits dont le tableau
+  //     `categories` contient le slug — principale OU sous-catégorie).
+  const [catProduct] = await db
+    .insert(products)
+    .values({
+      slug: `verify-cat-${TAG}`,
+      makerId: maker.id,
+      name: "Produit Categorie",
+      tagline: "Tagline categorie.",
+      description: "Description categorie assez longue.",
+      category: "dev-tools",
+      categories: ["dev-tools", "utilitaires", "ai"],
+      productType: "app_web",
+      platforms: ["web"],
+      pricingModel: "free",
+      galleryOrientation: "landscape",
+      status: "published",
+      publishedAt: new Date(),
+      upvoteCount: 0,
+      links: { website: "https://example.com" },
+    })
+    .returning({ id: products.id });
+  const counts = await countPublishedByCategory();
+  // La page de « dev-tools » liste ce produit (catégorie principale)…
+  const pageDevTools = await searchProducts({ cat: "dev-tools" });
+  check(
+    "compteurs : le compteur = le nombre de produits listés par la page",
+    (counts.get("dev-tools") ?? 0) === pageDevTools.total,
+  );
+  // …et la page d'« utilitaires » aussi, alors que ce n'est PAS la
+  // catégorie principale : c'est exactement ce que le compteur doit dire.
+  const pageUtilitaires = await searchProducts({ cat: "utilitaires" });
+  check(
+    "compteurs : une sous-catégorie compte aussi (comme sa page)",
+    (counts.get("utilitaires") ?? 0) === pageUtilitaires.total &&
+      pageUtilitaires.items.some((i) => i.id === catProduct.id),
+  );
+  const pageAi = await searchProducts({ cat: "ai" });
+  check(
+    "compteurs : la troisième catégorie compte aussi",
+    (counts.get("ai") ?? 0) === pageAi.total && pageAi.items.some((i) => i.id === catProduct.id),
+  );
+  // Le total reste le nombre DISTINCT de produits (jamais la somme des
+  // compteurs, qui double-compte les produits multi-catégories).
+  const real = await getRealCounts();
+  const somme = [...(real?.byCategory.values() ?? [])].reduce((a, b) => a + b, 0);
+  const tousProduits = await searchProducts({});
+  check(
+    "compteurs : le total = le nombre de produits publiés (distinct)",
+    real !== null && real.total === tousProduits.total,
+  );
+  check(
+    "compteurs : la somme des compteurs peut dépasser le total (facettes)",
+    somme >= (real?.total ?? 0),
+  );
+  await db.delete(products).where(eq(products.id, catProduct.id));
 
   await db.delete(productBuilds).where(eq(productBuilds.productId, buildProduct.id));
   await db.delete(products).where(eq(products.id, buildProduct.id));

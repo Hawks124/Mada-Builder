@@ -54,11 +54,40 @@ async function compterPlateformes(): Promise<Map<string, number>> {
   return new Map(rows.map((r) => [String(r.cle), Number(r.n)]));
 }
 
+/**
+ * Compteur par CATÉGORIE — TOUTES les catégories d'un produit (pas
+ * seulement la principale).
+ *
+ * Règle : le compteur doit annoncer ce que la page va montrer. Or la
+ * page `/categories/[slug]` liste les produits dont le tableau
+ * `categories` CONTIENT le slug (comme le filtre du flux) → un produit
+ * à 3 catégories appartient à 3 pages. Compter seulement la principale
+ * promettait « 1 produit » sur une page qui en liste 7.
+ *
+ * Le tableau `categories` contient toujours la principale en première
+ * position (le service de création l'impose : `category = categories[0]`)
+ * → aucun produit ne perd sa propre catégorie.
+ *
+ * Conséquence : la SOMME des compteurs dépasse le nombre de produits
+ * (un produit à 3 catégories compte 3 fois). C'est le comportement d'une
+ * taxonomie à facettes, et c'est pourquoi le total affiché reste le
+ * nombre DISTINCT de produits publiés, jamais la somme.
+ */
+export async function countPublishedByCategory(): Promise<Map<string, number>> {
+  const rows = (await db.execute(sql`
+    select c as cle, count(*)::int n
+    from products p, unnest(p.categories) c
+    where p.status = 'published' and p.deleted_at is null
+    group by c
+  `)) as unknown as { cle: string; n: number }[];
+  return new Map(rows.map((r) => [String(r.cle), Number(r.n)]));
+}
+
 export async function getRealCounts(): Promise<RealCounts | null> {
   try {
     const [byCategory, byType, byPlatform, byPricing, byLifecycle, byAudience, totalRow] =
       await Promise.all([
-        compter(products.category),
+        countPublishedByCategory(),
         compter(products.productType),
         compterPlateformes(),
         compter(products.pricingModel),
