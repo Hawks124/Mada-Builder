@@ -6,6 +6,12 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **La cle « Revenus verifies » du formulaire web est branchee** : elle partait dans
+  la payload et n'etait JAMAIS lue (le formulaire passe par la route
+  `/api/submit`, pas par la Server Action qui la lisait) → le maker
+  collait sa cle Stripe, la validation passait, et rien ne se passait.
+  Le probe echoue (ou le quota est atteint), le maker est prevenu.
+
 - **La règle du produit du jour est en SQL ET en TypeScript, et elle est vérifiée** : le cron `pg_cron` (00:05) applique désormais la même priorité que le service TS (attente bornée à 7 j + signal borné à 7, l'attente pesant double) — avant, la fonction SQL enfilait les produits (FIFO) et c'était elle qui tournait en prod, pas la nouvelle règle. Un script dédié (`npm run verify:featured`) rejoue les DEUX moteurs sur le même état et compare leur choix : ils ne peuvent pas diverger silencieusement.
 - **Outillage** : Chrome DevTools MCP déclaré dans la config opencode (console, réseau, traces de perf, et accès à ta session Chrome pour tester les écrans connectés). Zéro empreinte dans le produit.
 
@@ -509,6 +515,30 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Corrigé
 
+- **Le mode d'ecriture des liens etait deduit de la payload** : une PATCH mobile
+  avec seulement `changelogUrl` (aucun champ lien) tombait en mode
+  « remplacement » → les liens de la fiche partaient avec, et la revision
+  devenait INAPPROUVABLE (plus de point d'acces → regle violatee). Le
+  mode est desormais decide par l'APPELANT (« replace » pour le web,
+  « merge » pour l'API) : en merge, la base est toujours les liens de la
+  fiche, moins ceux explicitement vidés.
+- **L'ecriture etait partielle** : le patch de la fiche etait applique
+  AVANT l'upload des medias → un echec R2 (indisponible, quota, format)
+  laissait le texte a jour et la revision en file, alors que le maker
+  avait vu une erreur. L'upload passe maintenant avant toute ecriture, et
+  les ecritures (fiche + medias + revision) sont en une transaction.
+- **Basculer l'orientation vidait la galerie PUBLIE** : la purge des
+  captures de l'autre orientation partait a l'enregistrement, hors revue,
+  et supprimait les objets R2 → la fiche en ligne se retrouvait a zero
+  capture (definitivement si la revision etait refusee). L'orientation
+  est desormais un champ SENSIBLE (elle part en revision) et la purge
+  n'a lieu qu'a l'approbation.
+- **Regression (corrigee) : un envoi d'APK pouvait REMPLACER le build en
+  revue** → l'admin approuvait un binaire qui n'etait plus celui qu'il
+  avait regarde, et le maker pouvait re-envoyer en boucle. Le garde-fou
+  « un seul build en revue » est retabli (serveur + UI) : c'est lui qui
+  protege la file ET l'integrite de la revue.
+
 - **XSS stocké via le JSON-LD** (le seul vrai bloquant) : le JSON-LD était injecté avec `dangerouslySetInnerHTML({ __html: JSON.stringify(...) })` dans une balise `<script>` — or `JSON.stringify` n'échappe PAS `<` : une chaîne contenant `</script>` **ferme la balise** dans le parseur HTML et le reste est interprété comme du HTML. Le vecteur était sans revue : le `displayName` d'un maker (validé sur la longueur seule) et sa `bio` arrivaient dans le `personLd` de son profil public, indexable — un compte inscrit pouvait injecter du script et voler la session d'un staff qui visitait le profil. Un helper `safeJsonLd()` échappe `<`/`>`/`&` sur les 6 injections.
 - **Le contenu NON VALIDé d'une fiche publiée était lisible par la clé anonyme publique** : la révision en attente vivait dans des colonnes de `products`, or le rôle `anon` a un GRANT de niveau TABLE sur `products` et la RLS ne filtre que les LIGNES → un `GET /rest/v1/products?select=pending_payload` renvoyait le texte en attente de validation (HTTP 200, vérifié). La révision part désormais dans SA table `product_revisions`, en déni-all (migration 0050) : `anon`/`authenticated` n'y ont plus accès du tout.
 - **L'aperçu (`/preview`) montrait le contenu VALIDÉ, pas la révision en attente** : le maker voyait son ancien texte et croyait que son édition avait disparu. L'aperçu montre désormais ce qui sera publié (texte ET médias proposés).
@@ -584,11 +614,7 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   affiche désormais l'écart (package différent = « Autre app », en rouge,
   avec le build en ligne en regard ; certificat différent = rotation de
   clé, signal d'alerte que l'admin tranche).
-- **Un envoi était refusé tant qu'un build était en revue** : le maker
-  était bloqué jusqu'au verdict de l'admin (à l'échelle d'une
-  communauté, une revue à 3 jours = 3 jours d'arrêt). Un nouvel envoi
-  **remplace** maintenant le build en revue ; l'ancien passe « rejeté /
-  remplacé » (rien n'est perdu) et son binaire R2 est purgé.
+- **Un envoi est refusé tant qu'un build est en revue** (garde anti-spam ET intégrité de la revue) : un envoi qui REMPLAÇAIT le build en revue ferait approuver à l'admin un binaire qui n'est plus celui qu'il a regardé, et le maker pourrait ré-envoyer en boucle. La sortie de secours est le verdict : refusé par l'admin, le maker renvoie (et le même versionCode est réutilisable — l'index unique est partiel).
 - **L'index unique des builds interdisait la re-soumission** (migration 0047) : `(produit, version_code)` était unique SANS condition, donc
   la ligne d'un build rejeté gardait son numéro de version définitivement.
   L'index est désormais **partiel** (`pending`/`approved`) : un rejet

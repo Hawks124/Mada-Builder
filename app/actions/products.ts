@@ -91,8 +91,13 @@ function str(raw: FormDataEntryValue | null): string | undefined {
  * la fiche est sauvée dans tous les cas, l'échec probe n'annule rien.
  * Retourne un suffixe d'avertissement (affiché en toast) ou null.
  * Rate-limit 5/h anti-bruteforce de clés (probe = appels provider).
+ *
+ * Exportée : le formulaire web passe par la route `/api/submit` (XHR), pas
+ * par cette Server Action → sans cet export, la clé collée dans le
+ * formulaire partait dans la payload et n'était JAMAIS branchée (le
+ * maker croyait avoir connecté ses revenus ; rien ne se passait).
  */
-async function connectRevenueIfProvided(
+export async function connectRevenueIfProvided(
   userId: string,
   productId: string,
   formData: FormData,
@@ -258,6 +263,9 @@ export async function updateProductAction(
         // n'est PAS transmis ici : c'est le mode « merge » de l'API
         // mobile (absent = conservé).
         links: parseProductLinkFields(formData)?.links,
+        // Mode « replace » : le formulaire envoie TOUS les champs liens
+        // (un champ vide = « efface ») → le résultat est le formulaire.
+        linksMode: "replace",
       },
       { logo, screenshots },
     );

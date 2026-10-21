@@ -11,6 +11,7 @@ import { getSessionUser } from "@/lib/supabase/server";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
 import { idempotencyKeyFrom, withIdempotency } from "@/lib/api/idempotency";
 import { submitProduct, updateProduct } from "@/services/products.service";
+import { connectRevenueIfProvided } from "@/app/actions/products";
 import { parseProductForm } from "@/app/api/v1/products/product-forms";
 
 export const OPTIONS = async () => corsPreflight();
@@ -57,19 +58,23 @@ export async function POST(req: Request): Promise<Response> {
             { logo, screenshots, staged },
             { publish },
           );
-          return { status: 200, data: updated };
+          // Clé « Revenus vérifiés » : branchée ICI aussi (le formulaire
+          // web passe par cette route, pas par la Server Action) —
+          // sinon la clé collée dans le formulaire était un no-op
+          // silencieux (le maker croyait avoir connecté ses revenus).
+          const revenueWarning = await connectRevenueIfProvided(sessionUser.id, productId, fd);
+          return { status: 200, data: { ...updated, revenueWarning } };
         }
-        return {
-          status: 201,
-          data: await submitProduct({
-            viewerId: sessionUser.id,
-            data,
-            logo,
-            screenshots,
-            staged,
-            asDraft,
-          }),
-        };
+        const created = await submitProduct({
+          viewerId: sessionUser.id,
+          data,
+          logo,
+          screenshots,
+          staged,
+          asDraft,
+        });
+        const revenueWarning = await connectRevenueIfProvided(sessionUser.id, created.id, fd);
+        return { status: 201, data: { ...created, revenueWarning } };
       },
     });
     return apiOk({ ...res.data, replayed: res.replayed }, res.status);

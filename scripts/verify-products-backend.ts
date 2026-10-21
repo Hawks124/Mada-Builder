@@ -2414,6 +2414,29 @@ async function main(): Promise<void> {
   check("révision : le lien modifié est en attente", payload.links !== undefined);
   check("révision : l'édition est signalée au maker", editResult.rereview === true);
 
+  // 15.1b Le mode des liens est decide par l APPELANT : une PATCH avec
+  //      seulement `changelogUrl` (aucun champ lien) ne doit PLUS effacer
+  //      les liens de la fiche (sinon la revision devenait inapprovable :
+  //      plus de point d acces).
+  await updateProduct(maker.id, pubProduct.id, {
+    changelogUrl: "https://example.com/CHANGELOG-v2",
+    linksMode: "merge",
+    clearedLinks: [],
+  } as never);
+  // Sur une fiche PUBLIEE, les liens sont dans la REVISION (pas appliques) :
+  // c est la que le lien du changelog doit se retrouver, avec les autres
+  // liens de la fiche conserves.
+  const [afterPatch] = await db
+    .select({ payload: productRevisions.payload })
+    .from(productRevisions)
+    .where(eq(productRevisions.productId, pubProduct.id));
+  const liensApres =
+    ((afterPatch?.payload ?? {}) as { links?: Record<string, string> }).links ?? {};
+  check(
+    "liens (mode merge) : les liens de la fiche survivent a une PATCH sans champ lien",
+    liensApres.website !== undefined && liensApres.changelog === "https://example.com/CHANGELOG-v2",
+  );
+
   // 15.2 Le compteur de la file admin.
   const enAttente = await countPendingRevisions();
   check("révisions : le compteur de la file", enAttente >= 1);

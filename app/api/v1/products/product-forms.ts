@@ -112,7 +112,10 @@ export function parseProductForm(fd: FormData) {
       languagesSupported: jsonArr(fd, "languages"),
       galleryOrientation: str(fd, "galleryOrientation"),
       links: parsedLinks?.links,
-      clearedLinks: parsedLinks?.cleared,
+      clearedLinks: parsedLinks?.cleared ?? [],
+      // Mode « merge » : le mobile n'envoie que les champs qu'il modifie ;
+      // les absents sont conservés, les champs vides effacés.
+      linksMode: "merge",
     },
     logo,
     screenshots,

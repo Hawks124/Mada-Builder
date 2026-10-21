@@ -166,32 +166,30 @@ export async function createBuild(input: {
   if (declaredCert !== null && declaredCert !== serverCertSha!) {
     await purgeAndReject("Divergence signature — renvoyez le fichier d'origine.");
   }
-  // Un build en revue peut être REMPLACÉ par un envoi plus récent.
+  // Un seul build en revue à la fois (garde anti-spam ET intégrité de
+  // la revue).
   //
-  // Avant, un envoi était refusé tant qu'un build était en revue : le
-  // maker était bloqué jusqu'au verdict de l'admin (à l'échelle d'une
-  // communauté, une revue à 3 jours = 3 jours d'arrêt sur la version
-  // suivante). Le remplacement garde la trace (l'ancien passe «
-  // rejeté / remplacé ») et le nouveau part en revue à sa place : la
-  // file reste à UN build pending par produit, mais le maker n'est plus
-  // bloqué.
+  // Pourquoi on refuse : si un nouvel envoi REMPLAÇAIT le build en
+  // revue, l'admin approuverait un binaire qui n'est plus celui qu'il a
+  // regardé (le sien a été remplacé sous ses yeux) — et le maker
+  // pourrait ré-envoyer en boucle, chaque envoi remplaçant le
+  // précédent. La garde « un seul pending » existe pour ça.
+  //
+  // La sortie de secours est le VERDICT : si l'admin refuse le build,
+  // le maker peut renvoyer (et le MÊME versionCode : l'index unique
+  // est partiel, un build rejeté ne verrouille plus le numéro —
+  // migration 0047).
   const [stillPending] = await db
-    .select({ id: productBuilds.id, r2Key: productBuilds.r2Key })
+    .select({ id: productBuilds.id })
     .from(productBuilds)
     .where(and(eq(productBuilds.productId, input.productId), eq(productBuilds.status, "pending")))
     .limit(1);
   if (stillPending) {
-    await db
-      .update(productBuilds)
-      .set({
-        status: "rejected",
-        rejectionReason: "Remplacé par un envoi plus récent.",
-        reviewedAt: new Date(),
-      })
-      .where(eq(productBuilds.id, stillPending.id));
-    // Le binaire du build remplacé n'est plus downloadable (seul le
-    // build approuvé l'est) : on ne garde pas d'orphelin R2.
-    await deleteR2Object(PRODUCT_BUILDS_BUCKET, stillPending.r2Key).catch(() => {});
+    await deleteR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key).catch(() => {});
+    throw new ProfileError(
+      "VALIDATION",
+      "Un binaire est déjà en revue — attendez le verdict avant d'envoyer une nouvelle version.",
+    );
   }
   try {
     const [row] = await db

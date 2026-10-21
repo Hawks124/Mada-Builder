@@ -210,7 +210,13 @@ export function useSubmitXhr(
       xhr.onload = () => {
         let body: {
           ok?: boolean;
-          data?: { id?: string; slug?: string; status?: string; rereview?: boolean };
+          data?: {
+            id?: string;
+            slug?: string;
+            status?: string;
+            rereview?: boolean;
+            revenueWarning?: string | null;
+          };
           message?: string;
         } = {};
         try {
@@ -244,11 +250,18 @@ export function useSubmitXhr(
             : status === "draft"
               ? "Brouillon enregistré."
               : "Produit soumis — en revue sous 24 h.";
+          // La clé « Revenus vérifiés » a pu être refusée (probe en échec,
+          // quota) : on le dit, sinon le maker croit que c'est branché.
+          const revenuWarn = body.data.revenueWarning;
           setPhase({ name: "idle" });
           clearSubmitDraft();
           // Brouillon → section brouillons (pas le dashboard général).
           const dest = status === "draft" ? "/dashboard/drafts" : "/dashboard";
-          router.push(`${dest}?toast=ok:${encodeURIComponent(toast)}`);
+          // Un seul toast : l'avertissement revenus passe devant (c'est
+          // l'info qui compte), le reste de la phrase suit.
+          const message = revenuWarn ?? toast;
+          const tone = revenuWarn ? "err" : "ok";
+          router.push(`${dest}?toast=${tone}:${encodeURIComponent(message)}`);
           return;
         }
         setPhase({ name: "idle" });
