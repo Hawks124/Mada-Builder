@@ -17,6 +17,7 @@
     "db:setup": "tsx scripts/db-setup.ts",
     "db:ping": "tsx scripts/db-ping.ts",
     "email:preview": "tsx scripts/render-email-previews.ts",
+    "verify:clean": "tsx scripts/verify-clean.ts",
     "prepare": "husky",
     "check:encoding": "node scripts/check-encoding.mjs"
   },

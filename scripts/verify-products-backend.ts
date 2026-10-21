@@ -58,6 +58,9 @@ import { ProfileError } from "@/services/users.service";
 import { deleteAccount } from "@/services/users.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { eq, and, sql } from "drizzle-orm";
+import { assertVersionAllowed, diffBuildIdentity } from "@/services/builds.service";
+import { productBuilds } from "@/db/schema";
+import { KNOWN_LINK_IDS } from "@/services/products.service";
 
 let pass = 0;
 let fail = 0;
@@ -1814,17 +1817,32 @@ async function main(): Promise<void> {
   check("compteurs maker", review.makerLiveCount === 3 && review.makerBans === 0);
   check("pas de faux partage", review.sharesData === false && review.revenue === undefined);
   check("attente calculée", review.waitingHours >= 0 && review.waitingText.length > 0);
-  // Parse liens : présents-vides = {} (efface), absents = undefined (conserve).
+  // Parse liens : non-vides = valeur, vides = effacement, absents = rien.
   const fdLinks = new FormData();
   fdLinks.set("website", "https://example.com");
   fdLinks.set("name", "x");
+  const parsedLinks = parseLinkFields(Object.fromEntries(fdLinks));
   check(
     "liens parsés",
-    JSON.stringify(parseLinkFields(Object.fromEntries(fdLinks))) ===
-      '{"website":"https://example.com"}',
+    parsedLinks !== undefined &&
+      JSON.stringify(parsedLinks.links) === '{"website":"https://example.com"}' &&
+      parsedLinks.cleared.length === 0,
+  );
+  const parsedVide = parseLinkFields({ website: "" });
+  check(
+    "liens : un champ vide = effacement explicite",
+    parsedVide !== undefined &&
+      Object.keys(parsedVide.links).length === 0 &&
+      parsedVide.cleared.includes("website"),
   );
   check("liens absents = conservé", parseLinkFields({ name: "x" }) === undefined);
-  check("valeurs non-string ignorées", JSON.stringify(parseLinkFields({ website: 42 })) === "{}");
+  const parsedNonString = parseLinkFields({ website: 42 });
+  check(
+    "valeurs non-string ignorées",
+    parsedNonString !== undefined &&
+      Object.keys(parsedNonString.links).length === 0 &&
+      parsedNonString.cleared.includes("website"),
+  );
   // Parse mobile : défaut brouillon, publish explicite, partiel PATCH.
   const fdCreate = new FormData();
   fdCreate.set("name", "App Mobile");
@@ -2170,6 +2188,166 @@ async function main(): Promise<void> {
   check("recount : compteur reconstruit", fixed.downloadCount === 1);
   await db.delete(productDownloads).where(eq(productDownloads.productId, dl.id));
   await db.delete(products).where(eq(products.id, dl.id));
+
+  // 14. Builds : la version, l'index partiel, l'identité (signature +
+  //     package), et les liens (mode « merge » de l'API mobile).
+  //
+  // 14.1 Règle de version : la référence est le build EN LIGNE.
+  //   Un build REJETÉ ne verrouille plus son numéro de version.
+  const versionRefuse = (codes: number[], code: number | null) => {
+    try {
+      assertVersionAllowed({ onlineCodes: codes, newCode: code });
+      return false;
+    } catch {
+      return true;
+    }
+  };
+  check("version : refus si le code n'excède pas le build en ligne", versionRefuse([2], 2));
+  check("version : refus si le code est illisible", versionRefuse([2], null));
+  check("version : pas de contrainte sans build en ligne", !versionRefuse([], 1));
+  check(
+    "version : un rejet ne verrouille pas le code (re-soumission acceptée)",
+    !versionRefuse([2], 3),
+  );
+
+  // 14.2 Index unique PARTIEL : un (produit, version_code) réinsérable
+  //   après un rejet (l'historique garde le rejet, le code redevient
+  //   disponible). C'est le fix de migration 0047.
+  const [buildProduct] = await db
+    .insert(products)
+    .values({
+      slug: `verify-builds-${TAG}`,
+      makerId: maker.id,
+      name: "Produit Builds",
+      tagline: "Tagline builds.",
+      description: "Description builds assez longue.",
+      category: "dev-tools",
+      categories: ["dev-tools"],
+      productType: "app_mobile",
+      pricingModel: "free",
+      galleryOrientation: "portrait",
+      status: "published",
+      publishedAt: new Date(),
+      upvoteCount: 0,
+    })
+    .returning({ id: products.id });
+  const buildRow = (versionCode: number, status: string) => ({
+    productId: buildProduct.id,
+    versionCode,
+    versionName: `1.0.${versionCode}`,
+    status,
+    sha256File: "a".repeat(64),
+    sizeBytes: 1024,
+    r2Key: `builds/verify/${buildProduct.id}/${versionCode}.apk`,
+  });
+  await db.insert(productBuilds).values(buildRow(2, "approved"));
+  await db.insert(productBuilds).values(buildRow(3, "rejected"));
+  let reinsere = true;
+  try {
+    // Même code que le build REJETÉ : l'index partiel l'autorise.
+    await db.insert(productBuilds).values(buildRow(3, "pending"));
+  } catch {
+    reinsere = false;
+  }
+  check("builds : le code d'un build rejeté est ré-insérable", reinsere);
+  let doublonVif = false;
+  try {
+    // Deux builds VIFS de même code : interdit (l'index partiel bite).
+    await db.insert(productBuilds).values(buildRow(3, "pending"));
+  } catch {
+    doublonVif = true;
+  }
+  check("builds : deux builds en revue de même code sont refusés", doublonVif);
+
+  // 14.3 Identité : un APK d'une AUTRE app doit être signalé (package
+  //     différent) ; une rotation de clé est signalée à part.
+  const identite = diffBuildIdentity(
+    { certSha256: "cert-b", package: "com.autre.app" },
+    { certSha256: "cert-a", package: "com.riri.atmox" },
+  );
+  check("builds : package différent = autre app", identite.packageChanged);
+  check("builds : certificat différent signalé", identite.certChanged);
+  const memeApp = diffBuildIdentity(
+    { certSha256: "cert-a", package: "com.riri.atmox" },
+    { certSha256: "cert-a", package: "com.riri.atmox" },
+  );
+  check("builds : même package = pas une autre app", !memeApp.packageChanged);
+  check(
+    "builds : pas de build en ligne = aucun écart",
+    !diffBuildIdentity({}, null).packageChanged,
+  );
+
+  // 14.4 Liens : l'API mobile n'envoie qu'un sous-ensemble → les liens
+  //     absents sont CONSERVÉS, un champ vidé est effacé.
+  const [lienProduct] = await db
+    .insert(products)
+    .values({
+      slug: `verify-liens-${TAG}`,
+      makerId: maker.id,
+      name: "Produit Liens",
+      tagline: "Tagline liens.",
+      description: "Description liens assez longue.",
+      category: "dev-tools",
+      categories: ["dev-tools"],
+      productType: "app_web",
+      pricingModel: "free",
+      galleryOrientation: "landscape",
+      status: "draft",
+      links: {
+        website: "https://example.com",
+        source: "https://github.com/verify-cli",
+        docs: "https://example.com/CHANGELOG",
+      },
+      upvoteCount: 0,
+    })
+    .returning({ id: products.id });
+  await updateProduct(maker.id, lienProduct.id, {
+    links: { website: "https://example.com/platformes" },
+    clearedLinks: [],
+  } as never);
+  const [lienRow] = await db
+    .select({ links: products.links })
+    .from(products)
+    .where(eq(products.id, lienProduct.id));
+  const liens = (lienRow?.links ?? {}) as Record<string, string>;
+  check(
+    "liens : le lien modifié est mis à jour",
+    liens.website === "https://example.com/platformes",
+  );
+  check(
+    "liens : les liens absents de la payload sont conservés (mode merge)",
+    liens.source === "https://github.com/verify-cli" &&
+      liens.docs === "https://example.com/CHANGELOG",
+  );
+  await updateProduct(maker.id, lienProduct.id, {
+    links: {},
+    clearedLinks: ["docs"],
+  } as never);
+  const [lienRow2] = await db
+    .select({ links: products.links })
+    .from(products)
+    .where(eq(products.id, lienProduct.id));
+  const liens2 = (lienRow2?.links ?? {}) as Record<string, string>;
+  check("liens : un champ vidé efface le lien", liens2.docs === undefined);
+  check("liens : les autres liens survivent à l'effacement", liens2.source !== undefined);
+
+  // 14.5 Les clés de liens présentes en base sont toutes connues de la
+  //     config (aucune clé fantôme) — et les ids de la config jamais vus
+  //     sont listés (un lien invisible = un id à surveiller).
+  const rowsLiens = await db.execute(
+    sql`select distinct jsonb_object_keys(links) as cle from products where links is not null and deleted_at is null`,
+  );
+  const clesDb = [...new Set((rowsLiens as unknown as { cle: string }[]).map((r) => r.cle))];
+  const clesInconnues = clesDb.filter((c) => !KNOWN_LINK_IDS.has(c));
+  check("liens : aucune clé inconnue en base", clesInconnues.length === 0);
+  const jamaisVus = [...KNOWN_LINK_IDS].filter((c) => !clesDb.includes(c)).sort();
+  if (jamaisVus.length > 0) {
+    console.log(`  (ids de liens jamais vus en base : ${jamaisVus.join(", ")})`);
+  }
+
+  await db.delete(productBuilds).where(eq(productBuilds.productId, buildProduct.id));
+  await db.delete(products).where(eq(products.id, buildProduct.id));
+  await db.delete(products).where(eq(products.id, lienProduct.id));
 
   // 12. Nettoyage makers dédiés (ligne + auth — run suivant hermétique).
   // Le maker `verify-backend@example.com` (créé §maker si absent) est

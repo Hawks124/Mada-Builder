@@ -51,6 +51,94 @@ incluses, enveloppe stable). Règles directes :
 - `votes`, compteurs, `users`, écritures : voir §2 et docs data
   (jamais en direct).
 
+## 1-ter. Les liens d'un produit (`products.links`)
+
+En lecture directe, la colonne `products.links` est un **objet jsonb** :
+chaque clé est un type de lien, chaque valeur son URL. Seuls les
+liens **renseignés** sont présents dans l'objet (une clé absente =
+« pas de lien de ce type », jamais « lien vide »).
+
+```json
+"links": {
+  "website": "https://atmox.mg",
+  "playstore": "https://play.google.com/store/apps/details?id=com.riri.atmox",
+  "source": "https://github.com/riri/atmox"
+}
+```
+
+### Les 31 clés possibles
+
+| clé             | libellé                       | règle            |
+| --------------- | ----------------------------- | ---------------- |
+| `website`       | Site web officiel             | point d'accès    |
+| `source`        | Code source                   | optionnel        |
+| `demo`          | Démo live                     | optionnel        |
+| `docs`          | Documentation                 | optionnel        |
+| `download`      | Téléchargement direct         | optionnel        |
+| `appstore`      | Apple App Store               | point d'accès    |
+| `playstore`     | Google Play                   | point d'accès    |
+| `msstore`       | Microsoft Store               | point d'accès    |
+| `macstore`      | Mac App Store                 | point d'accès    |
+| `flathub`       | Flathub / Snap                | point d'accès    |
+| `registry`      | Registre                      | point d'accès    |
+| `endpoint`      | URL de l'API                  | point d'accès    |
+| `apimarket`     | RapidAPI / Postman            | optionnel        |
+| `chromestore`   | Chrome Web Store              | point d'accès    |
+| `firefoxaddons` | Firefox Add-ons               | point d'accès    |
+| `edgeaddons`    | Edge Add-ons                  | point d'accès    |
+| `iso`           | Image ISO / firmware          | point d'accès    |
+| `releases`      | GitHub Releases               | optionnel        |
+| `hf`            | Hugging Face                  | point d'accès    |
+| `botinvite`     | Lien d'ajout du bot           | point d'accès    |
+| `pluginmarket`  | Marketplace hôte              | point d'accès    |
+| `shop`          | Lien d'achat                  | point d'accès    |
+| `itchio`        | itch.io                       | point d'accès    |
+| `steam`         | Steam                         | point d'accès    |
+| `gamedemo`      | Démo jouable                  | recommandé       |
+| `video`         | Vidéo de présentation         | optionnel        |
+| `mainlink`      | Lien principal                | point d'accès    |
+| `privacy`       | Politique de confidentialité  | requis (enfants) |
+| `changelog`     | Journal des modifications     | optionnel        |
+| `tos`           | Conditions d'utilisation      | optionnel        |
+| `kidsafety`     | Politique de sécurité enfants | requis (enfants) |
+
+### Les liens par type de produit
+
+Le formulaire n'en propose qu'un sous-ensemble selon le type du
+produit (le socle + le bloc du type) : c'est ce sous-ensemble qu'une
+fiche contient. Un produit qui change de type garde ses anciens
+liens en base.
+
+| type          | liens possibles                                                                                                  |
+| ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `app_mobile`  | `website`, `source`, `demo`, `docs`, `download`, `video`, `appstore`, `playstore`                                |
+| `app_web`     | `website`, `source`, `demo`, `docs`, `download`, `video`                                                         |
+| `app_desktop` | `website`, `source`, `demo`, `docs`, `download`, `video`, `msstore`, `macstore`, `flathub`, `releases`           |
+| `cli`         | `website`, `source`, `demo`, `docs`, `download`, `video`, `registry`, `releases`                                 |
+| `package`     | `website`, `source`, `demo`, `docs`, `download`, `video`, `registry`                                             |
+| `framework`   | `website`, `source`, `demo`, `docs`, `download`, `video`, `registry`                                             |
+| `api`         | `website`, `source`, `demo`, `docs`, `download`, `video`, `endpoint`, `apimarket`                                |
+| `extension`   | `website`, `source`, `demo`, `docs`, `download`, `video`, `chromestore`, `firefoxaddons`, `edgeaddons`           |
+| `os`          | `website`, `source`, `demo`, `docs`, `download`, `video`, `iso`, `releases`                                      |
+| `iot`         | `website`, `source`, `demo`, `docs`, `download`, `video`, `shop`, `source`                                       |
+| `bot`         | `website`, `source`, `demo`, `docs`, `download`, `video`, `hf`, `botinvite`                                      |
+| `plugin`      | `website`, `source`, `demo`, `docs`, `download`, `video`, `pluginmarket`                                         |
+| `saas`        | `website`, `source`, `demo`, `docs`, `download`, `video`                                                         |
+| `game`        | `website`, `source`, `demo`, `docs`, `download`, `video`, `itchio`, `steam`, `appstore`, `playstore`, `gamedemo` |
+| `other`       | `website`, `source`, `demo`, `docs`, `download`, `video`, `mainlink`                                             |
+
+Quatre clés ne sont **jamais** proposées par le formulaire (elles
+viennent des métadonnées : politique de confidentialité, journal des
+modifications, conditions d'utilisation, sécurité enfants) mais elles
+sont bien dans le jsonb :
+
+- `privacy` · `changelog` · `tos` · `kidsafety`
+
+À l'écriture, l'API v1 est en mode **merge** : un champ lien absent
+de la payload est **conservé**, un champ envoyé vide **efface** le
+lien. (Le formulaire web, lui, envoie tous les champs : son
+résultat est un remplacement complet — même sortie.)
+
 ## 2. Enveloppe & erreurs (le `switch` Dart s'appuie sur `code`)
 
 ```json

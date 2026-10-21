@@ -16,6 +16,7 @@ import { toast } from "@/components/ui/toast";
 import { BuildPlayTable, formatMo } from "@/components/builds/build-play-table";
 import { toTableInput } from "@/components/builds/build-table-adapter";
 import { approveBuildAction, rejectBuildAction, type BuildListItem } from "@/app/actions/builds";
+import { diffBuildIdentity } from "@/lib/build-identity";
 
 export type ReviewBuildItem = BuildListItem & {
   downloadUrl: string | null;
@@ -210,6 +211,12 @@ export function ReviewBuilds({
           previousApproved?.certSha256 &&
           b.certSha256 &&
           previousApproved.certSha256 !== b.certSha256;
+        // Package différent = ce n'est pas la même application. La
+        // signature peut être valide (l'APK est bien signé, lisible) et
+        // le fichier être celui d'une AUTRE app : sans ce signal, le
+        // reviewer valide en comparant le numéro de version et le
+        // binaire erroné part en production.
+        const otherApp = diffBuildIdentity(b, previousApproved).packageChanged;
         const exceeded = b.status === "pending" && b.waitingHours > 24;
         return (
           <div key={b.id}>
@@ -241,11 +248,32 @@ export function ReviewBuilds({
                       Clé différente
                     </span>
                   )}
+                  {otherApp && (
+                    <span
+                      title={`Package différent du build en ligne (${previousApproved?.package}) — ce n'est pas une mise à jour de cette app.`}
+                      className="inline-flex items-center rounded border border-red-500/40 bg-red-500/10 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.14em] leading-none shrink-0 text-red-600 dark:text-red-400"
+                    >
+                      Autre app
+                    </span>
+                  )}
                 </div>
 
                 <p className="font-mono text-[12px] font-medium text-muted-foreground truncate">
                   {b.package ?? "package inconnu"}
                 </p>
+
+                {/* Alerte « autre app » : le signal le plus grave de la
+                    revue binaire. Un APK d'une autre application se
+                    parse, se signe et se lit parfaitement — seul le
+                    package le distingue. Sans cette ligne, l'admin
+                    approuve un binaire qui remplacera le vrai
+                    téléchargement de la fiche. */}
+                {otherApp && (
+                  <p className="text-[12px] font-semibold leading-relaxed text-red-600 dark:text-red-400">
+                    Package différent du build en ligne ({previousApproved?.package}) — ce fichier
+                    n&apos;est pas une mise à jour de cette app. À refuser.
+                  </p>
+                )}
 
                 {/* Note de version (update) : le reviewer la lit AVANT de
                     trancher — même contenu que la fiche publique. */}

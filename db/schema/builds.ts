@@ -1,4 +1,5 @@
 import { v7 as uuidv7 } from "uuid";
+import { sql } from "drizzle-orm";
 import {
   bigint,
   index,
@@ -59,7 +60,14 @@ export const productBuilds = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
-    uniqueIndex("product_builds_product_version_uidx").on(t.productId, t.versionCode),
+    // Index PARTIEL (migration 0047) : un (produit, version_code) n'existe
+    // qu'une fois dans la piste VIVANTE (en revue ou en ligne). Un build
+    // REJETÉ ne verrouille plus son numéro de version → le maker peut
+    // re-soumettre son APK après une correction de notes, et l'historique
+    // garde le rejet.
+    uniqueIndex("product_builds_product_version_uidx")
+      .on(t.productId, t.versionCode)
+      .where(sql`status in ('pending', 'approved')`),
     index("product_builds_product_created_idx").on(t.productId, t.createdAt),
   ],
 );

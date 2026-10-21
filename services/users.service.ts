@@ -416,6 +416,14 @@ export async function getAdminUsers(input: {
   const status = input.status ?? "all";
 
   const conditions = [isNull(users.deletedAt)];
+  // Comptes de test (scripts de non-régression) : jamais affichés dans
+  // l'admin. Ils vivent dans la base le temps du script (le script les
+  // purge), mais un run interrompu laissait des comptes factices
+  // visibles dans la liste — du bruit pour l'équipe, et une source de
+  // panique inutile. Le filtre est sur le DOMAINE de fixture, pas sur
+  // un drapeau en base : un vrai compte ne peut pas utiliser
+  // `example.com` (domaine réservé par la RFC 2606).
+  conditions.push(sql`${users.email} not like '%@example.com'`);
   if (status === "banned") {
     conditions.push(isNotNull(users.bannedAt));
   }

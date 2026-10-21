@@ -243,7 +243,7 @@ export function UpdateClient({
             {versionBlocked && (
               <p role="alert" className="text-[14px] font-bold text-red-600 dark:text-red-400">
                 Code de version {pending.manifest.versionCode} refusé — il doit être supérieur à{" "}
-                {latestVersionCode}.
+                {latestVersionCode} (le code du build en ligne).
               </p>
             )}
 

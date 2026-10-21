@@ -147,27 +147,45 @@ const optionalUrlSchema = z.preprocess(
  * champ fantôme en DB) ; chaque valeur = URL valide. La matrice
  * (labels, required, storePattern) vit dans config/product-links.
  */
-const KNOWN_LINK_IDS = new Set(Object.keys(PRODUCT_LINK_FIELDS));
+export const KNOWN_LINK_IDS = new Set(Object.keys(PRODUCT_LINK_FIELDS));
 
 /**
  * Champs liens d'un objet brut (FormData converti, multipart mobile) :
- * présents mais vides = {} (effacement explicite) ; aucun champ =
- * undefined (PATCH conserve). Valeurs non-string ignorées (jamais de
- * crash sur un multipart malformé). Exporté : actions web + routes API
- * partagent le même contrat, zéro dérive.
+ * - présents et non vides → valeur ;
+ * - présents mais VIDES → effacement explicite (`cleared`) ;
+ * - absents → non envoyés (le mode « merge » les conserve).
+ *
+ * `undefined` = aucun champ lien dans la payload → PATCH : on ne touche
+ * à rien.
+ *
+ * Pourquoi la distinction : le formulaire WEB envoie TOUS les champs
+ * (un champ vidé = « efface ce lien »), donc son résultat est identique
+ * en remplacement total. L'API mobile, elle, n'envoie que les champs
+ * qu'elle modifie : sans `cleared`, un simple remplacement total
+ * EFFACERAIT tous les autres liens de la fiche (le mobile perdait des
+ * liens à chaque édition — « le mobile sera incohérent »).
  */
-export function parseLinkFields(input: unknown): Record<string, string> | undefined {
+export type ParsedLinkFields = {
+  /** Valeurs non vides envoyées (id → URL). */
+  links: Record<string, string>;
+  /** Ids présents mais vides = effacement explicite. */
+  cleared: string[];
+};
+
+export function parseLinkFields(input: unknown): ParsedLinkFields | undefined {
   if (typeof input !== "object" || input === null) return undefined;
   const rec = input as Record<string, unknown>;
   const links: Record<string, string> = {};
+  const cleared: string[] = [];
   let seen = false;
   for (const id of KNOWN_LINK_IDS) {
     if (!(id in rec)) continue;
     seen = true;
     const v = rec[id];
     if (typeof v === "string" && v.trim() !== "") links[id] = v.trim();
+    else cleared.push(id);
   }
-  return seen ? links : undefined;
+  return seen ? { links, cleared } : undefined;
 }
 
 /**
@@ -175,7 +193,7 @@ export function parseLinkFields(input: unknown): Record<string, string> | undefi
  * dérive. Vit ici (module serveur pur) car les fichiers "use server"
  * n'exportent que des fonctions async.
  */
-export function parseProductLinkFields(formData: FormData): Record<string, string> | undefined {
+export function parseProductLinkFields(formData: FormData): ParsedLinkFields | undefined {
   const obj: Record<string, unknown> = {};
   for (const id of Object.keys(PRODUCT_LINK_FIELDS)) {
     const v = formData.get(id);
@@ -297,6 +315,16 @@ export const submitProductSchema = z.object({
   targetCountries: z.array(z.string().trim().max(60)).max(10).optional(),
   languagesSupported: z.array(z.string().trim().max(30)).max(20).optional(),
   links: linksSchema.optional(),
+  /**
+   * Ids de liens explicitement VIDES dans la payload = effacement
+   * (mode « merge », API mobile). Absent = remplacement total (web).
+   * Écriture seule : jamais renvoyé en lecture.
+   */
+  clearedLinks: z
+    .array(z.string())
+    .max(40)
+    .refine((ids) => ids.every((id) => KNOWN_LINK_IDS.has(id)), "Lien inconnu")
+    .optional(),
 });
 
 /**
@@ -1693,12 +1721,27 @@ export async function updateProduct(
   const data = parsed.data;
   // changelogUrl n'est PAS une colonne : mergé dans links (comme au submit).
   // Remplacement total sinon (effacer un lien = le vider) MAIS changelog
-  // préservé : aucune UI ne l'édite ni ne l'efface — seul changelogUrl
+  // préservé : aucune UI ne l'édite ni ne l'efface - seul changelogUrl
   // l'écrit (B3). Sans ça, toute édition effaçait links.changelog.
   const { changelogUrl: editChangelog, ...restData } = data;
   let mergedLinks: Record<string, string> | undefined;
   if (data.links !== undefined || editChangelog) {
-    mergedLinks = { ...(data.links ?? {}) };
+    // Deux modes, un seul résultat final :
+    //
+    // - REPLACE (web) : le formulaire envoie TOUS les champs liens, un
+    //   champ vidé = « efface » → le remplacement total de la fiche
+    //   donne exactement le formulaire (comportement inchangé).
+    // - MERGE (API mobile) : le mobile n'envoie que les champs qu'il
+    //   modifie ; les absents sont CONSERVÉS, les champs vidés sont
+    //   effacés (`clearedLinks`). Sans ce mode, chaque édition mobile
+    //   effaçait tous les liens non renvoyés de la fiche.
+    const mode = data.clearedLinks !== undefined ? "merge" : "replace";
+    const base: Record<string, string> =
+      mode === "merge" ? { ...((row.links ?? {}) as Record<string, string>) } : {};
+    if (mode === "merge") {
+      for (const id of data.clearedLinks ?? []) delete base[id];
+    }
+    mergedLinks = { ...base, ...(data.links ?? {}) };
     if (editChangelog) {
       mergedLinks.changelog = editChangelog;
     } else if (!("changelog" in mergedLinks) && row.links.changelog) {
@@ -1920,11 +1963,12 @@ function effectiveProductForPublish(
     sharesData: row.sharesData,
     isChildDirected: row.isChildDirected,
     galleryOrientation: row.galleryOrientation,
-    // `changelog` n'est PAS un champ de lien connu (il est fusionné
-    // dans `links` APRÈS le parse du schéma de publication) : on le
-    // sort d'ici et on le rend via `changelogUrl`, sinon toute fiche
-    // avec un journal de modifications passerait « Champ de lien
-    // inconnu » à la revalidation.
+    // `changelog` EST un id de lien connu (config/product-links.tsx) :
+    // il n'est pas « inconnu » au schéma. Mais il a une double vie —
+    // champ MÉTADONNÉE (`changelogUrl`, saisi par le maker) et clé
+    // de `links` (où il est stocké). On le sort donc de `links` ici et
+    // on le rend via `changelogUrl` : une seule source de vérité, et la
+    // revalidation ne peut pas se marcher dessus.
     links: Object.fromEntries(
       Object.entries((row.links ?? {}) as Record<string, string>).filter(
         ([id, v]) => id !== "changelog" && typeof v === "string" && v.trim() !== "",

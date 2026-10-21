@@ -172,13 +172,20 @@ function SubmitForm() {
             onSubmit={(e) => {
               e.preventDefault();
               const intent = intentRef.current;
+              // L'intention est consommée ICI : elle ne doit jamais
+              // survivre à une tentative. Avant, elle n'était remise à
+              // `null` que par l'effet sur `phase` — or `send` rend la
+              // main SANS changer de phase quand la validation client
+              // échoue : l'intention restait en place (« publish »), et
+              // l'appui suivant (Entrée clavier) rejouait la publication.
+              intentRef.current = null;
               if (intent === null) {
                 // Entrée clavier dans un champ : aucun bouton cliqué →
                 // on n'enregistre rien (un brouillon créé par accident
                 // est un Brouillon de plus à nettoyer).
                 toast(
                   "info",
-                  "Rien n’a été enregistré : utilise « Publier le produit » ou « Enregistrer le brouillon ».",
+                  "Rien n'a été enregistré : utilise « Publier le produit » ou « Enregistrer le brouillon ».",
                 );
                 return;
               }
@@ -264,10 +271,17 @@ function SubmitForm() {
             </p>
             <div className="flex items-center justify-end gap-4 pt-8">
               <button
-                type="submit"
+                type="button"
                 disabled={sending}
                 onClick={() => {
+                  // `type="button"` OBLIGATOIRE : c'est le premier bouton
+                  // `submit` du formulaire, donc la touche Entrée dans un
+                  // champ déclenchait son clic → un brouillon silencieux
+                  // (exactement le bug que l'intention `null` devait
+                  // empêcher). Ici, le clic pose l'intention ET soumet
+                  // explicitement.
                   intentRef.current = "draft";
+                  formRef.current?.requestSubmit();
                 }}
                 className="px-6 h-12 bg-muted/30 text-foreground hover:bg-muted/60 rounded-full text-[15px] font-bold tracking-wide transition-colors cursor-pointer disabled:opacity-50"
               >

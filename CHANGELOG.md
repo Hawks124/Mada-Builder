@@ -6,6 +6,25 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **Liste complète des liens d'un produit** (doc mobile, §1-ter) :
+  les 31 clés possibles du jsonb `products.links`, le bloc de liens
+  par type de produit (le formulaire n'en propose qu'un sous-ensemble),
+  et la règle « le jsonb ne contient que les liens renseignés ». La
+  squad mobile lit `products` en direct (PostgREST) : elle avait les
+  liens, mais pas la liste des clés possibles.
+- **Non-régression binaire** (`verify-products-backend`, 180/0) : règle
+  de version (refus si le code n'excède pas le build en ligne, un rejet
+  ne verrouille plus le code), index partiel (le code d'un build rejeté
+  est ré-insérable, deux builds vifs de même code sont refusés), écart
+  d'identité (package / certificat), et liens en mode « merge ». Le
+  script signale aussi les ids de liens **jamais vus en base** — un lien
+  invisible, c'est un id à surveiller.
+- **Purge des comptes de test** (`npm run verify:clean`) : les scripts
+  de non-régression créent de vrais comptes (le submit exige un maker
+  réel) ; un run interrompu laissait des comptes factices en base. Le
+  script les purge, et la liste des users en admin n'affiche plus les
+  comptes de fixture (domaine `example.com`, réservé par la RFC 2606).
+
 - **9 cartes au lieu de 6** sur « Fraîtchement shippé » et « Mises à jour
   récentes » (3 rangées de 3) : 6 était une troncature invisible — le
   lien « Parcourir tout » ne menait pas au tri par récence, donc les
@@ -443,6 +462,47 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   fraude), mobile (`GET revenue`, `revenue-connections` ×3).
 
 ### Corrigé
+
+- **Un APK re-soumis après un rejet était refusé** : la référence
+  de version était le MAX de tous les builds, rejet compris — un build
+  rejeté n'ayant jamais été distribué, il brûlait son `versionCode` pour
+  un rejet réparable (le motif de rejet dit pourtant « corrigez et
+  re-soumettre »), et le maker devait bumper son APK pour une simple
+  correction de notes. La référence est désormais le build **EN LIGNE**
+  (approuvé) : c'est lui que l'utilisateur a installé. Même règle côté
+  client (la page Update affichait « doit être supérieur à 3 » alors que
+  le build en ligne était le 2).
+- **Un APK d'une autre application pouvait être publié** : rien ne
+  comparait le fichieruploadé au build en ligne — ni le certificat, ni le
+  package. Un fichier d'une autre app se parse, se signe et s'affiche
+  parfaitement : seul son `package` le distingue. La fiche de revue
+  affiche désormais l'écart (package différent = « Autre app », en rouge,
+  avec le build en ligne en regard ; certificat différent = rotation de
+  clé, signal d'alerte que l'admin tranche).
+- **Un envoi était refusé tant qu'un build était en revue** : le maker
+  était bloqué jusqu'au verdict de l'admin (à l'échelle d'une
+  communauté, une revue à 3 jours = 3 jours d'arrêt). Un nouvel envoi
+  **remplace** maintenant le build en revue ; l'ancien passe « rejeté /
+  remplacé » (rien n'est perdu) et son binaire R2 est purgé.
+- **L'index unique des builds interdisait la re-soumission** (migration 0047) : `(produit, version_code)` était unique SANS condition, donc
+  la ligne d'un build rejeté gardait son numéro de version définitivement.
+  L'index est désormais **partiel** (`pending`/`approved`) : un rejet
+  ne verrouille plus la version, mais deux builds vifs de même code
+  restent impossibles.
+- **La touche Entrée dans un champ enregistrait un brouillon** : le
+  bouton « Enregistrer le brouillon » était le premier `type="submit"`
+  du formulaire, donc la soumission implicite du navigateur déclenchait
+  son clic. Il est passé en `type="button"` (il soumet lui-même), et
+  l'intention est consommée à la lecture — la validation client
+  échouant, elle restait en place et l'appui suivant rejouait
+  « publier ».
+- **L'API mobile effaçait les liens non renvoyés** : le serveur
+  remplaçait la totalité des liens de la fiche par ceux de la payload,
+  alors que le mobile n'envoie que les champs qu'il modifie. Le mode
+  « merge » fait la distinction : absent = **conservé**, champ vidé =
+  **effacé**. Le web garde son remplacement total (il envoie tous les
+  champs) — résultat identique, aucun changement de payload côté
+  mobile.
 
 - **Le classement affichait des nombres qui ne correspondaient pas à l'ordre**
   : les fenêtres « Cette semaine » et « Ce mois » ordonnaient par `score`
