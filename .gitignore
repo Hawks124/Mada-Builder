@@ -15,6 +15,10 @@
 
 # next.js
 /.next/
+# Build de production isolé (npm run build:isolated) : doit être IGNORÉ,
+# sinon Tailwind v4 scanne le CSS compilé et génère des sélecteurs
+# invalides (-> page en 500 « Parsing CSS source code failed »).
+/.next-build/
 /out/
 
 # production

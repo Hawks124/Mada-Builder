@@ -1,10 +1,13 @@
 "use client";
 
-import { PRODUCT_LINK_FIELDS, hasAccessPoint, requiredFor } from "@/config/product-links";
+import {
+  PRODUCT_LINK_FIELDS,
+  firstEmptyAccessPointId,
+  hasAccessPoint,
+  requiredFor,
+} from "@/config/product-links";
 import { isMonetizedPricing } from "@/config/pricing";
 import type { UrlPolicy } from "@/lib/url-verdict";
-
-const DEV_FACING_TYPES = ["cli", "package", "framework", "plugin"];
 
 export type SubmitValidationInput = {
   /** "publish" ou "draft" (bouton cliqué). */
@@ -39,9 +42,10 @@ export type SubmitValidationInput = {
 
 /**
  * Validation inline (miroir FIDÈLE du serveur, jamais l'inverse) :
- * - Zod de base + orientation + installCommand : TOUJOURS (draft inclus) ;
- * - médias + matrice liens + privacy + reachability : PUBLISH seulement
- *   (le draft est un travail en cours — même règle que le serveur).
+ * - brouillon : `name` seul est requis, + longueurs / formats toujours
+ *   contrôlés (miroir `submitDraftSchema`) ;
+ * - publish : Zod de base complet + médias + matrice liens + privacy +
+ *   reachability (miroir `submitProductSchema` + `assertLinkRules`).
  * Retourne les erreurs par clé `name` d'input (ex. "tagline", "website").
  */
 export function validateSubmitClient(input: SubmitValidationInput): Record<string, string> {
@@ -50,17 +54,23 @@ export function validateSubmitClient(input: SubmitValidationInput): Record<strin
     if (!(key in errors)) errors[key] = message;
   };
   const len = (key: string): string => (input.fields[key] ?? "").trim();
+  // Brouillon = travail en cours : on n'exige que `name` (identité + slug).
+  // Les contrôles de longueur / format restent actifs dans les deux cas —
+  // une valeur trop longue ou une URL cassée est une vraie erreur, pas une
+  // exigence de publication. Miroir de `submitDraftSchema` côté serveur.
+  const isDraft = input.intent === "draft";
 
   const name = len("name");
   if (name.length < 2) set("name", "Nom : requis (min 2 caractères).");
   else if (name.length > 80) set("name", "Nom : trop long (max 80 caractères).");
 
   const tagline = len("tagline");
-  if (tagline.length < 1) set("tagline", "Tagline : requise.");
+  if (!isDraft && tagline.length < 1) set("tagline", "Tagline : requise.");
   else if (tagline.length > 220) set("tagline", "Tagline : trop longue (max 220 caractères).");
 
   const description = len("description");
-  if (description.length < 20) set("description", "Description : trop courte (min 20 caractères).");
+  if (!isDraft && description.length < 20)
+    set("description", "Description : trop courte (min 20 caractères).");
   else if (description.length > 20000)
     set("description", "Description : trop longue (max 20000 caractères).");
 
@@ -70,9 +80,6 @@ export function validateSubmitClient(input: SubmitValidationInput): Record<strin
   const installCommand = len("installCommand");
   if (installCommand.length > 200)
     set("installCommand", "Commande d'installation : trop longue (max 200 caractères).");
-  if (DEV_FACING_TYPES.includes(input.productType) && installCommand === "") {
-    set("installCommand", "Commande d'installation : requise pour ce type de produit.");
-  }
 
   const version = len("version");
   if (version.length > 20) set("version", "Version : trop longue (max 20 caractères).");
@@ -89,8 +96,10 @@ export function validateSubmitClient(input: SubmitValidationInput): Record<strin
     }
   }
 
-  if (input.categories.length === 0) set("categories", "Catégorie : au moins une requise.");
-  if (input.platforms.length === 0) set("platforms", "Plateformes : au moins une requise.");
+  if (!isDraft && input.categories.length === 0)
+    set("categories", "Catégorie : au moins une requise.");
+  if (!isDraft && input.platforms.length === 0)
+    set("platforms", "Plateformes : au moins une requise.");
   if (input.tags.some((t) => t.length > 30) || input.tags.length > 10) {
     set("tags", "Tags : max 10, 30 caractères chacun.");
   }
@@ -132,7 +141,10 @@ export function validateSubmitClient(input: SubmitValidationInput): Record<strin
       set("screenshots", "Au moins une capture requise pour publier.");
   }
   if (!hasAccessPoint(input.linkValues)) {
-    set("website", "Au moins un point d'accès requis : site, store, registre ou démo.");
+    // L'erreur doit viser le champ MANQUANT pour ce type (souvent `registry`
+    // ou `appStore`), pas toujours `website`, présenté comme facultatif.
+    const anchor = firstEmptyAccessPointId(input.productType, input.linkValues);
+    set(anchor, "Au moins un point d'accès requis : site, store, registre ou démo.");
   }
   const monetized = isMonetizedPricing(input.pricing);
   for (const field of Object.values(PRODUCT_LINK_FIELDS)) {

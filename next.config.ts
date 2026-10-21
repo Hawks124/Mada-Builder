@@ -3,6 +3,14 @@ import type { NextConfig } from "next";
 import { remoteImagePatterns } from "./lib/remote-images";
 
 const nextConfig: NextConfig = {
+  /**
+   * Dossier de build. Surchargable par env : un `next build` lancé
+   * pendant que `next dev` tourne ÉCRASE le `.next` du dev (mêmes
+   * chunks) et le serveur dev meurt en « destination stream closed
+   * early » → la page affiche « network error » et le spinner tourne.
+   * `NEXT_DIST_DIR=.next-build npm run build` isole les deux.
+   */
+  distDir: process.env.NEXT_DIST_DIR ?? ".next",
   // Dev téléphone sur le LAN (HMR cross-origin) — ignoré en prod.
   // IP DHCP : ajuster si elle change (voir log "Blocked cross-origin").
   allowedDevOrigins: ["192.168.1.106"],
@@ -19,6 +27,19 @@ const nextConfig: NextConfig = {
     // lus depuis l'env au build — zéro changement de code au deploy).
     // SVG locaux (/logos) passent tels quels (non optimisés, sans warning).
     remotePatterns: remoteImagePatterns(),
+  },
+  async headers() {
+    return [
+      {
+        // Aperçu d'une fiche pas encore publiée : jamais indexé, jamais
+        // mis en cache (contenu réservé au propriétaire / au staff).
+        source: "/preview/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+          { key: "Cache-Control", value: "private, no-store" },
+        ],
+      },
+    ];
   },
 };
 

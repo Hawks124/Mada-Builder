@@ -4,27 +4,16 @@ import * as React from "react";
 import { startTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  HourglassIcon,
-  ArrowSquareOutIcon,
-  BellRingingIcon,
-  GlobeIcon,
-  AppleLogoIcon,
-  AndroidLogoIcon,
-} from "@phosphor-icons/react";
+import { HourglassIcon, ArrowSquareOutIcon, BellRingingIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { getCategoryById } from "@/config/categories";
 import { LifecyclePill } from "@/components/ui/lifecycle-pill";
 import { TagPill } from "@/components/ui/tag-pill";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ProductAvatar } from "@/components/ui/product-avatar";
+import { getPlatformById } from "@/config/platforms";
 import type { ReviewItem } from "@/components/admin/admin-mock";
-
-const PLATFORM_ICONS: Record<string, React.ReactNode> = {
-  web: <GlobeIcon weight="fill" className="w-3.5 h-3.5" />,
-  ios: <AppleLogoIcon weight="fill" className="w-3.5 h-3.5" />,
-  android: <AndroidLogoIcon weight="fill" className="w-3.5 h-3.5" />,
-};
 
 const SLA_HOURS = 24;
 
@@ -86,19 +75,11 @@ export function ReviewQueue({
                 href={`/admin/review/${item.id}`}
                 className="w-12 h-12 rounded-2xl shrink-0 overflow-hidden shadow-sm transition-transform duration-300 group-hover:scale-105"
               >
-                {item.iconUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.iconUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span
-                    className={cn(
-                      "flex h-full w-full items-center justify-center text-white font-black text-base bg-linear-to-br",
-                      item.iconGradient,
-                    )}
-                  >
-                    {item.initials}
-                  </span>
-                )}
+                <ProductAvatar
+                  iconUrl={item.iconUrl}
+                  initials={item.initials}
+                  gradient={item.iconGradient}
+                />
               </Link>
 
               {/* Body */}
@@ -144,11 +125,26 @@ export function ReviewQueue({
                   </span>
                   <span aria-hidden="true">·</span>
                   <span className="flex items-center gap-1">
-                    {item.platforms.map((p) => (
-                      <span key={p} title={p}>
-                        {PLATFORM_ICONS[p]}
+                    {item.platforms.map((p) => {
+                      // Les 8 plateformes de la config (macos, desktop,
+                      // cli, windows, linux incluses) : une table codée
+                      // en dur n'en montrait que 3, les autres rendant
+                      // un span VIDE — le staff ne voyait qu'une partie
+                      // de la fiche sans aucun signal.
+                      const platform = getPlatformById(p);
+                      if (!platform) return null;
+                      const PlatformIcon = platform.icon;
+                      return (
+                        <span key={p} title={platform.label}>
+                          <PlatformIcon weight="fill" className="w-3.5 h-3.5" />
+                        </span>
+                      );
+                    })}
+                    {item.platforms.length === 0 && (
+                      <span className="text-[11px] font-bold text-red-600 dark:text-red-400">
+                        aucune plateforme
                       </span>
-                    ))}
+                    )}
                   </span>
                   <span aria-hidden="true">·</span>
                   <span>{item.pricing}</span>

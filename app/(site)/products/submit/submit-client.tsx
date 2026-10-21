@@ -22,11 +22,22 @@ import { SubmitProgressOverlay } from "@/components/submit/submit-progress-overl
 import { loadSubmitDraft, saveSubmitDraft } from "@/components/submit/submit-draft";
 import type { DashboardApp } from "@/components/dashboard/dashboard-mock";
 import { ActionButton } from "@/components/ui/action-button";
+import { toast } from "@/components/ui/toast";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 function SubmitForm() {
-  const { isEditing, editApp, productType, lifecycle, audience, pricing, platforms, hasTrack } =
-    useSubmitForm();
+  const {
+    isEditing,
+    editApp,
+    productType,
+    lifecycle,
+    audience,
+    pricing,
+    platforms,
+    hasTrack,
+    buildNotes,
+    setBuildNotes,
+  } = useSubmitForm();
   const router = useRouter();
   const hasAndroid = platforms.includes("android");
   // First-upload (D2-UI) : création + Android uniquement (édition = flow
@@ -94,9 +105,15 @@ function SubmitForm() {
     }
     router.push(target);
   };
-  const intentRef = React.useRef<"publish" | "draft">("draft");
+  // Intention d'envoi. `null` = AUCUN bouton cliqué (touche Entrée) :
+  // la soumission implicite du navigateur ne doit jamais enregistrer un
+  // brouillon en silence (bug vu en QA : Entrée dans un champ URL
+  // → brouillon créé). Le bouton de brouillon pose "draft", celui de
+  // publication pose "publish" ; sans intention, on ne fait rien.
+  const intentRef = React.useRef<"publish" | "draft" | null>(null);
   const saveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const formRef = React.useRef<HTMLFormElement | null>(null);
+  const { pendingRevisionAt } = useSubmitForm();
   const { phase, sending, serverMessage, activeIntent, send } = useSubmitXhr(formRef, {
     // Android seul conditionne (plus isEditing : la chaîne décide via
     // intent publish OU édition — le !isEditing ici effaçait le fichier
@@ -112,11 +129,10 @@ function SubmitForm() {
     intentRef.current = "publish";
     formRef.current?.requestSubmit();
   };
-  // Entrée clavier = standard HTML (premier bouton = brouillon) : après
-  // chaque tentative, l'intention retombe à "draft" (jamais de publish
-  // surprise suite à un échec publish précédent).
+  // Après chaque tentative, l'intention repart à `null` : sans bouton
+  // cliqué, il n'y a pas d'intention (Entrée clavier → rien).
   React.useEffect(() => {
-    if (phase.name === "idle") intentRef.current = "draft";
+    if (phase.name === "idle") intentRef.current = null;
   }, [phase]);
   React.useEffect(() => {
     return () => {
@@ -141,9 +157,15 @@ function SubmitForm() {
           </h1>
           <p className="text-lg md:text-xl font-medium text-muted-foreground max-w-2xl">
             {isEditing && editApp
-              ? `Modifiez la fiche de ${editApp.name}. Les changements sur le nom et les liens repassent en revue.`
+              ? `Modifiez la fiche de ${editApp.name}. Le texte, les liens et les images passent en revue : votre fiche reste en ligne telle qu'elle a été validée, le temps que la modification soit examinee.`
               : "Ajoutez votre application pour que la communauté de makers de Madagascar puisse la découvrir et la soutenir."}
           </p>
+          {isEditing && pendingRevisionAt && (
+            <p className="mt-3 w-fit rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[13px] font-bold text-amber-700 dark:text-amber-300">
+              Une modification est en attente de revue — les valeurs ci-dessous sont celles que vous
+              avez proposées. La fiche publique, elle, garde son texte validé.
+            </p>
+          )}
         </div>
       </div>
 
@@ -156,7 +178,25 @@ function SubmitForm() {
             ref={formRef}
             onSubmit={(e) => {
               e.preventDefault();
-              send(intentRef.current);
+              const intent = intentRef.current;
+              // L'intention est consommée ICI : elle ne doit jamais
+              // survivre à une tentative. Avant, elle n'était remise à
+              // `null` que par l'effet sur `phase` — or `send` rend la
+              // main SANS changer de phase quand la validation client
+              // échoue : l'intention restait en place (« publish »), et
+              // l'appui suivant (Entrée clavier) rejouait la publication.
+              intentRef.current = null;
+              if (intent === null) {
+                // Entrée clavier dans un champ : aucun bouton cliqué →
+                // on n'enregistre rien (un brouillon créé par accident
+                // est un Brouillon de plus à nettoyer).
+                toast(
+                  "info",
+                  "Rien n'a été enregistré : utilise « Publier le produit » ou « Enregistrer le brouillon ».",
+                );
+                return;
+              }
+              send(intent);
             }}
             onInput={() => {
               setDirty(true);
@@ -200,6 +240,8 @@ function SubmitForm() {
                   onParsed={setPendingApk}
                   onClear={() => setPendingApk(null)}
                   onBusyChange={setApkBusy}
+                  notes={buildNotes}
+                  onNotesChange={setBuildNotes}
                 />
               </>
             )}
@@ -230,12 +272,23 @@ function SubmitForm() {
               </p>
             )}
             <InlineErrorSummary />
+            <p className="text-right text-[13px] text-muted-foreground">
+              Un brouillon s&apos;enregistre avec le seul nom — les champs marqués « Requis » seront
+              exigés au moment de publier.
+            </p>
             <div className="flex items-center justify-end gap-4 pt-8">
               <button
-                type="submit"
+                type="button"
                 disabled={sending}
                 onClick={() => {
+                  // `type="button"` OBLIGATOIRE : c'est le premier bouton
+                  // `submit` du formulaire, donc la touche Entrée dans un
+                  // champ déclenchait son clic → un brouillon silencieux
+                  // (exactement le bug que l'intention `null` devait
+                  // empêcher). Ici, le clic pose l'intention ET soumet
+                  // explicitement.
                   intentRef.current = "draft";
+                  formRef.current?.requestSubmit();
                 }}
                 className="px-6 h-12 bg-muted/30 text-foreground hover:bg-muted/60 rounded-full text-[15px] font-bold tracking-wide transition-colors cursor-pointer disabled:opacity-50"
               >
@@ -314,14 +367,22 @@ function SubmitForm() {
 export function SubmitClient({
   editId,
   editApp,
+  pendingRevisionAt,
   editMedia,
   hasTrack,
 }: {
   editId: string | null;
   editApp: DashboardApp | null;
+  /** Date de la revision en attente (fiche publiee) — bandeau maker. */
+  pendingRevisionAt?: Date | null;
   editMedia?: {
     iconUrl: string | null;
-    shots: { url: string; width: number | null; height: number | null }[];
+    shots: {
+      url: string;
+      width: number | null;
+      height: number | null;
+      orientation: "portrait" | "landscape";
+    }[];
   } | null;
   hasTrack?: boolean;
 }) {
@@ -360,6 +421,7 @@ export function SubmitClient({
       initialDraft={initialDraft}
       existingMedia={editMedia}
       hasTrack={hasTrack}
+      pendingRevisionAt={pendingRevisionAt ?? null}
       key={`${editId ?? "new"}:${restored ? "restored" : "fresh"}`}
     >
       <SubmitForm />

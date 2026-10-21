@@ -12,6 +12,7 @@ import {
   FunnelIcon,
 } from "@phosphor-icons/react";
 import { getPlatformById } from "@/config/platforms";
+import { ProductAvatar } from "@/components/ui/product-avatar";
 import { cn } from "@/lib/utils";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
@@ -252,16 +253,10 @@ function AdminProductRow({
       <Link
         href={`/products/${app.slug}`}
         className={cn(
-          "w-12 h-12 rounded-2xl shrink-0 flex items-center justify-center text-white font-black text-base bg-linear-to-br shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3",
-          !app.iconUrl && app.iconGradient,
+          "w-12 h-12 rounded-2xl shrink-0 overflow-hidden flex items-center justify-center font-black text-base shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3",
         )}
       >
-        {app.iconUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={app.iconUrl} alt="" className="w-12 h-12 rounded-2xl object-cover shadow-sm" />
-        ) : (
-          app.initials
-        )}
+        <ProductAvatar iconUrl={app.iconUrl} initials={app.initials} />
       </Link>
 
       {/* Body */}

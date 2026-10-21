@@ -91,7 +91,13 @@ const socialLinksSchema = z
 
 export const updateProfileSchema = z.object({
   displayName: z.string().trim().min(2).max(50),
-  bio: z.string().trim().max(160).optional(),
+  // 400 (et non 160) : la bio est le seul endroit où le maker raconte
+  // ce qu'il fait — 160 caractères ne disaient rien. La colonne est
+  // `text` (aucune migration). Le bug associé : une bio déjà plus
+  // longue que la limite rendait TOUTE sauvegarde impossible
+  // (« Champs invalides. »), donc le maker ne pouvait plus changer son
+  // nom ni son occupation.
+  bio: z.string().trim().max(400).optional(),
   occupation: z
     .string()
     .refine((id) => OCCUPATIONS.some((o) => o.id === id), "Occupation inconnue"),
@@ -410,6 +416,14 @@ export async function getAdminUsers(input: {
   const status = input.status ?? "all";
 
   const conditions = [isNull(users.deletedAt)];
+  // Comptes de test (scripts de non-régression) : jamais affichés dans
+  // l'admin. Ils vivent dans la base le temps du script (le script les
+  // purge), mais un run interrompu laissait des comptes factices
+  // visibles dans la liste — du bruit pour l'équipe, et une source de
+  // panique inutile. Le filtre est sur le DOMAINE de fixture, pas sur
+  // un drapeau en base : un vrai compte ne peut pas utiliser
+  // `example.com` (domaine réservé par la RFC 2606).
+  conditions.push(sql`${users.email} not like '%@example.com'`);
   if (status === "banned") {
     conditions.push(isNotNull(users.bannedAt));
   }

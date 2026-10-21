@@ -43,6 +43,63 @@ const FIXTURE_CERT_HEX =
   "3082035e30820246a00302010202044c49cd00300d06092a864886f70d01010505003071310b300906035504061302554b3110300e06035504081307556e6b6e6f776e3111300f0603550407130857657468657262793110300e060355040a1307556e6b6e6f776e3110300e060355040b1307556e6b6e6f776e311930170603550403131043696172616e2047756c746e69656b73301e170d3130303732333137313032345a170d3337313230383137313032345a3071310b300906035504061302554b3110300e06035504081307556e6b6e6f776e3111300f0603550407130857657468657262793110300e060355040a1307556e6b6e6f776e3110300e060355040b1307556e6b6e6f776e311930170603550403131043696172616e2047756c746e69656b7330820122300d06092a864886f70d01010105000382010f003082010a028201010096d075e47c014e7822c89fd67f795d23203e2a8843f53ba4e6b1bf5f2fd0e225938267cfcae7fbf4fe596346afbaf4070fdb91f66fbcdf2348a3d92430502824f80517b156fab00809bdc8e631bfa9afd42d9045ab5fd6d28d9e140afc1300917b19b7c6c4df4a494cf1f7cb4a63c80d734265d735af9e4f09455f427aa65a53563f87b336ca2c19d244fcbba617ba0b19e56ed34afe0b253ab91e2fdb1271f1b9e3c3232027ed8862a112f0706e234cf236914b939bcf959821ecb2a6c18057e070de3428046d94b175e1d89bd795e535499a091f5bc65a79d539a8d43891ec504058acb28c08393b5718b57600a211e803f4a634e5c57f25b9b8c4422c6fd90203010001300d06092a864886f70d0101050500038201010008e4ef699e9807677ff56753da73efb2390d5ae2c17e4db691d5df7a7b60fc071ae509c5414be7d5da74df2811e83d3668c4a0b1abc84b9fa7d96b4cdf30bba68517ad2a93e233b042972ac0553a4801c9ebe07bf57ebe9a3b3d6d663965260e50f3b8f46db0531761e60340a2bddc3426098397fda54044a17e5244549f9869b460ca5e6e216b6f6a2db0580b480ca2afe6ec6b46eedacfa4aa45038809ece0c5978653d6c85f678e7f5a2156d1bedd8117751e64a4b0dcd140f3040b021821a8d93aed8d01ba36db6c82372211fed714d9a32607038cdfd565bd529ffc637212aaa2c224ef22b603eccefb5bf1e085c191d4b24fe742b17ab3f55d4e6f05ef";
 const FIXTURE_SHA = "43238d512c1e5eb2d6569f4a3afbf5523418b82e0a3ed1552770abb9a9c9ccab";
 
+/**
+ * Paires de signature RÉELLES (octets exacts, base64) :
+ * - V2 : ketch-android-0.10.0.apk — CN=linroid, RSA/2048.
+ * - V3 : OnyxCalc.apk — CN=Onyx Calc (O=RiRi), RSA/2048.
+ *
+ * Elles encodent le format APK réel — y compris le uint32 qui préfixe
+ * la VALEUR d'une paire. C'est ce préfixe que le parseur ignorait :
+ * tout le contenu était décalé de 4 octets et TOUS les APK réels
+ * signés étaient refusés (« aucun certificat X.509 lisible »). Ces
+ * octets byte-exact sont la régression qui empêche le retour de ce
+ * bug : le format testé est le format réel, pas une approximation.
+ */
+const REAL_V2_PAIR_B64 = [
+  "WAUAAAAAAAAahwlxUAUAAEwFAAAOAwAALAAAACgAAAADAQAAIAAAAE87XxKBqE9So3IUfA9N4EKGhf9AtcekoF6PHCOgfcCp0gIA",
+  "AM4CAAAwggLKMIIBsqADAgECAgkAz7aDvYUKw2cwDQYJKoZIhvcNAQEMBQAwEjEQMA4GA1UEAxMHbGlucm9pZDAgFw0yNjAyMTMw",
+  "NzIxMzJaGA8yMDUxMDIwNzA3MjEzMlowEjEQMA4GA1UEAxMHbGlucm9pZDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB",
+  "AKgYSXEDo8VlqMBtmSYCuRbcBwLmxqyeQaswVKmDdFX0JUyM7QmoNeeg9rUdF9lJchlxcYQaQOmMMjG2f6VKJ1yX5gLEHnA9GLhj",
+  "PU7fdXyDvynhgKSw2rId1aJQZMQPYV/j6U8a/SGbq4w7b1XITzpXTDxYI8wW7jGiAvEbIqTfBbbcldxkLUGgLESg6pyglqg51leE",
+  "uacJ4BPRw7MLRb/W1P5Kmc10UVioO18HPXHiUtF8F0kE9ZCLXTVnkp2CSEdV4c+aBIFsIH2MP7L+TVhvHKAwINoZaD43lB8KKkAW",
+  "/QHN2O8c3EW+H6VTp8ZdXm4HkXDN204UQHNe+pXtHFECAwEAAaMhMB8wHQYDVR0OBBYEFMebuWRCagL0d3dnVpaF6KPgNaidMA0G",
+  "CSqGSIb3DQEBDAUAA4IBAQBKPsgkzK8lUBKQfoJJGwrqzcXpWlo6XsvfcFlxEAsqd3FJgAE9J2j9fRaesGr74cxD1ICSJQcy/dba",
+  "TCWpVV4VeQ2XEm2cCTfIOt10bTNz1DuxXahPj+ER56cGg0taAFXKyZ3z/ZRNeyFjVyZRqd8V9xomiDlAj4tgGkQ/ofLYVqhbYlXx",
+  "0u5HrfVLy+WvG1wFMRjgE16+/uGq4fnTtNEE7UcS/3/XCZeuFHHN++c4EsXSEZ8iy1c/qDYEoL1yPPCNrtLut9QqzyG8xaWGpTQ5",
+  "C//ICDOhJcCjPl5kGT60i/u+1Hcp4fWklqXKQ/L2I6857OaMbYcMf5G92O8BZVScAAAAAAAAAAAMAQAACAEAAAMBAAAAAQAAE0FI",
+  "LaAuQ3Ut0FZD4z/KmPvXS8xzLxiF01fvSmH2sRSxilhXzo/fvAgowLoPdgOGM75EBo2HMw8TAbawQ5LksMmA73IpuNSVk6yl85gm",
+  "q3sw2N5S+LXXUh3IfzNg9AVCRtq8RK03rboYWyNiY15S3yJko+dr1TdpLKYjXz7X9hU1UMZ43/KRyhZWdbIWyoK+khWNpFy8r1Nm",
+  "eBOSNMXj82kfpe6J0jCgkqxz8of1A7auHqkglFqKw0EDxEFUR9vbaHzuWpbqhvQvMERGifr7Jboon9NZIak+yHlYpe8H7vHg3oR3",
+  "NghqQkSOwXzp7juTreCzXbMR3NU3HTbWulf0RiYBAAAwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCoGElxA6PFZajA",
+  "bZkmArkW3AcC5sasnkGrMFSpg3RV9CVMjO0JqDXnoPa1HRfZSXIZcXGEGkDpjDIxtn+lSidcl+YCxB5wPRi4Yz1O33V8g78p4YCk",
+  "sNqyHdWiUGTED2Ff4+lPGv0hm6uMO29VyE86V0w8WCPMFu4xogLxGyKk3wW23JXcZC1BoCxEoOqcoJaoOdZXhLmnCeAT0cOzC0W/",
+  "1tT+SpnNdFFYqDtfBz1x4lLRfBdJBPWQi101Z5KdgkhHVeHPmgSBbCB9jD+y/k1YbxygMCDaGWg+N5QfCipAFv0BzdjvHNxFvh+l",
+  "U6fGXV5uB5FwzdtOFEBzXvqV7RxRAgMBAAE=",
+].join("");
+const REAL_V3_PAIR_B64 = [
+  "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",
+].join("");
+
 function u16(v: number): Uint8Array {
   return Uint8Array.of(v & 0xff, (v >> 8) & 0xff);
 }
@@ -81,13 +138,19 @@ const SIG_MAGIC = new TextEncoder().encode("APK Sig Block 42");
 
 /** Signer v2/v3 minimal : digests factices + UN blob (vrai cert ou déchet). */
 function fakeSigner(certBlob: Uint8Array, scheme: "v2" | "v3"): Uint8Array {
-  const digestEntry = cat(u32(1), lp(new Uint8Array(32).fill(0xab)));
+  // digests : u32 longueur + entrées (u32 algo + u32 longueur + octets)
+  const digestEntry = cat(u32(0x0103), lp(new Uint8Array(32).fill(0xab)));
   const digestsSeq = lp(digestEntry);
+  // certificats : u32 longueur + (u32 longueur du cert + cert)
   const certsSeq = lp(lp(certBlob));
-  // v3 : minSdk/maxSdk (2× uint32) après seqLen, avant signedData.
-  const signedData = lp(cat(digestsSeq, certsSeq));
-  const signedBody = scheme === "v3" ? cat(u32(24), u32(35), signedData) : signedData;
-  return lp(cat(signedBody, lp(new Uint8Array(0)), lp(new Uint8Array(0))));
+  // Attributs additionnels : c'est ICI que le v3 place minSdk/maxSdk
+  // (et non en tête de signed data — le mettre en tête décalait tout
+  // et cassait l'extraction sur les APK signés en v3).
+  const attrs = scheme === "v3" ? lp(cat(u32(24), u32(0x7fffffff))) : lp(new Uint8Array(0));
+  // signed data : digests + certificats + attributs
+  const signedData = lp(cat(digestsSeq, certsSeq, attrs));
+  // signer : signedData + signatures + clé publique
+  return lp(cat(signedData, lp(new Uint8Array(0)), lp(new Uint8Array(0))));
 }
 
 /**
@@ -103,8 +166,15 @@ function fakeApkPairs(
   withBlock = true,
   entryName = "hello.txt",
 ): Uint8Array {
-  const pairs = ids.map((id, i) => cat(u32(id), signers[i]!));
-  const pairFull = cat(...pairs.map((p) => cat(u64(p.length), p)));
+  // Paire RÉELLE : u64 longueur (id + longueur de la valeur + valeur),
+  // u32 id, u32 longueur de la valeur, valeur. La valeur est donc
+  // elle-même préfixée par sa longueur — sans ce uint32, le contenu
+  // est lu 4 octets de travers (le bug historique).
+  const pairs = ids.map((id, i) => {
+    const value = signers[i]!;
+    return cat(u64(4 + 4 + value.length), u32(id), u32(value.length), value);
+  });
+  const pairFull = cat(...pairs);
   const block = !withBlock
     ? new Uint8Array(0)
     : pad16
@@ -174,6 +244,70 @@ function fakeApk(certDer: Uint8Array, scheme: "v2" | "v3"): Uint8Array {
 }
 
 /**
+ * APK construit autour de paires BRUTES (octets réels) : le bloc n'est
+ * pas réinterprété, il est simply réinjecté tel quel. Sert à rejouer
+ * un vrai bloc de signature sans embarquer l'APK entier.
+ */
+function apkWithRawPairs(rawPairs: Uint8Array[]): Uint8Array {
+  const pairFull = cat(...rawPairs);
+  const block = cat(
+    new Uint8Array(16),
+    u64(pairFull.length + 24),
+    pairFull,
+    u64(pairFull.length + 24),
+    SIG_MAGIC,
+  );
+  const name = new TextEncoder().encode("hello.txt");
+  const data = new TextEncoder().encode("hello");
+  const local = cat(
+    u32(0x04034b50),
+    u16(20),
+    u16(0),
+    u16(0),
+    u16(0),
+    u16(0),
+    u32(0),
+    u32(5),
+    u32(5),
+    u16(name.length),
+    u16(0),
+    name,
+    data,
+  );
+  const cdEntry = cat(
+    u32(0x02014b50),
+    u16(20),
+    u16(20),
+    u16(0),
+    u16(0),
+    u16(0),
+    u16(0),
+    u32(0),
+    u32(5),
+    u32(5),
+    u16(name.length),
+    u16(0),
+    u16(0),
+    u16(0),
+    u16(0),
+    u32(0),
+    u32(0),
+  );
+  const cdOffset = local.length + block.length;
+  const eocd = cat(
+    u32(0x06054b50),
+    u16(0),
+    u16(0),
+    u16(1),
+    u16(1),
+    u32(cdEntry.length),
+    u32(cdOffset),
+    u16(0),
+  );
+  return cat(local, block, cdEntry, eocd);
+}
+
+/**
  * Vérifie l'extraction sur les APK synthétiques et, si disponible, F-Droid.
  * Contrôle aussi la normalisation du manifest et termine avec le code 1 en cas d'échec.
  */
@@ -222,6 +356,30 @@ async function main(): Promise<void> {
   check("mixte : 1 cert", mixed.length === 1);
   check("mixte : schéma fort (v3)", mixed[0]?.scheme === "v3");
   check("mixte : SHA croisé openssl", mixed[0]?.sha256 === FIXTURE_SHA);
+
+  // 2d. RÉGIME RÉEL : paires v2/v3 byte-exact (ketch + OnyxCalc).
+  // Ces octets viennent d'APK réels signés : ils valident le format
+  // APK tel qu'il existe, pas une approximation de test.
+  const realV2 = await extractApkCerts(
+    bufferReader(apkWithRawPairs([new Uint8Array(Buffer.from(REAL_V2_PAIR_B64, "base64"))])),
+  );
+  check("réel v2 : 1 cert", realV2.length === 1);
+  check("réel v2 : schéma v2", realV2[0]?.scheme === "v2");
+  check("réel v2 : CN=linroid", realV2[0]?.subjectCn === "linroid");
+  check(
+    "réel v2 : empreinte connue",
+    realV2[0]?.sha256 === "3f512f48fea463e263766ee337cc88f254c9d92e773e18f436f159c308243d26",
+  );
+  const realV3 = await extractApkCerts(
+    bufferReader(apkWithRawPairs([new Uint8Array(Buffer.from(REAL_V3_PAIR_B64, "base64"))])),
+  );
+  check("réel v3 : 1 cert", realV3.length === 1);
+  check("réel v3 : schéma v3", realV3[0]?.scheme === "v3");
+  check("réel v3 : CN=Onyx Calc", realV3[0]?.subjectCn === "Onyx Calc");
+  check(
+    "réel v3 : empreinte connue",
+    realV3[0]?.sha256 === "f58efacd8c86687c7d4bff381f1bc3bc59dc1baf086c91fc1051d1e9852a7f45",
+  );
 
   // 3. Refus francs : garbage + ZIP sans signature.
   let notZip = false;

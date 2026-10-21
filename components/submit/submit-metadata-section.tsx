@@ -21,6 +21,7 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import { PLATFORMS, PLATFORMS_BY_TYPE } from "@/config/platforms";
+import { getProductTypeById } from "@/config/product-types";
 import {
   REVENUE_CONFIG_SPECS,
   type RevenueConfigSpec,
@@ -32,8 +33,6 @@ const OPTION_ICON_CLASS = "w-4 h-4 shrink-0";
 
 // PLATFORMS and PRICING_MODELS are now imported from @/config/platforms and @/config/pricing
 // They are mapped inline below with JSX icons at the required size
-
-const DEV_FACING_TYPES = ["cli", "package", "framework", "plugin"];
 
 const MAX_REQUIREMENTS = 8;
 const MAX_REQUIREMENT_LEN = 80;
@@ -129,7 +128,6 @@ export function SubmitMetadataSection() {
     clearError,
     draft,
   } = useSubmitForm();
-  const isDevFacing = DEV_FACING_TYPES.includes(productType);
 
   // Suggestion par type : dérivée au rendu (pas d'effect) — suit le type
   // tant que l'utilisateur n'a rien coché/décoché (null = suggestion).
@@ -145,6 +143,15 @@ export function SubmitMetadataSection() {
   // (remount par clé — InputField uncontrolled).
   const [licenseDraft, setLicenseDraft] = useState<string | null>(null);
   const selectedPlatforms = manualPlatforms ?? suggestedPlatforms;
+  // Affichage : les plateformes DU TYPE d'abord (déjà cochées), les autres
+  // derrière un LABEL statique qui les sépare — la suggestion structure la
+  // liste sans rien interdire (un produit peut légitimement viser
+  // plusieurs OS). En ÉDITION, la liste principale = les plateformes
+  // actuelles de la fiche (sinon la liste serait vide et tout serait
+  // relégué après le séparateur).
+  const primaryIds = editApp ? (editApp.platforms ?? []) : suggestedPlatforms;
+  const primaryPlatforms = PLATFORMS.filter((p) => primaryIds.includes(p.id));
+  const otherPlatforms = PLATFORMS.filter((p) => !primaryIds.includes(p.id));
   // Remontée contexte (bloc APK) : garde d'égalité côté setter.
   React.useEffect(() => {
     syncPlatforms(selectedPlatforms);
@@ -186,8 +193,17 @@ export function SubmitMetadataSection() {
           Plateformes supportées
           <FieldBadge variant="required" />
         </label>
+        {suggestedPlatforms.length > 0 && manualPlatforms === null && (
+          <p className="text-[12px] font-medium text-muted-foreground">
+            Suggéré pour « {getProductTypeById(productType)?.label ?? productType} » :{" "}
+            {suggestedPlatforms
+              .map((id) => PLATFORMS.find((p) => p.id === id)?.label ?? id)
+              .join(", ")}{" "}
+            — modifiable.
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
-          {PLATFORMS.map((platform) => {
+          {primaryPlatforms.map((platform) => {
             const PlatformIcon = platform.icon;
             const isSelected = selectedPlatforms.includes(platform.id);
             return (
@@ -195,6 +211,7 @@ export function SubmitMetadataSection() {
                 key={platform.id}
                 type="button"
                 onClick={() => togglePlatform(platform.id)}
+                title={platform.description}
                 className={cn(
                   "px-4 py-2.5 rounded-full text-[13px] font-bold transition-all cursor-pointer flex items-center gap-2",
                   isSelected
@@ -208,6 +225,39 @@ export function SubmitMetadataSection() {
             );
           })}
         </div>
+        {/* Label statique : il SÉPARE les deux groupes, il ne cache rien.
+            Les plateformes du type d'abord (déjà cochées), les autres
+            ensuite — un produit peut légitimement viser plusieurs OS. */}
+        {otherPlatforms.length > 0 && (
+          <>
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground/60 mt-1">
+              Autres plateformes
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {otherPlatforms.map((platform) => {
+                const PlatformIcon = platform.icon;
+                const isSelected = selectedPlatforms.includes(platform.id);
+                return (
+                  <button
+                    key={platform.id}
+                    type="button"
+                    onClick={() => togglePlatform(platform.id)}
+                    title={platform.description}
+                    className={cn(
+                      "px-4 py-2.5 rounded-full text-[13px] font-bold transition-all cursor-pointer flex items-center gap-2",
+                      isSelected
+                        ? "bg-foreground text-background shadow-md border border-transparent"
+                        : "bg-muted/30 text-muted-foreground border border-border/40 hover:bg-muted/60 hover:text-foreground",
+                    )}
+                  >
+                    <PlatformIcon weight="fill" className="w-4 h-4" />
+                    {platform.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
       {errors["platforms"] && (
         <p role="alert" className="text-[12px] font-bold text-red-600 dark:text-red-400">
@@ -462,16 +512,14 @@ export function SubmitMetadataSection() {
           </div>
         )}
 
-        {/* Install Command — required for dev-facing product types */}
+        {/* Install Command — information technique (jamais bloquante).
+            C'est `registry` qui porte l'accès, le bouton et le logo du
+            registre sur la fiche : cette commande ne fait que le
+            compliment dans le bloc technique. */}
         <InputField
           label="Commande d'installation"
-          subtitle={
-            isDevFacing
-              ? "Requise pour ce type de produit : comment l'installer ?"
-              : "Pour les packages ou outils CLI."
-          }
-          isRequired={isDevFacing}
-          isOptional={!isDevFacing}
+          subtitle="Optionnel — affichée dans le bloc technique de la fiche. Pour les packages ou outils CLI."
+          isOptional={true}
           defaultValue={draft?.installCommand ?? editApp?.installCommand ?? ""}
           placeholder="ex: npm install malagasy-ui"
           className="font-mono text-[14px]"

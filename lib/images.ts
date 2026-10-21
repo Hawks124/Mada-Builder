@@ -17,7 +17,7 @@ import sharp, { type Sharp } from "sharp";
  *   est imposée en amont, pas ici).
  */
 
-export type ImageKind = "png" | "jpeg" | "webp";
+export type ImageKind = "png" | "jpeg" | "webp" | "gif";
 
 /** Orientation déclarée d'une galerie (pilotée par le type de produit). */
 export type ShotOrientation = "portrait" | "landscape";
@@ -41,6 +41,8 @@ export function detectImageKind(buffer: Buffer): ImageKind | null {
     buffer.subarray(8, 12).toString("ascii") === "WEBP"
   )
     return "webp";
+  // GIF87a / GIF89a — passe en travers (l'animation est le contenu).
+  if (buffer.length > 6 && buffer.subarray(0, 3).toString("ascii") === "GIF") return "gif";
   return null;
 }
 
@@ -98,6 +100,12 @@ export async function processImage(
     fit?: ImageFit;
     /** Plafond du côté long (preset "inside") — défaut outPx. */
     maxLongEdge?: number;
+    /**
+     * Accepte les GIF animés (captures produit). Défaut `false` : les
+     * AVATARS refusent toujours le GIF (animation inutile, et le
+     * passthrough ne ferait pas le recadrage carré attendu).
+     */
+    allowGif?: boolean;
   },
 ): Promise<Buffer> {
   if (buffer.byteLength > opts.maxInputBytes) {
@@ -106,14 +114,30 @@ export async function processImage(
     );
   }
   const kind = detectImageKind(buffer);
-  if (!kind) {
+  if (!kind || (kind === "gif" && opts.allowGif !== true)) {
     throw new ImageRejectedError(
-      "Format non supporté — PNG, JPG ou WebP uniquement (SVG interdit).",
+      opts.allowGif === true
+        ? "Format non supporté — PNG, JPG, WebP ou GIF uniquement (SVG interdit)."
+        : "Format non supporté — PNG, JPG ou WebP uniquement (SVG et GIF refusés).",
     );
   }
   const { width, height } = await measureImage(buffer);
-  if (Math.min(width, height) < opts.minPx) {
-    throw new ImageRejectedError(`Image trop petite — ${opts.minPx} px minimum.`);
+  // Règle de résolution : côté court pour les images fixes, côté LONG
+  // pour les GIF (format lourd, dimensions petites ; la règle doit être
+  // la même en portrait et en paysage — cf. `lib/media-limits.ts`).
+  const gif = kind === "gif";
+  const minSide = gif ? Math.max(width, height) : Math.min(width, height);
+  if (minSide < opts.minPx) {
+    throw new ImageRejectedError(
+      `Image trop petite — ${opts.minPx} px minimum sur le côté ${gif ? "long" : "court"}.`,
+    );
+  }
+  // GIF : validé (poids, dimensions, ratio) mais JAMAIS ré-encodé — une
+  // conversion aplatit l'animation, qui est précisément le contenu d'une
+  // capture de produit. On renvoie donc les octets d'origine.
+  if (kind === "gif") {
+    assertSaneAspect(width, height);
+    return buffer;
   }
   const fail = (message: string): never => {
     throw new ImageRejectedError(message);
@@ -157,6 +181,6 @@ export async function processImage(
 }
 
 /** Extensions sûres déduites du contenu (jamais de l'extension d'origine). */
-export function extForKind(kind: ImageKind): "png" | "jpg" | "webp" {
+export function extForKind(kind: ImageKind): "png" | "jpg" | "webp" | "gif" {
   return kind === "jpeg" ? "jpg" : kind;
 }

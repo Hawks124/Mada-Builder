@@ -24,6 +24,9 @@ export const adminActionEnum = pgEnum("admin_action", [
   "product_nudged",
   "build_approved",
   "build_rejected",
+  // Révision d'une fiche publiée (contenu sensible modifié, en attente).
+  "revision_approved",
+  "revision_rejected",
   "review_removed",
   "comment_removed",
 ]);

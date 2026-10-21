@@ -1,5 +1,19 @@
 import { z } from "zod";
-import { and, count, desc, eq, ilike, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { db } from "@/db";
 import {
   products,
@@ -12,6 +26,7 @@ import {
   adminActions,
 } from "@/db/schema";
 import type { NewProduct } from "@/db/schema";
+import type { ProductLinks } from "@/db/schema/products";
 import type { DashboardApp } from "@/components/dashboard/dashboard-mock";
 import type { ReviewItem } from "@/components/admin/admin-mock";
 import { ProfileError, assertNotBanned, getUserProfile } from "@/services/users.service";
@@ -115,30 +130,27 @@ import { captureError } from "@/lib/monitoring";
  */
 
 const TYPE_IDS = new Set(PRODUCT_TYPES.map((t) => t.id));
-/** Orientation imposée par type ("both" = le maker choisit). */
-const TYPE_ORIENTATION = new Map(PRODUCT_TYPES.map((t) => [t.id, t.orientation] as const));
-
 /**
- * Pilotage auto : l'orientation déclarée doit être compatible avec le
- * type (un SaaS desktop en portrait n'existe pas — rejet, pas recadrage).
+ * Orientation de départ d'un type : imposée si fixe, `defaultOrientation`
+ * si "both". C'est une SUGGESTION, pas un verrou — le maker peut
+ * changer l'orientation de sa galerie quand il veut ; la barrière, elle,
+ * reste entière : une fois l'orientation choisie, TOUTES les captures
+ * doivent la respecter (portrait ⇒ portrait only, paysage ⇒ paysage
+ * only) — cf. `uploadProductFiles` et la purge au basculement.
  */
-function assertOrientationAllowed(
-  productType: string,
-  galleryOrientation: GalleryOrientation,
-): void {
-  const imposed = TYPE_ORIENTATION.get(productType);
-  if (imposed && imposed !== "both" && imposed !== galleryOrientation) {
-    const want = imposed === "portrait" ? "portrait" : "paysage";
-    throw new ProfileError("VALIDATION", `Captures ${want} requises pour ce type de produit.`);
-  }
-}
+const DEFAULT_ORIENTATION = new Map<string, GalleryOrientation>(
+  PRODUCT_TYPES.map((t) => [
+    t.id,
+    t.orientation === "both" ? (t.defaultOrientation ?? "landscape") : t.orientation,
+  ]),
+);
 const CATEGORY_IDS = new Set(PRODUCT_CATEGORIES.map((c) => c.id));
 const PLATFORM_IDS = new Set(PLATFORMS.map((p) => p.id));
 const PRICING_IDS = new Set(PRICING_MODELS.map((p) => p.id));
+function defaultOrientationFor(productType: string): GalleryOrientation {
+  return DEFAULT_ORIENTATION.get(productType) ?? "landscape";
+}
 const AUDIENCE_IDS = new Set(AGE_RATINGS.map((r) => r.id));
-
-/** Types dev-facing : install command requise (miroir du formulaire). */
-const DEV_FACING = new Set(["cli", "package", "framework", "plugin"]);
 
 const optionalUrlSchema = z.preprocess(
   (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
@@ -150,27 +162,45 @@ const optionalUrlSchema = z.preprocess(
  * champ fantôme en DB) ; chaque valeur = URL valide. La matrice
  * (labels, required, storePattern) vit dans config/product-links.
  */
-const KNOWN_LINK_IDS = new Set(Object.keys(PRODUCT_LINK_FIELDS));
+export const KNOWN_LINK_IDS = new Set(Object.keys(PRODUCT_LINK_FIELDS));
 
 /**
  * Champs liens d'un objet brut (FormData converti, multipart mobile) :
- * présents mais vides = {} (effacement explicite) ; aucun champ =
- * undefined (PATCH conserve). Valeurs non-string ignorées (jamais de
- * crash sur un multipart malformé). Exporté : actions web + routes API
- * partagent le même contrat, zéro dérive.
+ * - présents et non vides → valeur ;
+ * - présents mais VIDES → effacement explicite (`cleared`) ;
+ * - absents → non envoyés (le mode « merge » les conserve).
+ *
+ * `undefined` = aucun champ lien dans la payload → PATCH : on ne touche
+ * à rien.
+ *
+ * Pourquoi la distinction : le formulaire WEB envoie TOUS les champs
+ * (un champ vidé = « efface ce lien »), donc son résultat est identique
+ * en remplacement total. L'API mobile, elle, n'envoie que les champs
+ * qu'elle modifie : sans `cleared`, un simple remplacement total
+ * EFFACERAIT tous les autres liens de la fiche (le mobile perdait des
+ * liens à chaque édition — « le mobile sera incohérent »).
  */
-export function parseLinkFields(input: unknown): Record<string, string> | undefined {
+export type ParsedLinkFields = {
+  /** Valeurs non vides envoyées (id → URL). */
+  links: Record<string, string>;
+  /** Ids présents mais vides = effacement explicite. */
+  cleared: string[];
+};
+
+export function parseLinkFields(input: unknown): ParsedLinkFields | undefined {
   if (typeof input !== "object" || input === null) return undefined;
   const rec = input as Record<string, unknown>;
   const links: Record<string, string> = {};
+  const cleared: string[] = [];
   let seen = false;
   for (const id of KNOWN_LINK_IDS) {
     if (!(id in rec)) continue;
     seen = true;
     const v = rec[id];
     if (typeof v === "string" && v.trim() !== "") links[id] = v.trim();
+    else cleared.push(id);
   }
-  return seen ? links : undefined;
+  return seen ? { links, cleared } : undefined;
 }
 
 /**
@@ -178,7 +208,7 @@ export function parseLinkFields(input: unknown): Record<string, string> | undefi
  * dérive. Vit ici (module serveur pur) car les fichiers "use server"
  * n'exportent que des fonctions async.
  */
-export function parseProductLinkFields(formData: FormData): Record<string, string> | undefined {
+export function parseProductLinkFields(formData: FormData): ParsedLinkFields | undefined {
   const obj: Record<string, unknown> = {};
   for (const id of Object.keys(PRODUCT_LINK_FIELDS)) {
     const v = formData.get(id);
@@ -297,6 +327,77 @@ export const submitProductSchema = z.object({
   // Orientation déclarée de la galerie (FormData `galleryOrientation`,
   // pilotée par le type — le toggle n'est actif que pour les types "both").
   galleryOrientation: z.enum(["portrait", "landscape"]),
+  targetCountries: z.array(z.string().trim().max(60)).max(10).optional(),
+  languagesSupported: z.array(z.string().trim().max(30)).max(20).optional(),
+  links: linksSchema.optional(),
+  /**
+   * Ids de liens explicitement VIDES dans la payload = effacement
+   * (mode « merge », API mobile). Absent = remplacement total (web).
+   * Écriture seule : jamais renvoyé en lecture.
+   */
+  clearedLinks: z
+    .array(z.string())
+    .max(40)
+    .refine((ids) => ids.every((id) => KNOWN_LINK_IDS.has(id)), "Lien inconnu")
+    .optional(),
+});
+
+/**
+ * Brouillon = travail en cours (`submitProductSchema` reste le contrat de
+ * PUBLICATION, inchangé). Un seul champ strictement nécessaire : `name`
+ * (identité + slug). Tout le reste retombe sur les valeurs par défaut —
+ * celles de la base (`platforms` `[]`, `pricingModel` "free", `lifecycle`
+ * "live", `audience` "all", orientation pilotée par le type). Un brouillon
+ * peut donc être un simple nom ; les badges « Requis » de l'UI décrivent
+ * la publication, pas l'enregistrement d'une saisie en cours.
+ */
+export const submitDraftSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  productType: z.string().refine((id) => TYPE_IDS.has(id), "Type inconnu"),
+  // notNull en base, valeur neutre : un brouillon n'est jamais public.
+  tagline: z.string().trim().max(220).default(""),
+  description: z.string().trim().max(20000).default(""),
+  // Alimente `categories[0]` (notNull) : repli sur la 1re catégorie tant
+  // que le maker n'en a pas choisi — exigée au publish.
+  category: z
+    .string()
+    .refine((id) => CATEGORY_IDS.has(id), "Catégorie inconnue")
+    .default(PRODUCT_CATEGORIES[0]?.id ?? ""),
+  categories: z
+    .array(z.string())
+    .max(3)
+    .refine((ids) => ids.every((id) => CATEGORY_IDS.has(id)), "Catégorie inconnue")
+    .optional(),
+  tags: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
+  platforms: z
+    .array(z.string())
+    .max(10)
+    .refine((ids) => ids.every((id) => PLATFORM_IDS.has(id)), "Plateforme inconnue")
+    .default([]),
+  pricingModel: z
+    .string()
+    .default("free")
+    .refine((id) => PRICING_IDS.has(id), "Modèle inconnu"),
+  lifecycle: z
+    .string()
+    .default("live")
+    .refine((id) => ["dev", "beta", "live"].includes(id), "Avancement inconnu"),
+  audience: z
+    .string()
+    .default("all")
+    .refine((id) => AUDIENCE_IDS.has(id), "Audience inconnue"),
+  license: z.string().trim().max(60).optional(),
+  installCommand: z.string().trim().max(200).optional(),
+  version: z.string().trim().max(20).optional(),
+  requirements: z.array(z.string().trim().min(1).max(80)).max(8).optional(),
+  changelogUrl: optionalUrlSchema,
+  hasAds: z.boolean().optional(),
+  hasInAppPurchase: z.boolean().optional(),
+  sharesData: z.boolean().optional(),
+  isChildDirected: z.boolean().optional(),
+  // Absent en brouillon si le maker n'a pas touché au toggle : résolu par
+  // le type (`defaultOrientationFor`) juste après le parse.
+  galleryOrientation: z.enum(["portrait", "landscape"]).optional(),
   targetCountries: z.array(z.string().trim().max(60)).max(10).optional(),
   languagesSupported: z.array(z.string().trim().max(30)).max(20).optional(),
   links: linksSchema.optional(),
@@ -423,6 +524,8 @@ async function assertLinksReachable(links: Record<string, string>): Promise<void
 // ── Fichiers ──────────────────────────────────────────────────────────────
 // Logo : contain carré sur fond transparent (jamais de recadrage — un
 // wordmark large ne doit pas être coupé), 256 px min (comme l'UI promet).
+// Le GIF n'est PAS accepté ici : un logo animé n'apporte rien et le
+// passthrough du GIF sauterait le recadrage carré (tuile non carrée).
 const LOGO_OPTS = {
   maxInputBytes: 10 * 1024 * 1024,
   minPx: 256,
@@ -432,7 +535,8 @@ const LOGO_OPTS = {
   fit: "contain-square",
 } as const;
 // Captures : ratio source préservé (inside, côté long ≤ 1600), côté court
-// ≥ 400 px. L'uniformité par fiche est imposée par l'orientation déclarée
+// ≥ 400 px (200 px pour un GIF animé, format lourd par nature).
+// L'uniformité par fiche est imposée par l'orientation déclarée
 // (rejet des intrus, jamais de recadrage) — pas par la sortie.
 const SHOT_OPTS = {
   maxInputBytes: 10 * 1024 * 1024,
@@ -442,6 +546,7 @@ const SHOT_OPTS = {
   maxOutBytes: 4 * 1024 * 1024,
   fit: "inside",
   maxLongEdge: 1600,
+  allowGif: true,
 } as const;
 const MAX_SHOTS = 6;
 
@@ -490,7 +595,7 @@ async function uploadProductFiles(
     if (!kind) {
       throw new ProfileError(
         "FILE_REJECTED",
-        `Capture ${n} : format non supporté — PNG, JPG ou WebP uniquement.`,
+        `Capture ${n} : format non supporté — PNG, JPG, WebP ou GIF uniquement.`,
       );
     }
     const { width, height } = await measureImage(buffer).catch(() => {
@@ -501,7 +606,7 @@ async function uploadProductFiles(
       const gotFr = orientation === "portrait" ? "portrait" : "paysage";
       throw new ProfileError(
         "FILE_REJECTED",
-        `Capture ${n} : orientation ${gotFr} rejetée — ce produit est déclaré ${declaredFr}.`,
+        `Capture ${n} : orientation ${gotFr} rejetée — la galerie est en ${declaredFr}. Basculez l'orientation en ${gotFr} pour l'ajouter.`,
       );
     }
     measured.push({ file, width, height, orientation });
@@ -548,11 +653,16 @@ async function uploadProductFiles(
           throw new ProfileError("FILE_REJECTED", `Capture ${n} : ${e.message}`);
         throw e;
       });
-      const key = r2Key(productId, `shot-${n}`, "webp");
+      // GIF : `processImage` renvoie les octets d'origine (animation
+      // préservée) — la clé et le content-type doivent donc suivre le
+      // format réel, pas WebP.
+      const ext = detectImageKind(buffer) === "gif" ? "gif" : "webp";
+      const contentType = ext === "gif" ? "image/gif" : "image/webp";
+      const key = r2Key(productId, `shot-${n}`, ext);
       const url = await track(
         PRODUCT_SHOTS_BUCKET,
         key,
-        putR2Object(PRODUCT_SHOTS_BUCKET, key, processed, "image/webp"),
+        putR2Object(PRODUCT_SHOTS_BUCKET, key, processed, contentType),
       );
       // Dimensions de sortie (inside + withoutEnlargement : jamais au-delà
       // de la source) — recalculées, pas supposées.
@@ -598,11 +708,50 @@ export type StagedMedia = {
   screenshots?: string[];
 };
 
-const STAGED_KEY_RE = /^staging\/[0-9a-f-]{36}\/\d+-[a-z0-9]+\.(png|jpg|webp)$/;
+/**
+ * Bascule d'orientation : purge les captures MESURÉES dans l'autre
+ * orientation (lignes + objets R2). Une fiche n'est jamais mixte — le
+ * type peut imposer l'orientation, le maker la choisit quand le type est
+ * "both" ; dans les deux cas la galerie reste homogène. Le refus
+ * « fournissez de nouvelles captures » a été remplacé par ce purge : le
+ * maker garde son choix, les images incompatibles partent (R2 compris,
+ * donc aucun orphelin).
+ */
+async function purgeScreenshotsOffOrientation(
+  productId: string,
+  orientation: GalleryOrientation,
+): Promise<number> {
+  const stale = await db
+    .select({ url: productScreenshots.url })
+    .from(productScreenshots)
+    .where(
+      and(
+        eq(productScreenshots.productId, productId),
+        ne(productScreenshots.orientation, orientation),
+      ),
+    );
+  if (stale.length === 0) return 0;
+  for (const s of stale) {
+    const key = r2KeyFromUrl(s.url);
+    if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+  }
+  await db
+    .delete(productScreenshots)
+    .where(
+      and(
+        eq(productScreenshots.productId, productId),
+        ne(productScreenshots.orientation, orientation),
+      ),
+    );
+  return stale.length;
+}
+
+const STAGED_KEY_RE = /^staging\/[0-9a-f-]{36}\/\d+-[a-z0-9]+\.(png|jpg|webp|gif)$/;
 const STAGED_MIME: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
   webp: "image/webp",
+  gif: "image/gif",
 };
 
 /**
@@ -702,15 +851,18 @@ export async function submitProduct(input: {
           ).text,
         }
       : input.data;
-  const parsed = submitProductSchema.safeParse(rawData);
+  // Brouillon : schéma allégé (travail en cours, MediaField contraints
+  // seulement au publish). Publication : `submitProductSchema` strict.
+  const parsed = (input.asDraft ? submitDraftSchema : submitProductSchema).safeParse(rawData);
   if (!parsed.success) {
     throw new ProfileError("VALIDATION", zodFieldMessage(parsed.error));
   }
   const data = parsed.data;
-  assertOrientationAllowed(data.productType, data.galleryOrientation);
-  if (DEV_FACING.has(data.productType) && !data.installCommand) {
-    throw new ProfileError("VALIDATION", "Commande d'installation requise pour ce type.");
-  }
+  // Brouillon sans toggle touché : orientation déduite du type (notNull en base).
+  const galleryOrientation = data.galleryOrientation ?? defaultOrientationFor(data.productType);
+  // Pas de garde d'orientation ici : le type SUGGÈRE une orientation, il ne
+  // l'impose plus — le maker bascule librement (la barrière ratio, elle,
+  // reste appliquée au moment de l'upload).
   // Staging présigné (mobile) : clés → File, mergés aux directs.
   const staged = input.staged
     ? await resolveStagedMedia(input.viewerId, input.staged)
@@ -759,6 +911,13 @@ export async function submitProduct(input: {
     category: categories[0],
     categories,
     tags: data.tags ?? [],
+    // Plateformes ET configuration requise : ces deux clés ÉTAIENT
+    // ABSENTES de l'objet inserté — l'INSERT les omettait et le défaut
+    // SQL (`platforms` = []) s'appliquait. Les plateformes étaient
+    // donc validées puis jetées à la création, en brouillon comme en
+    // publication (constaté sur des fiches réelles sans plateforme).
+    platforms: data.platforms,
+    requirements: data.requirements ?? [],
     productType: data.productType as NewProduct["productType"],
     pricingModel: data.pricingModel as NewProduct["pricingModel"],
     lifecycle: data.lifecycle as NewProduct["lifecycle"],
@@ -773,7 +932,7 @@ export async function submitProduct(input: {
     targetCountries: data.targetCountries ?? [],
     languagesSupported: data.languagesSupported ?? [],
     links,
-    galleryOrientation: data.galleryOrientation,
+    galleryOrientation: galleryOrientation,
     status: input.asDraft ? ("draft" as const) : ("pending" as const),
     // Soumission directe en file (D0) : le SLA part d'ici. Brouillon =
     // jamais soumis (NULL) — la date est posée à la (re-)soumission.
@@ -802,7 +961,7 @@ export async function submitProduct(input: {
   const files = [...(logo ? [logo] : []), ...screenshots];
   if (files.length > 0) {
     try {
-      const prepared = await uploadProductFiles(row.id, logo, screenshots, data.galleryOrientation);
+      const prepared = await uploadProductFiles(row.id, logo, screenshots, galleryOrientation);
       await db
         .update(products)
         .set({ iconUrl: prepared.logoUrl, updatedAt: new Date() })
@@ -919,6 +1078,58 @@ export async function fetchProductBySlug(slug: string) {
   return { ...row, screenshots: shots };
 }
 
+/**
+ * APERÇU d'une fiche — propriétaire OU staff.
+ *
+ * Doublette de `fetchProductBySlug` SANS le filtre `published` : l'aperçu
+ * montre une fiche encore en brouillon / en revue / rejetée, exactement
+ * telle qu'elle paraîtra. La garde vit ICI (pas seulement dans la page) :
+ * `null` = indisponible pour ce viewer → la route répond 404, jamais 403
+ * (on ne confirme pas l'existence d'une fiche non publiée).
+ *
+ * `isStaff` est décidé par l'appelant (rôle en base, jamais le miroir
+ * JWT). Un tiers ne reçoit RIEN : la ligne n'est même pas lue.
+ */
+export async function fetchProductForPreview(
+  viewerId: string,
+  productId: string,
+  opts?: { isStaff?: boolean },
+) {
+  const [row] = await db
+    .select({
+      ...publicMakerSelect,
+      makerId: products.makerId,
+      status: products.status,
+      rejectionReason: products.rejectionReason,
+      publishedAt: products.publishedAt,
+      createdAt: products.createdAt,
+      makerUsername: users.username,
+      makerDisplayName: users.displayName,
+      makerAvatarUrl: users.avatarUrl,
+      makerWebsiteUrl: users.websiteUrl,
+      makerSocialLinks: users.socialLinks,
+    })
+    .from(products)
+    .innerJoin(users, eq(products.makerId, users.id))
+    .where(and(eq(products.id, productId), isNull(products.deletedAt)))
+    .limit(1);
+  if (!row) return null;
+  // Garde : le propriétaire, ou un staff. Un tiers → null (404 en route).
+  if (row.makerId !== viewerId && opts?.isStaff !== true) return null;
+  const shots = await db
+    .select({
+      url: productScreenshots.url,
+      caption: productScreenshots.caption,
+      orientation: productScreenshots.orientation,
+      width: productScreenshots.width,
+      height: productScreenshots.height,
+    })
+    .from(productScreenshots)
+    .where(eq(productScreenshots.productId, row.id))
+    .orderBy(productScreenshots.position);
+  return { product: row, shots };
+}
+
 /** Dashboard maker : tout ses produits (draft/pending/rejected inclus).
  * Keyset optionnel (`updatedAt` + id, ordre dashboard) pour les clients
  * mobiles — le web charge tout (totaux exacts, volume V1). */
@@ -940,6 +1151,11 @@ export async function fetchMyProducts(
       status: products.status,
       rejectionReason: products.rejectionReason,
       updatedAt: products.updatedAt,
+      // Revision en attente (la fiche publiee garde son contenu approuve
+      // en ligne ; ces colonnes portent la modification qui attend un
+      // regard admin).
+      pendingPayload: products.pendingPayload,
+      pendingAt: products.pendingAt,
     })
     .from(products)
     .where(and(...conditions))
@@ -1190,11 +1406,27 @@ export function toDashboardApp(
 ): DashboardApp {
   const status = row.status === "published" ? "live" : row.status;
   const lifecycle = (["dev", "beta", "live"] as const).find((l) => l === row.lifecycle) ?? "live";
+  // Révision en attente : le maker doit voir CE QU'IL A ÉCRIT (la
+  // fiche publique, elle, garde le contenu validé). Sans ça, il
+  // reverrait son texte validé et croirait que son edit a été perdu.
+  const pending = (row.pendingPayload ?? {}) as Record<string, unknown>;
+  const pendingName = typeof pending.name === "string" ? pending.name : row.name;
+  const pendingTagline = typeof pending.tagline === "string" ? pending.tagline : row.tagline;
+  const pendingDescription =
+    typeof pending.description === "string" ? pending.description : row.description;
+  const pendingTags = Array.isArray(pending.tags) ? (pending.tags as string[]) : row.tags;
+  const pendingRequirements = Array.isArray(pending.requirements)
+    ? (pending.requirements as string[])
+    : row.requirements;
+  const pendingInstallCommand =
+    typeof pending.installCommand === "string" ? pending.installCommand : row.installCommand;
+  const pendingLinks = (pending.links ?? row.links) as ProductLinks;
   return {
     id: row.id,
-    name: row.name,
-    tagline: row.tagline,
-    description: row.description,
+    slug: row.slug,
+    name: pendingName,
+    tagline: pendingTagline,
+    description: pendingDescription,
     categoryId: row.categories[0] ?? row.category,
     productType: getProductTypeById(row.productType).label,
     productTypeId: row.productType,
@@ -1204,7 +1436,7 @@ export function toDashboardApp(
     version: row.version ?? undefined,
     lifecycle,
     launchedAt: monthYearFr(row.publishedAt ?? row.createdAt),
-    tags: row.tags,
+    tags: pendingTags,
     waitingText: row.status === "pending" ? waitingFr(row.createdAt) : undefined,
     votes: row.upvoteCount,
     views: 0,
@@ -1219,12 +1451,12 @@ export function toDashboardApp(
     rejectionReason: row.rejectionReason ?? undefined,
     curated: row.curated ?? false,
     revenue: undefined,
-    linkValues: row.links,
+    linkValues: pendingLinks,
     categoryIds: row.categories.length > 0 ? row.categories : [row.category],
     license: row.license ?? undefined,
-    installCommand: row.installCommand ?? undefined,
-    requirements: row.requirements ?? undefined,
-    changelogUrl: row.links.changelog,
+    installCommand: pendingInstallCommand ?? undefined,
+    requirements: pendingRequirements ?? undefined,
+    changelogUrl: pendingLinks.changelog,
     hasAds: row.hasAds,
     hasThirdParty: row.sharesData,
     targetCountries: row.targetCountries,
@@ -1455,7 +1687,14 @@ export async function getEditMedia(
   productId: string,
 ): Promise<{
   iconUrl: string | null;
-  shots: { url: string; width: number | null; height: number | null }[];
+  // `orientation` mesurée à l'upload : la dialog de bascule affiche
+  // exactement les miniatures que la purge serveur va supprimer.
+  shots: {
+    url: string;
+    width: number | null;
+    height: number | null;
+    orientation: GalleryOrientation;
+  }[];
 }> {
   const [row] = await db
     .select({ id: products.id, makerId: products.makerId, iconUrl: products.iconUrl })
@@ -1470,12 +1709,59 @@ export async function getEditMedia(
       url: productScreenshots.url,
       width: productScreenshots.width,
       height: productScreenshots.height,
+      orientation: productScreenshots.orientation,
     })
     .from(productScreenshots)
     .where(eq(productScreenshots.productId, productId))
     .orderBy(productScreenshots.position);
-  return { iconUrl: row.iconUrl, shots };
+  return {
+    iconUrl: row.iconUrl,
+    shots: shots.map((s) => ({ ...s, orientation: s.orientation as GalleryOrientation })),
+  };
 }
+
+/**
+ * Champs SENSIBLES d'une fiche PUBLIÉE : contenu libre, affiché
+ * publiquement et indexé par les moteurs.
+ *
+ * Un maker peut y glisser un lien noir (SEO), du spam, une commande
+ * piégée (`installCommand` est affichée comme une commande à
+ * exécuter), une capture trompeuse. Aucune règle automatique ne peut
+ * juger ça → re-revue HUMAINE obligatoire.
+ *
+ * Règle (la règle des stores) : la fiche reste EN LIGNE avec son
+ * contenu validé, la modification attend dans la file des révisions
+ * (colonnes `pending_*`, migration 0048). Les changements ne filent
+ * pas : tant que l'admin n'a pas validé, le public voit l'ancien.
+ *
+ * Les champs STRUCTURÉS (plateformes, modèle économique, audience,
+ * type, catégories) ne sont PAS sensibles : ils ne portent pas de
+ * contenu libre, mais ils DÉCLENCHENT des règles → ils sont appliqués
+ * immédiatement, avec les règles rejouées sur la fiche effective.
+ */
+export const SENSITIVE_EDIT_FIELDS = [
+  "name",
+  "tagline",
+  "description",
+  "tags",
+  "requirements",
+  "installCommand",
+] as const;
+
+/** Médias en attente (uploadés dans R2, pas encore attachés). */
+export type PendingMedia = {
+  logo: string | null;
+  shots: PreparedShot[];
+};
+
+/** Révision en attente d'une fiche publiée. */
+export type PendingRevision = {
+  /** Champs sensibles modifiés (valeurs nouvelles). */
+  payload: Record<string, unknown>;
+  /** Nouveaux médias (logo + captures), pas encore attachés. */
+  media: PendingMedia | null;
+  at: Date | null;
+};
 
 /**
  * Le maker édite sa fiche : textes libres immédiats ; nom OU liens
@@ -1513,28 +1799,40 @@ export async function updateProduct(
   const data = parsed.data;
   // changelogUrl n'est PAS une colonne : mergé dans links (comme au submit).
   // Remplacement total sinon (effacer un lien = le vider) MAIS changelog
-  // préservé : aucune UI ne l'édite ni ne l'efface — seul changelogUrl
+  // préservé : aucune UI ne l'édite ni ne l'efface - seul changelogUrl
   // l'écrit (B3). Sans ça, toute édition effaçait links.changelog.
   const { changelogUrl: editChangelog, ...restData } = data;
   let mergedLinks: Record<string, string> | undefined;
   if (data.links !== undefined || editChangelog) {
-    mergedLinks = { ...(data.links ?? {}) };
+    // Deux modes, un seul résultat final :
+    //
+    // - REPLACE (web) : le formulaire envoie TOUS les champs liens, un
+    //   champ vidé = « efface » → le remplacement total de la fiche
+    //   donne exactement le formulaire (comportement inchangé).
+    // - MERGE (API mobile) : le mobile n'envoie que les champs qu'il
+    //   modifie ; les absents sont CONSERVÉS, les champs vidés sont
+    //   effacés (`clearedLinks`). Sans ce mode, chaque édition mobile
+    //   effaçait tous les liens non renvoyés de la fiche.
+    const mode = data.clearedLinks !== undefined ? "merge" : "replace";
+    const base: Record<string, string> =
+      mode === "merge" ? { ...((row.links ?? {}) as Record<string, string>) } : {};
+    if (mode === "merge") {
+      for (const id of data.clearedLinks ?? []) delete base[id];
+    }
+    mergedLinks = { ...base, ...(data.links ?? {}) };
     if (editChangelog) {
       mergedLinks.changelog = editChangelog;
     } else if (!("changelog" in mergedLinks) && row.links.changelog) {
       mergedLinks.changelog = row.links.changelog;
     }
   }
-  // Type et/ou orientation modifiés : re-valider le couple (l'orientation
-  // effective = la nouvelle si fournie, sinon celle stockée).
-  if (data.productType !== undefined || data.galleryOrientation !== undefined) {
-    assertOrientationAllowed(
-      data.productType ?? row.productType,
-      data.galleryOrientation ?? (row.galleryOrientation as GalleryOrientation),
-    );
-  }
-  // Guard AVANT tout commit (M1) : orientation changée sans captures
-  // compatibles = refus, zéro écriture (jamais de fiche mixte persistée).
+  // Orientation : plus aucune contrainte de type (le type propose, le maker
+  // choisit). La bascule est libre ; c'est la purge plus bas qui écarte les
+  // captures de l'orientation abandonnée.
+  // Bascule d'orientation : PAS de refus (l'ancien « fournissez aussi de
+  // nouvelles captures » bloquait le toggle). La purge des captures
+  // mesurées dans l'autre orientation a lieu plus bas, après le bloc
+  // média — donc après l'upload éventuel de nouvelles captures.
   // Staging présigné mergé aux directs (même pipeline, mêmes règles).
   const staged = files?.staged
     ? await resolveStagedMedia(viewerId, files.staged)
@@ -1543,20 +1841,39 @@ export async function updateProduct(
   const newShots = [...(files?.screenshots ?? []).filter((f) => f.size > 0), ...staged.screenshots];
   const effectiveOrientation =
     data.galleryOrientation ?? (row.galleryOrientation as GalleryOrientation);
-  if (effectiveOrientation !== row.galleryOrientation && newShots.length === 0) {
-    throw new ProfileError(
-      "VALIDATION",
-      "Orientation modifiée — fournissez aussi de nouvelles captures compatibles.",
-    );
-  }
   if (data.categories !== undefined && data.categories.length === 0) {
     throw new ProfileError("VALIDATION", "Au moins une catégorie.");
   }
 
-  const nameChanged = data.name !== undefined && data.name !== row.name;
   const linksChanged =
     mergedLinks !== undefined && canonicalLinks(mergedLinks) !== canonicalLinks(row.links);
-  const rereview = row.status === "published" && (nameChanged || linksChanged);
+  const isPublished = row.status === "published";
+
+  // ── Tier 1 : champs SENSIBLES + médias ───────────────────────────
+  // Sur une fiche PUBLIÉE, ils ne sont PAS appliqués : ils vont dans
+  // la révision en attente (la fiche reste en ligne avec son contenu
+  // validé, la modification attend un regard admin). Les changements
+  // ne filent pas.
+  //
+  // Sur un brouillon/pending, rien de tout ça : le travail en cours
+  // s'applique, la revue tranche au moment de la publication.
+  const sensitive: Record<string, unknown> = {};
+  if (isPublished) {
+    for (const field of SENSITIVE_EDIT_FIELDS) {
+      const next = (data as Record<string, unknown>)[field];
+      if (next === undefined) continue;
+      const prev = (row as Record<string, unknown>)[field];
+      if (JSON.stringify(next ?? null) !== JSON.stringify(prev ?? null)) {
+        sensitive[field] = next;
+      }
+    }
+    // Les liens (et le changelog, qui vit dans les liens) : comparés
+    // canoniquement (l'ordre des clés ne doit pas compter).
+    if (linksChanged) sensitive.links = mergedLinks;
+  }
+  const mediaChanged = isPublished && (Boolean(editLogo) || newShots.length > 0);
+  const needsRevision = Object.keys(sensitive).length > 0 || mediaChanged;
+
   // Publication depuis l'édition (draft + intent publish) : mêmes règles
   // que la création publish, puis statut → pending.
   // RE-SOUMISSION après rejet (rejected + intent publish) : même traitement
@@ -1582,59 +1899,82 @@ export async function updateProduct(
     if (newShots.length === 0 && existingShots === 0) {
       throw new ProfileError("VALIDATION", "Au moins une capture requise pour publier.");
     }
+    // Contrat de PUBLICATION, revalidé sur la fiche EFFECTIVE (champs
+    // modifiés + fiche existante) : un brouillon peut être allégé
+    // (travail en cours), sa publication non. Avant, ce chemin ne
+    // validait QUE les médias et les liens — une fiche sans
+    // plateforme, sans tagline ou sans description partait en file
+    // telle quelle. On réutilise `submitProductSchema` (le contrat de
+    // la création publish) : un seul contrat, deux chemins.
+    const effective = effectiveProductForPublish(row, {
+      ...data,
+      ...(mergedLinks !== undefined ? { links: mergedLinks } : {}),
+    });
+    const republished = submitProductSchema.safeParse(effective);
+    if (!republished.success) {
+      throw new ProfileError("VALIDATION", zodFieldMessage(republished.error));
+    }
   }
 
   // Reachability seulement si les liens changent vraiment (pas à chaque
-  // édition) ; règles matrice seulement sur fiche en ligne (ni draft ni
-  // pending : travail en cours, la revue tranche) — SAUF publication
-  // depuis l'édition (mêmes règles que la création publish).
+  // édition) ; règles matrice rejouées à chaque édition d'une fiche en
+  // ligne — AVANT, elles n'étaient rejouées que si les liens changeaient :
+  // un produit publié pouvait passer en "subscription", en "android" ou en
+  // audience "enfants" SANS revalidation → privacy / kidsafety / download
+  // banni contournés. Les règles sont une contrainte de la fiche, pas
+  // des liens : elles suivent les champs qui les déclenchent.
   if (linksChanged && mergedLinks) await assertLinksReachable(mergedLinks);
-  if (mergedLinks !== undefined && (row.status === "published" || toQueue)) {
+  if (isPublished || toQueue) {
     assertLinkRules({
       productType: data.productType ?? row.productType,
       audience: data.audience ?? row.audience,
       pricingModel: data.pricingModel ?? row.pricingModel,
       platforms: data.platforms ?? row.platforms,
-      links: mergedLinks,
+      links: mergedLinks ?? (row.links as Record<string, string>),
     });
-  }
-  if (toQueue && mergedLinks === undefined) {
-    // Liens intouchés mais publication : valider l'existant stocké.
-    assertLinkRules({
-      productType: data.productType ?? row.productType,
-      audience: data.audience ?? row.audience,
-      pricingModel: data.pricingModel ?? row.pricingModel,
-      platforms: data.platforms ?? row.platforms,
-      links: row.links as Record<string, string>,
-    });
-  }
-  if (rereview) {
-    // Nom/liens d'une fiche publiée : re-revue (anti-squat, anti-lien-piège).
   }
 
+  // Contrat de PUBLICATION appliqué aussi à la révision : on ne met
+  // pas en file une fiche invalide (le contrat est le même que pour
+  // une publication — la forme est vérifiée par la machine, le
+  // contenu par l'admin).
+  if (needsRevision) {
+    const effective = effectiveProductForPublish(row, {
+      ...data,
+      ...(mergedLinks !== undefined ? { links: mergedLinks } : {}),
+    });
+    const checked = submitProductSchema.safeParse(effective);
+    if (!checked.success) {
+      throw new ProfileError("VALIDATION", zodFieldMessage(checked.error));
+    }
+  }
+
+  // Le patch applique les champs NON sensibles (structurés, cosmétique) ;
+  // les champs sensibles et les médias vont dans la révision.
   const patch: Partial<typeof products.$inferInsert> = { updatedAt: new Date() };
   for (const [key, value] of Object.entries(restData)) {
     if (key === "links" || value === undefined) continue;
+    if (isPublished && (SENSITIVE_EDIT_FIELDS as readonly string[]).includes(key)) continue;
     (patch as Record<string, unknown>)[key] = value;
   }
-  if (mergedLinks !== undefined) patch.links = mergedLinks;
-  if (
-    data.productType !== undefined &&
-    DEV_FACING.has(data.productType) &&
-    data.installCommand === undefined &&
-    !row.installCommand
-  ) {
-    throw new ProfileError("VALIDATION", "Commande d'installation requise pour ce type.");
-  }
-  if (rereview) {
-    patch.status = "pending";
-    patch.rejectionReason = null;
-  }
+  // Les liens vont dans la révision quand ils ont changé sur une fiche
+  // en ligne ; sinon ils s'appliquent (brouillon, ou liens inchangés).
+  const linksInRevision = isPublished && linksChanged;
+  if (mergedLinks !== undefined && !linksInRevision) patch.links = mergedLinks;
   if (toQueue) {
     patch.status = "pending";
     patch.rejectionReason = null;
   }
-  // Retour en file (publication, re-soumission, re-revue) : nouveau cycle
+  // La révision en attente (contenu sensible + médias) : rangée sur la
+  // fiche, JAMAIS appliquée. Tant que l'admin n'a pas validé, le
+  // public voit le contenu approuvé.
+  let pendingMedia: PendingMedia | null = null;
+  if (needsRevision) {
+    patch.pendingPayload = sensitive as never;
+    patch.pendingAt = new Date();
+    patch.pendingBy = viewerId;
+  }
+  // Retour en file (publication, re-soumission) : nouveau cycle
   // SLA (D0) — la date de (re-)soumission, jamais la naissance du brouillon.
   if (patch.status === "pending") patch.submittedAt = new Date();
   const [updated] = await db
@@ -1662,39 +2002,233 @@ export async function updateProduct(
             .where(eq(productScreenshots.productId, productId))
         : [];
     const prepared = await uploadProductFiles(productId, editLogo, newShots, effectiveOrientation);
-    if (prepared.logoUrl) {
-      const oldKey = r2KeyFromUrl(row.iconUrl);
-      if (oldKey) await deleteR2Object(PRODUCT_LOGOS_BUCKET, oldKey).catch(() => {});
+    if (needsRevision) {
+      // Les médias attendent la validation : on NE touche pas à la
+      // fiche (le public garde les images approuvées), on range les
+      // URLs dans la révision. L'admin les validera avec le texte.
+      pendingMedia = { logo: prepared.logoUrl, shots: prepared.shots };
       await db
         .update(products)
-        .set({ iconUrl: prepared.logoUrl })
+        .set({ pendingMedia: pendingMedia as never })
         .where(eq(products.id, productId));
-    }
-    if (prepared.shots.length > 0) {
-      await db.delete(productScreenshots).where(eq(productScreenshots.productId, productId));
-      await db.insert(productScreenshots).values(
-        prepared.shots.map((s, i) => ({
-          productId,
-          url: s.url,
-          position: i + 1,
-          orientation: s.orientation,
-          width: s.width,
-          height: s.height,
-        })),
-      );
-      for (const s of oldShots) {
-        const key = r2KeyFromUrl(s.url);
-        if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+    } else {
+      if (prepared.logoUrl) {
+        const oldKey = r2KeyFromUrl(row.iconUrl);
+        if (oldKey) await deleteR2Object(PRODUCT_LOGOS_BUCKET, oldKey).catch(() => {});
+        await db
+          .update(products)
+          .set({ iconUrl: prepared.logoUrl })
+          .where(eq(products.id, productId));
+      }
+      if (prepared.shots.length > 0) {
+        await db.delete(productScreenshots).where(eq(productScreenshots.productId, productId));
+        await db.insert(productScreenshots).values(
+          prepared.shots.map((s, i) => ({
+            productId,
+            url: s.url,
+            position: i + 1,
+            orientation: s.orientation,
+            width: s.width,
+            height: s.height,
+          })),
+        );
+        for (const s of oldShots) {
+          const key = r2KeyFromUrl(s.url);
+          if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+        }
       }
     }
     await cleanupStaged(staged.stagedKeys);
+  }
+  // Bascule d'orientation = purge des captures de l'autre orientation
+  // (après le bloc média : les nouvelles captures sont déjà en base, on
+  // écarte donc aussi celles qu'un re-upload aurait conservées).
+  if (effectiveOrientation !== row.galleryOrientation) {
+    await purgeScreenshotsOffOrientation(productId, effectiveOrientation);
   }
   // Staff : entrée en file uniquement (un edit qui reste pending ne
   // re-notifie pas — pas de spam à chaque sauvegarde).
   if (updated.status === "pending" && row.status !== "pending") {
     notifyReviewAsync(productId);
   }
-  return { slug: updated.slug, status: updated.status, rereview };
+  // `rereview` = une révision est en attente (le contenu public n’a pas bougé).
+  return { slug: updated.slug, status: updated.status, rereview: needsRevision };
+}
+
+// ── Révisions en attente (re-revue d'une fiche publiée) ────────────────────
+/**
+ * Nombre de révisions en attente (pastille admin). Une requête.
+ */
+export async function countPendingRevisions(): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(products)
+    .where(and(isNull(products.deletedAt), isNotNull(products.pendingAt)));
+  return row?.n ?? 0;
+}
+
+/**
+ * File des révisions : les fiches PUBLIÉES dont le contenu sensible a
+ * été modifié et attend un regard admin.
+ *
+ * La fiche reste en ligne avec son contenu validé — c'est la règle des
+ * stores. Le public ne voit PAS la modification tant qu'elle n'est pas
+ * validée : les changements ne filent pas.
+ */
+export async function listPendingRevisions(input: { isStaff: boolean; limit?: number }): Promise<
+  {
+    id: string;
+    slug: string;
+    name: string;
+    makerUsername: string;
+    makerDisplayName: string;
+    payload: Record<string, unknown>;
+    media: PendingMedia | null;
+    pendingAt: Date | null;
+  }[]
+> {
+  if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
+  const rows = await db
+    .select({
+      id: products.id,
+      slug: products.slug,
+      name: products.name,
+      makerUsername: users.username,
+      makerDisplayName: users.displayName,
+      payload: products.pendingPayload,
+      media: products.pendingMedia,
+      pendingAt: products.pendingAt,
+    })
+    .from(products)
+    .innerJoin(users, eq(products.makerId, users.id))
+    .where(and(isNull(products.deletedAt), isNotNull(products.pendingAt)))
+    .orderBy(asc(products.pendingAt))
+    .limit(Math.min(Math.max(input.limit ?? 50, 1), 100));
+  return rows.map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    name: r.name,
+    makerUsername: r.makerUsername,
+    makerDisplayName: r.makerDisplayName,
+    payload: (r.payload ?? {}) as Record<string, unknown>,
+    media: (r.media ?? null) as PendingMedia | null,
+    pendingAt: r.pendingAt,
+  }));
+}
+
+/** Purge les médias d'une révision refusée (R2) — jamais d'orphelin. */
+async function purgePendingMedia(media: PendingMedia | null): Promise<void> {
+  if (!media) return;
+  if (media.logo) {
+    const key = r2KeyFromUrl(media.logo);
+    if (key) await deleteR2Object(PRODUCT_LOGOS_BUCKET, key).catch(() => {});
+  }
+  for (const s of media.shots ?? []) {
+    const key = r2KeyFromUrl(s.url);
+    if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+  }
+}
+
+/**
+ * Tranche une révision en attente : approuver (le contenu et les médias
+ * sont appliqués à la fiche) ou refuser (la fiche garde son contenu
+ * validé, la modification est jetée).
+ *
+ * À l'approbation, les règles de la fiche sont REJOUÉES : entre la mise
+ * en file et la décision, la fiche a pu changer (prix, audience,
+ * plateformes) — on n'applique jamais un changement qui viole les
+ * règles actuelles.
+ */
+export async function reviewRevision(input: {
+  isStaff: boolean;
+  productId: string;
+  decision: "approved" | "rejected";
+  reason?: string;
+  staffId: string;
+}): Promise<{ applied: boolean }> {
+  if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
+  const [row] = await db.select().from(products).where(eq(products.id, input.productId)).limit(1);
+  if (!row || row.deletedAt) throw new ProfileError("NOT_FOUND", "Produit introuvable.");
+  if (!row.pendingAt) throw new ProfileError("NOT_FOUND", "Aucune révision en attente.");
+  const payload = (row.pendingPayload ?? {}) as Record<string, unknown>;
+  const media = (row.pendingMedia ?? null) as PendingMedia | null;
+
+  if (input.decision === "rejected") {
+    await purgePendingMedia(media);
+    await db
+      .update(products)
+      .set({
+        pendingPayload: null,
+        pendingMedia: null,
+        pendingAt: null,
+        pendingBy: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, input.productId));
+    return { applied: false };
+  }
+
+  // Les liens de la révision (ou ceux en place) doivent toujours
+  // respecter les règles de la fiche.
+  const links =
+    (payload.links as Record<string, string> | undefined) ?? (row.links as Record<string, string>);
+  assertLinkRules({
+    productType: row.productType,
+    audience: row.audience,
+    pricingModel: row.pricingModel,
+    platforms: row.platforms,
+    links,
+  });
+
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  for (const [key, value] of Object.entries(payload)) {
+    if (key === "links") {
+      patch.links = links;
+      continue;
+    }
+    patch[key] = value;
+  }
+
+  // Médias : on remplace (l'ancien logo et les anciennes captures
+  // partent à la poubelle, comme à l'édition directe).
+  if (media?.logo) {
+    const oldKey = r2KeyFromUrl(row.iconUrl);
+    if (oldKey) await deleteR2Object(PRODUCT_LOGOS_BUCKET, oldKey).catch(() => {});
+    patch.iconUrl = media.logo;
+  }
+  if (media && media.shots.length > 0) {
+    const oldShots = await db
+      .select({ url: productScreenshots.url })
+      .from(productScreenshots)
+      .where(eq(productScreenshots.productId, input.productId));
+    await db.delete(productScreenshots).where(eq(productScreenshots.productId, input.productId));
+    await db.insert(productScreenshots).values(
+      media.shots.map((s, i) => ({
+        productId: input.productId,
+        url: s.url,
+        position: i + 1,
+        orientation: s.orientation,
+        width: s.width,
+        height: s.height,
+      })),
+    );
+    for (const s of oldShots) {
+      const key = r2KeyFromUrl(s.url);
+      if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+    }
+  }
+
+  await db
+    .update(products)
+    .set({
+      ...(patch as Record<string, never>),
+      pendingPayload: null,
+      pendingMedia: null,
+      pendingAt: null,
+      pendingBy: null,
+    })
+    .where(eq(products.id, input.productId));
+  return { applied: true };
 }
 
 // ── Revue (staff) ─────────────────────────────────────────────────────────
@@ -1703,6 +2237,58 @@ export async function updateProduct(
  * rejected (motif OBLIGATOIRE — emailé). Retourne l'identité pour la
  * notification (best-effort, comme appeals).
  */
+/**
+ * Fiche EFFECTIVE au format du schéma de publication : la fiche en base
+ * + les champs modifiés. Les colonnes NULL de la base sont converties
+ * en `undefined` (le schéma connaît `optional()`, pas `null`) et les
+ * liens vides sont retirés (le schéma refuse une URL vide).
+ */
+function effectiveProductForPublish(
+  row: typeof products.$inferSelect,
+  patch: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    name: row.name,
+    tagline: row.tagline,
+    description: row.description,
+    category: row.category,
+    categories: row.categories ?? [],
+    tags: row.tags ?? [],
+    platforms: row.platforms ?? [],
+    productType: row.productType,
+    pricingModel: row.pricingModel,
+    lifecycle: row.lifecycle,
+    audience: row.audience,
+    license: row.license ?? undefined,
+    installCommand: row.installCommand ?? undefined,
+    version: row.version ?? undefined,
+    requirements: row.requirements ?? [],
+    targetCountries: row.targetCountries ?? [],
+    languagesSupported: row.languagesSupported ?? [],
+    hasAds: row.hasAds,
+    hasInAppPurchase: row.hasInAppPurchase,
+    sharesData: row.sharesData,
+    isChildDirected: row.isChildDirected,
+    galleryOrientation: row.galleryOrientation,
+    // `changelog` EST un id de lien connu (config/product-links.tsx) :
+    // il n'est pas « inconnu » au schéma. Mais il a une double vie —
+    // champ MÉTADONNÉE (`changelogUrl`, saisi par le maker) et clé
+    // de `links` (où il est stocké). On le sort donc de `links` ici et
+    // on le rend via `changelogUrl` : une seule source de vérité, et la
+    // revalidation ne peut pas se marcher dessus.
+    links: Object.fromEntries(
+      Object.entries((row.links ?? {}) as Record<string, string>).filter(
+        ([id, v]) => id !== "changelog" && typeof v === "string" && v.trim() !== "",
+      ),
+    ),
+    changelogUrl:
+      typeof (row.links as Record<string, string> | null)?.changelog === "string"
+        ? (row.links as Record<string, string>).changelog
+        : undefined,
+    ...patch,
+  };
+}
+
 export async function reviewProduct(input: {
   isStaff: boolean;
   productId: string;
@@ -1716,11 +2302,7 @@ export async function reviewProduct(input: {
   timeZone: string | null;
 }> {
   if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
-  const [row] = await db
-    .select({ id: products.id, name: products.name, status: products.status })
-    .from(products)
-    .where(eq(products.id, input.productId))
-    .limit(1);
+  const [row] = await db.select().from(products).where(eq(products.id, input.productId)).limit(1);
   if (!row) throw new ProfileError("NOT_FOUND", "Produit introuvable.");
   if (row.status !== "pending") {
     throw new ProfileError("CONFLICT", "Seules les soumissions en attente se tranchent.");
@@ -1728,6 +2310,20 @@ export async function reviewProduct(input: {
   const reason = (input.reason ?? "").trim();
   if (input.decision === "rejected" && reason === "") {
     throw new ProfileError("VALIDATION", "Motif de rejet requis (emailé au maker).");
+  }
+  if (input.decision === "approved") {
+    // L'approbation ne publie QUE si la fiche respecte le contrat de
+    // publication. Sans cette garde, une fiche entrée en file par un
+    // chemin allégé (brouillon sans plateforme, tagline, description…)
+    // était publiée telle quelle — l'annuaire se remplissait de fiches
+    // sans plateforme, que le staff ne voit qu'à l'écran.
+    const republished = submitProductSchema.safeParse(effectiveProductForPublish(row));
+    if (!republished.success) {
+      throw new ProfileError(
+        "VALIDATION",
+        `Fiche incomplète — ${zodFieldMessage(republished.error)}`,
+      );
+    }
   }
   // Atomique : seul le premier verdict compte (double-clic, deux onglets,
   // deux staffs la même seconde) — 0 ligne affectée = déjà tranchée, jamais

@@ -8,7 +8,14 @@ import { ProductCard, type ProductCardProps } from "@/components/product/product
  * vote+comment est remplacé par le bouton Installer (`installPath`).
  * Section masquée si vide (flux, pas d'état vide permanent au lancement).
  */
-export function RecentUpdates({ items }: { items: ProductCardProps[] }) {
+export function RecentUpdates({
+  items,
+  votedIds = [],
+}: {
+  items: ProductCardProps[];
+  /** Ids des produits deja votes par l'utilisateur (etat du bouton). */
+  votedIds?: string[];
+}) {
   if (items.length === 0) return null;
   return (
     <section className="container px-4 md:px-8 max-w-7xl mx-auto w-full pt-16 pb-24">
@@ -23,7 +30,7 @@ export function RecentUpdates({ items }: { items: ProductCardProps[] }) {
         </div>
 
         <Link
-          href="/discover"
+          href="/discover?sort=newest"
           className="group flex items-center gap-2 text-sm font-bold text-foreground hover:text-primary transition-colors cursor-pointer"
         >
           Parcourir tout
@@ -36,7 +43,10 @@ export function RecentUpdates({ items }: { items: ProductCardProps[] }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {items.map((product) => (
-          <ProductCard key={product.id} product={product} />
+          <ProductCard
+            key={product.id}
+            product={{ ...product, initialVoted: votedIds.includes(product.id) }}
+          />
         ))}
       </div>
     </section>

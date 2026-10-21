@@ -144,6 +144,22 @@ export const products = pgTable(
     // toggle admin.
     curated: boolean("curated").notNull().default(false),
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    /**
+     * RÉVISION EN ATTENTE (migration 0048) : les champs sensibles
+     * (contenu libre) et les médias modifiés sur une fiche PUBLIÉE ne
+     * sont pas appliqués tout de suite — ils attendent un regard admin
+     * dans la file des révisions. La fiche reste en ligne avec son
+     * contenu approuvé : c'est la règle des stores, et les changements
+     * ne filent pas.
+     *
+     * `pending_payload` = les champs sensibles modifiés (jsonb).
+     * `pending_media`   = les nouveaux médias (logo/captures) déjà
+     * uploadés dans R2 mais pas encore attachés à la fiche.
+     */
+    pendingPayload: jsonb("pending_payload"),
+    pendingMedia: jsonb("pending_media"),
+    pendingAt: timestamp("pending_at", { withTimezone: true }),
+    pendingBy: uuid("pending_by").references(() => users.id, { onDelete: "set null" }),
     // Soumission en file (draft → pending, re-soumission incluse) : base
     // du SLA 24 h (D0). `createdAt` = naissance du brouillon (jamais le
     // SLA — un brouillon de 3 jours ne doit pas naître "dépassé").

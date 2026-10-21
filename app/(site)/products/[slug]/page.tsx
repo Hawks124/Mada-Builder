@@ -2,17 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { after } from "next/server";
-import { ProductHeader } from "@/components/product/product-header";
-import { ProductGallery } from "@/components/product/product-gallery";
+import { ProductSheet } from "@/components/product/product-sheet";
 import { ProductBuilds } from "@/components/product/product-builds";
 import { getApprovedBuilds } from "@/services/builds.service";
-import { ProductAbout } from "@/components/product/product-about";
-import { ProductVerifiedRevenue } from "@/components/product/product-verified-revenue";
 import { RelatedProducts } from "@/components/product/related-products";
 import { ProductReviews } from "@/components/product/product-reviews";
 import { ProductComments } from "@/components/product/product-comments";
-import { ProductSidebar } from "@/components/product/product-sidebar";
-import { ProductVideoBanner } from "@/components/product/product-links";
 import { getCategoryById } from "@/config/categories";
 import { getProductTypeById } from "@/config/product-types";
 import { getSessionUser } from "@/lib/supabase/server";
@@ -77,7 +72,12 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
   after(() => logProductView(row.id));
 
   const [related, sessionUser] = await Promise.all([
-    getRelatedProducts(row.id, row.category, 3),
+    getRelatedProducts(row.id, row.category, 3, {
+      // Algo des similaires : on complète avec les autres catégories du
+      // produit puis les produits du même type (les alternatives).
+      otherCategories: row.categories,
+      productType: row.productType,
+    }),
     getSessionUser(),
   ]);
   // Builds approuvés (D5) : invisibles si aucun (pending/rejected jamais
@@ -190,7 +190,7 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
   };
 
   return (
-    <div className="container px-4 md:px-8 max-w-7xl mx-auto w-full pt-6 md:pt-10 pb-24 relative z-10">
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -199,149 +199,138 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
-      {/* Breadcrumb — 1er segment suit le type produit (D6), repli « Produits ». */}
-      <div className="flex items-center gap-2 text-[12px] md:text-[13px] font-semibold text-muted-foreground mb-6 md:mb-8">
-        <Link href="/products" className="hover:text-foreground transition-colors">
-          {getProductTypeById(row.productType)?.label ?? "Produits"}
-        </Link>
-        <span className="opacity-50">/</span>
-        {category ? (
-          <Link
-            href={`/categories/${category.id}`}
-            className="hover:text-foreground transition-colors"
-          >
-            {category.name}
-          </Link>
-        ) : (
-          <span className="text-muted-foreground">Non classé</span>
+      {/* La FICHE = une seule vue (cf. `ProductSheet`) : l'aperçu d'une
+          fiche en revue rend EXACTEMENT la même chose. */}
+      <ProductSheet
+        breadcrumb={
+          <div className="flex items-center gap-2 text-[12px] md:text-[13px] font-semibold text-muted-foreground mb-6 md:mb-8">
+            <Link href="/products" className="hover:text-foreground transition-colors">
+              {getProductTypeById(row.productType)?.label ?? "Produits"}
+            </Link>
+            <span className="opacity-50">/</span>
+            {category ? (
+              <Link
+                href={`/categories/${category.id}`}
+                className="hover:text-foreground transition-colors"
+              >
+                {category.name}
+              </Link>
+            ) : (
+              <span className="text-muted-foreground">Non classé</span>
+            )}
+            <span className="opacity-50">/</span>
+            <span className="text-foreground">{row.name}</span>
+          </div>
+        }
+        header={{
+          id: row.id,
+          name: row.name,
+          tagline: row.tagline,
+          categoryId: row.category,
+          makerUsername: row.makerUsername,
+          makerDisplayName: row.makerDisplayName,
+          makerAvatarUrl: row.makerAvatarUrl,
+          votes: row.upvoteCount,
+          initialVoted: votedIds.has(row.id),
+          iconUrl: row.iconUrl,
+          initials: appInitialsFor(row.name),
+          iconGradient: appGradientFor(row.id),
+          curated: row.curated,
+          commentsCount: row.commentsCount,
+          apk: latestBuild && versionLabel ? { downloadPath, versionLabel } : null,
+        }}
+        shots={row.screenshots.map((s, i) => ({
+          src: s.url,
+          alt: s.caption || `Capture ${i + 1} de ${row.name}`,
+          orientation: (s.orientation === "portrait" ? "portrait" : "landscape") as
+            "portrait" | "landscape",
+          width: s.width,
+          height: s.height,
+        }))}
+        galleryOrientation={row.galleryOrientation === "portrait" ? "portrait" : "landscape"}
+        description={row.description}
+        productName={row.name}
+        productId={row.id}
+        videoUrl={row.links.video ?? null}
+        sidebar={{
+          productId: row.id,
+          slug: row.slug,
+          productName: row.name,
+          tagline: row.tagline,
+          productType: row.productType,
+          links: row.links,
+          installCommand: row.installCommand,
+          unverifiedCount: warnCount,
+          makerUsername: row.makerUsername,
+          makerDisplayName: row.makerDisplayName,
+          makerAvatarUrl: row.makerAvatarUrl,
+          makerWebsiteUrl: row.makerWebsiteUrl,
+          makerSocialLinks: socialLinks,
+          categoryId: row.category,
+          lifecycle: (["dev", "beta", "live"] as const).includes(
+            row.lifecycle as "dev" | "beta" | "live",
+          )
+            ? (row.lifecycle as "dev" | "beta" | "live")
+            : "live",
+          tags: row.tags,
+          pricingId: row.pricingModel,
+          platforms: row.platforms,
+          publishedAt: (row.publishedAt ?? row.createdAt).toISOString(),
+          version: row.version,
+          changelogUrl: row.links.changelog,
+          license: row.license,
+          requirements: row.requirements,
+          audienceId: row.audience,
+          hasAds: row.hasAds,
+          hasInAppPurchase: row.hasInAppPurchase,
+          sharesData: row.sharesData,
+          targetCountries: row.targetCountries,
+          languagesSupported: row.languagesSupported,
+          votes: row.upvoteCount,
+          initialVoted: votedIds.has(row.id),
+          iconUrl: row.iconUrl,
+          initials: appInitialsFor(row.name),
+          iconGradient: appGradientFor(row.id),
+          latestBuild: latestBuild
+            ? {
+                versionCode: latestBuild.versionCode,
+                versionName: latestBuild.versionName,
+                sizeBytes: latestBuild.sizeBytes,
+              }
+            : null,
+          downloadPath,
+        }}
+      >
+        {/* Sections « vivantes » : elles n'existent pas dans l'aperçu d'une
+            fiche pas encore en ligne. */}
+        {publicBuilds.length > 0 && (
+          <ProductBuilds
+            builds={publicBuilds}
+            downloadPath={downloadPath}
+            downloadUrl={`${siteUrl()}${downloadPath}`}
+            downloadCount={row.downloadCount}
+          />
         )}
-        <span className="opacity-50">/</span>
-        <span className="text-foreground">{row.name}</span>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 md:gap-16 items-start">
-        {/* Main Content (~65%) */}
-        <div className="lg:col-span-8 flex flex-col gap-10 md:gap-12">
-          <ProductHeader
-            product={{
-              id: row.id,
-              name: row.name,
-              tagline: row.tagline,
-              categoryId: row.category,
-              makerUsername: row.makerUsername,
-              makerDisplayName: row.makerDisplayName,
-              makerAvatarUrl: row.makerAvatarUrl,
-              votes: row.upvoteCount,
-              initialVoted: votedIds.has(row.id),
-              iconUrl: row.iconUrl,
-              initials: appInitialsFor(row.name),
-              iconGradient: appGradientFor(row.id),
-              curated: row.curated,
-              commentsCount: row.commentsCount,
-              apk: latestBuild && versionLabel ? { downloadPath, versionLabel } : null,
-            }}
-          />
-          <ProductGallery
-            shots={row.screenshots.map((s, i) => ({
-              src: s.url,
-              alt: s.caption || `Capture ${i + 1} de ${row.name}`,
-              orientation: (s.orientation === "portrait" ? "portrait" : "landscape") as
-                "portrait" | "landscape",
-              width: s.width,
-              height: s.height,
-            }))}
-            galleryOrientation={row.galleryOrientation === "portrait" ? "portrait" : "landscape"}
-          />
-          {row.links.video ? (
-            <section className="flex flex-col gap-4" aria-label="Démo vidéo">
-              <h2 className="text-2xl font-extrabold tracking-tight text-foreground">Démo vidéo</h2>
-              <ProductVideoBanner videoUrl={row.links.video} productId={row.id} trackOutbound />
-            </section>
-          ) : null}
-          <ProductAbout name={row.name} markdown={row.description} />
-          {publicBuilds.length > 0 && (
-            <ProductBuilds
-              builds={publicBuilds}
-              downloadPath={downloadPath}
-              downloadUrl={`${siteUrl()}${downloadPath}`}
-            />
-          )}
-          <ProductVerifiedRevenue productId={row.id} />
-          <RelatedProducts items={related} categoryId={row.category} />
-          <ProductReviews
-            id="reviews"
-            productId={row.id}
-            slug={row.slug}
-            initial={reviewsData}
-            signedIn={viewerId !== null}
-            isMaker={isMaker}
-            curated={row.curated}
-          />
-          <ProductComments
-            productId={row.id}
-            slug={row.slug}
-            makerUsername={row.makerUsername}
-            signedIn={viewerId !== null}
-            viewerAvatarUrl={ownProfile?.avatarUrl ?? null}
-            viewerDisplayName={ownProfile?.displayName ?? ""}
-            initial={commentsData}
-          />
-        </div>
-
-        {/* Sticky Sidebar (~35%) */}
-        <div className="lg:col-span-4 lg:sticky lg:top-6">
-          <ProductSidebar
-            product={{
-              productId: row.id,
-              slug: row.slug,
-              productName: row.name,
-              tagline: row.tagline,
-              productType: row.productType,
-              links: row.links,
-              installCommand: row.installCommand,
-              unverifiedCount: warnCount,
-              makerUsername: row.makerUsername,
-              makerDisplayName: row.makerDisplayName,
-              makerAvatarUrl: row.makerAvatarUrl,
-              makerWebsiteUrl: row.makerWebsiteUrl,
-              makerSocialLinks: socialLinks,
-              categoryId: row.category,
-              lifecycle: (["dev", "beta", "live"] as const).includes(
-                row.lifecycle as "dev" | "beta" | "live",
-              )
-                ? (row.lifecycle as "dev" | "beta" | "live")
-                : "live",
-              tags: row.tags,
-              pricingId: row.pricingModel,
-              platforms: row.platforms,
-              publishedAt: (row.publishedAt ?? row.createdAt).toISOString(),
-              version: row.version,
-              changelogUrl: row.links.changelog,
-              license: row.license,
-              requirements: row.requirements,
-              audienceId: row.audience,
-              hasAds: row.hasAds,
-              hasInAppPurchase: row.hasInAppPurchase,
-              sharesData: row.sharesData,
-              targetCountries: row.targetCountries,
-              languagesSupported: row.languagesSupported,
-              votes: row.upvoteCount,
-              initialVoted: votedIds.has(row.id),
-              iconUrl: row.iconUrl,
-              initials: appInitialsFor(row.name),
-              iconGradient: appGradientFor(row.id),
-              latestBuild: latestBuild
-                ? {
-                    versionCode: latestBuild.versionCode,
-                    versionName: latestBuild.versionName,
-                    sizeBytes: latestBuild.sizeBytes,
-                  }
-                : null,
-              downloadPath,
-            }}
-          />
-        </div>
-      </div>
-    </div>
+        <RelatedProducts items={related} categoryId={row.category} />
+        <ProductReviews
+          id="reviews"
+          productId={row.id}
+          slug={row.slug}
+          initial={reviewsData}
+          signedIn={viewerId !== null}
+          isMaker={isMaker}
+          curated={row.curated}
+        />
+        <ProductComments
+          productId={row.id}
+          slug={row.slug}
+          makerUsername={row.makerUsername}
+          signedIn={viewerId !== null}
+          viewerAvatarUrl={ownProfile?.avatarUrl ?? null}
+          viewerDisplayName={ownProfile?.displayName ?? ""}
+          initial={commentsData}
+        />
+      </ProductSheet>
+    </>
   );
 }

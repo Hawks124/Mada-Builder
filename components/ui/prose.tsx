@@ -3,6 +3,7 @@ import * as React from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { slugifyHeading } from "@/lib/slug";
+import { ProseImage } from "@/components/ui/prose-image";
 import { cn } from "@/lib/utils";
 
 /**
@@ -220,24 +221,12 @@ export function Prose({
     ),
 
     img: ({ src, alt, ...rest }) => (
-      // `alt` reste obligatoire : une image sans alternative est invisible
-      // pour un lecteur d'écran, et une `<img>` sans `alt` n'est pas valide.
-      // `no-referrer` : pas de fuite de provenance vers l'hôte (hotlinks
-      // README) + contourne les protections anti-hotlink. `onError` : une
-      // image morte se masque (jamais d'icône brisée sur la fiche).
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={src}
-        alt={alt ?? ""}
-        loading="lazy"
-        decoding="async"
-        referrerPolicy="no-referrer"
-        onError={(e) => {
-          (e.currentTarget as HTMLImageElement).style.display = "none";
-        }}
-        {...rest}
-        className="my-6 max-w-full rounded-2xl border border-border/60"
-      />
+      // L'image markdown est le SEUL morceau de ce rendu qui a besoin
+      // d'un gestionnaire d'événement (masquer une image morte). Un
+      // `onError` est interdit dans un composant serveur : il passait
+      // par `ProseImage` (client) — ici, il plantait la page entière
+      // dès qu'une description contenait une image.
+      <ProseImage src={src} alt={alt ?? ""} {...rest} />
     ),
 
     // `react-markdown` n'émet pas de tableau sans `remark-gfm`, mais le

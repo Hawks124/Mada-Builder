@@ -6,6 +6,94 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **Produit du jour : une priorité, pas une file d'attente** (l'algo du slot
+  est réécrit ; le calcul est pur, donc testable hors base).
+  Une seule règle, deux bornes, aucun seuil sur la taille du catalogue :
+
+  ```
+  attente(p)  = min(jours depuis la dernière mise en avant — ou depuis sa
+                 publication si jamais mise en avant —, 7)
+  signal(p)   = note moyenne + votes pondérés 7 j + 2 × commentaires 7 j
+                 + 3 × avis 7 j
+  priorité(p) = min(signal(p), 7) + 2 × attente(p)
+  ```
+
+  - l'attente bornée : elle ne cumule plus au-delà d'une semaine → la file ne
+    peut pas grossir (le problème d'échelle) ;
+  - le signal borné : un produit très voté ne peut pas monopoliser le slot ;
+  - l'attente pèse double : celui qui n'a pas eu sa part l'emporte sur le bruyant.
+
+  Conséquences : le slot n'est JAMAIS vide tant qu'un produit éligible existe ;
+  l'ordre ne dépend plus de l'heure d'ajout ; personne n'est oublié et personne
+  ne hoggue ; publier ou republier ne remet PAS l'attente à zéro (le slot
+  n'est pas jouable). Les votes ne décident plus seuls : le produit du jour
+  est une VITRINE, pas un classement (le classement, c'est le leaderboard).
+
+- **Home : 12 cartes** au lieu de 9 sur « Fraîment shippé » et « Mises à jour
+  récentes » (le catalogue fait 11 produits publiés : 9 en cachait 2 ; 12
+  = 4 rangées de 3 sur desktop, tout le catalogue visible).
+
+- **File des révisions** (admin) : les fiches publiées dont le
+  contenu sensible (nom, tagline, description, liens, tags, requirements,
+  commande d'installation) ou les médias ont été modifiés. Chaque
+  ligne montre le diff (avant / après) et se tranche : appliquer ou
+  refuser. Pastille admin + audit (`revision_approved` /
+  `revision_rejected`, migration 0049).
+- **Bandeau maker** : « une modification est en attente de revue » dans
+  le formulaire d'édition — et le formulaire affiche les valeurs
+  PROPOSEES (le maker ne voit pas disparaitre son texte).
+- **Tuile « Binaires en revue »** dans le dashboard maker : le nombre de
+  binaires en attente de verdict (le total était déjà là ; c'est
+  l'attente qui manquait, pas le total).
+- **Un seul point de vérification** (`npm run check`) : types, lint,
+  format, les trois scripts de non-régression et le build de
+  production, en une commande, lancée une fois par lot.
+
+- **Liste complète des liens d'un produit** (doc mobile, §1-ter) :
+  les 31 clés possibles du jsonb `products.links`, le bloc de liens
+  par type de produit (le formulaire n'en propose qu'un sous-ensemble),
+  et la règle « le jsonb ne contient que les liens renseignés ». La
+  squad mobile lit `products` en direct (PostgREST) : elle avait les
+  liens, mais pas la liste des clés possibles.
+- **Non-régression binaire** (`verify-products-backend`, 180/0) : règle
+  de version (refus si le code n'excède pas le build en ligne, un rejet
+  ne verrouille plus le code), index partiel (le code d'un build rejeté
+  est ré-insérable, deux builds vifs de même code sont refusés), écart
+  d'identité (package / certificat), et liens en mode « merge ». Le
+  script signale aussi les ids de liens **jamais vus en base** — un lien
+  invisible, c'est un id à surveiller.
+- **Purge des comptes de test** (`npm run verify:clean`) : les scripts
+  de non-régression créent de vrais comptes (le submit exige un maker
+  réel) ; un run interrompu laissait des comptes factices en base. Le
+  script les purge, et la liste des users en admin n'affiche plus les
+  comptes de fixture (domaine `example.com`, réservé par la RFC 2606).
+
+- **9 cartes au lieu de 6** sur « Fraîtchement shippé » et « Mises à jour
+  récentes » (3 rangées de 3) : 6 était une troncature invisible — le
+  lien « Parcourir tout » ne menait pas au tri par récence, donc les
+  mises à jour au-delà de 6 n'étaient atteignables nulle part. Ces liens
+  pointent désormais vers le tri par récence (`/discover?sort=newest`).
+- **Non-régression sécurité** (`scripts/verify-security.ts`, 16
+  vérifications) : RLS activée sur toutes les tables, trigger
+  `users_lock_sensitive` présent et activé, la clé anonyme ne lit rien sur
+  les tables sensibles (users, revenus, audit, logs d'email, OTP), le rôle
+  `authenticated` n'écrit que les colonnes de profil, et aucune fonction
+  SECURITY DEFINER inattendue n'est grantée à `anon`. Ces protections
+  sont invisibles dans le code applicatif : sans ce script, une nouvelle
+  table sans RLS passerait inaperçue.
+- **Privilèges d'écriture resserrés sur `users`** (migration 0046) : le
+  rôle `authenticated` avait `UPDATE` sur les **22 colonnes** de la table — il
+  pouvait donc écrire directement en base (PostgREST, clé anonyme publique +
+  son JWT), en contournant toute la validation serveur (occupation hors
+  vocabulaire, bio hors limite). Désormais, seules les 10 colonnes de profil
+  restent écrivables — les colonnes sensibles étaient déjà protégées par le
+  trigger (migration 0044), le rôle `authenticated` n'était pas concerné.
+- **Page publique « Nouveautés »** (`/nouveautes`, lien dans la colonne
+  « Le projet » du pied de page) : le journal daté de la plateforme, lisible
+  par les visiteurs et indexable. Le contenu vit dans
+  `content/nouveautes.json` — hors du code, donc modifiable et relisible
+  sans toucher au composant.
+
 - **Téléchargements APK (compteur réel)** : table `product_downloads`
   (événements anonymes — ni user_id, ni IP ; RLS deny-all) + colonne
   dénormalisée `products.download_count`, motif votes/commentaires. Un
@@ -417,6 +505,157 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   fraude), mobile (`GET revenue`, `revenue-connections` ×3).
 
 ### Corrigé
+
+- **Le produit du jour pouvait être vide** alors que le catalogue existait : l'algo
+  enfilait les produits dans une FILE (jamais-featuré d'abord, puis
+  moins-récemment-featuré, avec une fenêtre de 7 jours
+  d'éligibilité). Les 3 produits éligibles étaient tous dans la fenêtre →
+  plus aucun candidat → « Soyez le premier ». Deux autres
+  conséquences : l'ordre dépendait de l'HEURE D'ARRIVÉE (la FIFO des
+  ajouts — à l'échelle, le dernier publié attendait des semaines), et la
+  fenêtre était un seuil figé à recalculer à chaque changement de taille
+  du catalogue.
+- **Check de pagination rendu fragile** (`verify-products-backend`) : il
+  exigeait que ses 3 produits de test tiennent dans les 2 pages du flux
+  — une publication staff intercalée entre-temps le faisait échouer à tort
+  (la pagination keyset, elle, était correcte). Le check vérifie
+  maintenant la CONTINUITÉ de l'ordre, pas la position des fixtures.
+
+- **Les compteurs de catégories ne tenaient pas compte des sous-catégories** : ils
+  ne comptaient que la catégorie PRINCIPALE, alors que la page
+  `/categories/[slug]` liste les produits dont le tableau `categories`
+  CONTIENT la catégorie (comme le filtre du flux). Le compteur annonçait
+  « 1 produit » sur une page qui en listait 7. Le compteur compte désormais
+  TOUTES les catégories d'un produit — même règle partout (hero
+  compris, qui se re-classe sur les mêmes chiffres que la page).
+
+- **Une fiche publiée disparut du site a chaque retouche** : le
+  nom et les liens modifiaient le statut en `pending` → la fiche n'était
+  plus servie publiquement (`fetchProductBySlug` ne sert que les
+  `published`) jusqu'à l'approbation. La règle des stores est
+  appliquée : la fiche reste en ligne avec son contenu VALIDÉ, et la
+  modification attend un regard admin (colonnes `pending_*`, migration
+  0048). Les changements ne filent pas : tant que l'admin n'a pas
+  validé, le public voit l'ancien contenu.
+- **Le logo et les captures d'une fiche publiée étaient remplacés
+  sans revue** : ils partaient directement en base. Même traitement que
+  le texte : ils attendent la validation, dans la même révision.
+- **Les règles de la fiche étaient contournables** :
+  `assertLinkRules` n'était rejoué QUE si les liens changeaient. Un
+  produit publié pouvait donc passer en `subscription`, en `android` ou
+  en audience `enfants` sans revalidation → politique de confidentialité,
+  sécurité enfants ou téléchargement direct banni
+  contournés. Les règles sont rejouées désormais à chaque
+  édition d'une fiche en ligne, sur la fiche effective.
+- **Les produits en veille affichaient un vote impossible** : le bouton
+  était désactivé mais le COMPTE restait visible, et la pastille
+  de vélocité ("+N votes aujourd'hui") s'affichait aussi (flux,
+  recherche, catégories, fiche produit). Un produit hors classement ne
+  se vote pas : ni bouton, ni compte, ni vélocité — le badge
+  « Veille » en tient lieu.
+- **Les boutons de vote de la home « Mises à jour récentes » ne
+  savaient pas si l'utilisateur avait voté** : les états de vote
+  n'étaient pas propagés à cette section (la home récupérait
+  déjà les ids mais ne les passait pas) → un utilisateur ayant
+  voté voyait « pas voté ». L'aperçu (`/preview`) forçait
+  aussi `initialVoted: false`.
+
+- **Un APK re-soumis après un rejet était refusé** : la référence
+  de version était le MAX de tous les builds, rejet compris — un build
+  rejeté n'ayant jamais été distribué, il brûlait son `versionCode` pour
+  un rejet réparable (le motif de rejet dit pourtant « corrigez et
+  re-soumettre »), et le maker devait bumper son APK pour une simple
+  correction de notes. La référence est désormais le build **EN LIGNE**
+  (approuvé) : c'est lui que l'utilisateur a installé. Même règle côté
+  client (la page Update affichait « doit être supérieur à 3 » alors que
+  le build en ligne était le 2).
+- **Un APK d'une autre application pouvait être publié** : rien ne
+  comparait le fichieruploadé au build en ligne — ni le certificat, ni le
+  package. Un fichier d'une autre app se parse, se signe et s'affiche
+  parfaitement : seul son `package` le distingue. La fiche de revue
+  affiche désormais l'écart (package différent = « Autre app », en rouge,
+  avec le build en ligne en regard ; certificat différent = rotation de
+  clé, signal d'alerte que l'admin tranche).
+- **Un envoi était refusé tant qu'un build était en revue** : le maker
+  était bloqué jusqu'au verdict de l'admin (à l'échelle d'une
+  communauté, une revue à 3 jours = 3 jours d'arrêt). Un nouvel envoi
+  **remplace** maintenant le build en revue ; l'ancien passe « rejeté /
+  remplacé » (rien n'est perdu) et son binaire R2 est purgé.
+- **L'index unique des builds interdisait la re-soumission** (migration 0047) : `(produit, version_code)` était unique SANS condition, donc
+  la ligne d'un build rejeté gardait son numéro de version définitivement.
+  L'index est désormais **partiel** (`pending`/`approved`) : un rejet
+  ne verrouille plus la version, mais deux builds vifs de même code
+  restent impossibles.
+- **La touche Entrée dans un champ enregistrait un brouillon** : le
+  bouton « Enregistrer le brouillon » était le premier `type="submit"`
+  du formulaire, donc la soumission implicite du navigateur déclenchait
+  son clic. Il est passé en `type="button"` (il soumet lui-même), et
+  l'intention est consommée à la lecture — la validation client
+  échouant, elle restait en place et l'appui suivant rejouait
+  « publier ».
+- **L'API mobile effaçait les liens non renvoyés** : le serveur
+  remplaçait la totalité des liens de la fiche par ceux de la payload,
+  alors que le mobile n'envoie que les champs qu'il modifie. Le mode
+  « merge » fait la distinction : absent = **conservé**, champ vidé =
+  **effacé**. Le web garde son remplacement total (il envoie tous les
+  champs) — résultat identique, aucun changement de payload côté
+  mobile.
+
+- **Le classement affichait des nombres qui ne correspondaient pas à l'ordre**
+  : les fenêtres « Cette semaine » et « Ce mois » ordonnaient par `score`
+  (décroissance temporelle) mais affichaient le total de votes du produit —
+  on obtenait un podium « 2, 3, 1 » impossible à retrouver. Le rang est
+  désormais **le nombre de votes reçus dans la fenêtre**, et c'est ce
+  nombre que la pastille affiche (« 12 votes cette semaine »). La fenêtre
+  « Aujourd'hui » est alignée sur la même règle, et la fenêtre « Tout le
+  temps » reste classée sur le total (déjà visible sur le bouton de vote).
+  Le classement taxonomique (par poids, hors chronologie) n'est pas touché.
+- **Les compteurs de `/categories` étaient des mocks** : la page annonçait
+  « 691 produits » alors que la base en compte 11, et listait des catégories
+  sans aucun produit. Les compteurs sont maintenant **comptés en base**
+  (`services/catalog-counts.service.ts`) ; les entrées vides sont masquées,
+  et la page assume le chiffre réel (« le catalogue démarre »). Repli sur
+  les compteurs de config si la base est injoignable.
+- **La home bascule de fenêtre sur le nombre d'items** : une fenêtre qui
+  sort des produits mais aucun vote affichait un classement mort. Le
+  basculement se fait désormais sur l'activité en votes.
+- **La page de mise à jour d'un binaire demandait les notes de version dans
+  le contexte du formulaire de création** (`useSubmitForm`) : la page
+  plantait à l'ouverture. Les notes sont désormais des props de la section
+  APK, avec un champ obligatoire clair quand le fichier est déjà en ligne.
+- **La description longue d'une fiche débordait** : elle est désormais
+  repliée sur 700 caractères, avec un dégradé et un « Voir plus / Voir
+  moins » — le reste de la fiche reste visible.
+- **Le type de produit ne verrouille plus l'orientation des captures** : le
+  type ne fait plus que _suggérer_ une orientation, le maker peut la changer
+  librement, et la bascule prévient quand elle emporte des captures de
+  l'autre format.
+
+- **Les fiches produit plantaient sur les produits à sous-catégories** : le
+  complément des produits similaires écartait les ids déjà vus avec un
+  `ANY()` artisanal — avec un seul élément, le tableau part en scalaire et
+  Postgres refuse (« cannot cast type uuid to uuid[] »). Remplacé par
+  `notInArray`, qui gère le binding.
+- **Le compte à profil était bloqué (« Champs invalides. »)** : une bio
+  de 278 caractères (la limite était 160) était renvoyée telle quelle à
+  chaque sauvegarde — impossible de changer son nom ou son occupation sans
+  raccourcir sa bio à la main. Bio portée à **400 caractères** (colonne
+  `text`, aucune migration) avec un compteur live ; le profil débloqué l'est
+  désormais.
+- **L'avatar restait en placeholder jusqu'au refresh** : le preview local est une
+  URL `blob:`, que l'optimiseur d'images ne sait pas traiter ni allowlister — il
+  rendait le placeholder. Et ce preview gardait la priorité sur l'URL déjà
+  uploadée, donc l'image non recadrée était affichée. Les sources
+  locales passent maintenant par un `<img>` simple, et l'URL serveur (cadrée,
+  persistée) prend le relais dès l'upload réussi.
+- **La carte écrasait le nom du produit** : le badge version + date était planté
+  dans la rangée du titre (avec le badge Veille) — le nom débordait. La version
+  et la date passent sur une **ligne dédiée sous le titre**, en texte simple
+  (plus de pastille), et les séparateurs de la ligne technique sont
+  intercalés entre les segments présents (plus de point orphelin).
+- **Les cartes n'affichaient que 3 plateformes** (web / iOS / Android codées en
+  dur) : les 5 autres étaient invisibles. Elles passent par la configuration,
+  comme le reste du site.
 
 - Téléchargements APK : URL native sans cache partagé, écritures suivies après
   réponse via `after()` et vérification du compteur sans temporisation. Les

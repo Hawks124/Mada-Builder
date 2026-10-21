@@ -155,11 +155,14 @@ export function useSubmitXhr(
         };
         try {
           setPhase({ name: "uploading", loaded: 0, total: apk.file.size, detail: null });
-          // Premier build : pas de notes (pas de track) — whatsnew null.
+          // Notes de version : le premier APK les porte aussi (elles sont
+          // affichées publiquement sur la fiche, sous le bouton de
+          // téléchargement). Vides = pas de notes.
+          const notes = ctx.buildNotes.trim();
           await uploadApkBuild({
             productId,
             pending: apk,
-            whatsnew: null,
+            whatsnew: notes === "" ? null : notes,
             onProgress: (loaded, total) =>
               setPhase((prev) => ({
                 name: "uploading",
@@ -228,12 +231,6 @@ export function useSubmitXhr(
           // tout save réussi (rattrapage sans track). Échec = fiche sauvée
           // + rattrapage dashboard (jamais bloquant).
           const apk = pendingApk && (intent === "publish" || ctx.isEditing) ? pendingApk : null;
-          // TEMP CHAIN-DEBUG — retirer après diagnostic.
-          if (typeof console !== "undefined") {
-            console.log(
-              `[apk-chain] submit ok — apk=${apk ? apk.file.name : "AUCUN"} productId=${productId ?? "MANQUANT"} intent=${intent}`,
-            );
-          }
           if (apk && productId) {
             void chainApkUpload(apk, productId, ctx.isEditing);
             return;

@@ -39,7 +39,13 @@ export function ProductAbout({ name, markdown: raw }: { name: string; markdown: 
   // qu'une absence — le lecteur ne doit pas deviner ce qui manque.
   if (!markdown) return null;
 
-  const collapsible = hasSubsequentBlocks(markdown);
+  // Repli sur la LONGUEUR du texte, pas sur la structure du markdown : une
+  // description en paragraphes (sans `h2`) n'était jamais repliée — le
+  // bouton « Voir plus » s'affichait sans rien masquer (un contrôle qui ne
+  // commande aucun changement = un mensonge), et la page PRODUCT devenait
+  // interminable : les avis et les commentaires, en dessous, devenaient
+  // inatteignables.
+  const collapsible = plainLength(markdown) > DESCRIPTION_COLLAPSE_CHARS;
 
   return (
     <section
@@ -51,7 +57,7 @@ export function ProductAbout({ name, markdown: raw }: { name: string; markdown: 
       </h2>
 
       {collapsible ? (
-        <div className="group/about">
+        <div className="group/about relative">
           <input
             type="checkbox"
             id="product-about-toggle"
@@ -59,10 +65,14 @@ export function ProductAbout({ name, markdown: raw }: { name: string; markdown: 
             aria-label={`Afficher la description complète de ${name}`}
           />
 
-          {/* Repli : on masque tout ce qui suit le premier titre de niveau 2,
-              c'est-à-dire tout au-delà de l'accroche. */}
-          <div className="[&>h2]:mt-8 [&>h2:first-child]:mt-0 [&>h2~*]:hidden peer-checked:[&>h2~*]:block">
+          {/* Repli à la HAUTEUR (et non au premier `h2`) : la coupe tombe
+              au même endroit visuel sur tous les écrans, et tout le
+              markdown reste dans le HTML rendu (indexable, sans JS). */}
+          <div className="relative max-h-[20rem] overflow-hidden transition-[max-height] duration-300 peer-checked:max-h-none">
             <Prose className="max-w-none">{markdown}</Prose>
+            {/* Dégradé de fin de lecture — masqué quand la description est
+                déployée (il ne doit jamais couvrir la dernière ligne). */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-background to-transparent transition-opacity peer-checked:opacity-0" />
           </div>
 
           <label
@@ -76,7 +86,7 @@ export function ProductAbout({ name, markdown: raw }: { name: string; markdown: 
             Voir plus
             <CaretUpIcon
               weight="bold"
-              className="hidden h-3.5 w-3.5 group-has-checked/about:block"
+              className="hidden h-3.5 w-3.5 transition-transform duration-200 group-has-checked/about:block"
             />
             Voir moins
           </label>
@@ -89,15 +99,19 @@ export function ProductAbout({ name, markdown: raw }: { name: string; markdown: 
 }
 
 /**
- * Le markdown contient-il des blocs au-delà de son premier `h2` ?
- *
- * Sans ce test, une description d'un seul paragraphe poserait un interrupteur
- * qui ne changeait rien — un contrôle qui ne commande aucun changement, donc
- * un mensonge de l'interface.
+ * Longueur du texte lisible (hors syntaxe markdown) — le seuil qui
+ * décide du repli. 700 caractères ≈ l'accroche + le premier paragraphe :
+ * en dessous, la description est lisible d'un trait ; au-dessus, on
+ * coupe pour que les avis restent atteignables.
  */
-function hasSubsequentBlocks(markdown: string): boolean {
-  const blocks = markdown.trim().split(/\n{2,}/);
-  const firstHeading = blocks.findIndex((b) => /^#{2,3}\s/.test(b.trim()));
-  if (firstHeading < 0) return blocks.length > 1;
-  return blocks.slice(firstHeading + 1).some((b) => b.trim() !== "");
+const DESCRIPTION_COLLAPSE_CHARS = 700;
+
+function plainLength(markdown: string): number {
+  return markdown
+    .replace(/```[\s\S]*?```/g, " ") // blocs de code
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ") // images
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // liens (on garde le texte)
+    .replace(/[#*`>_\-|~]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim().length;
 }

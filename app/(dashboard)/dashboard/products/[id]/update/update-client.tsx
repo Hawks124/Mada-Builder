@@ -12,8 +12,6 @@ import { MakerGuidanceSidebar } from "@/components/guidance/maker-guidance-sideb
 import { BuildPlayTable } from "@/components/builds/build-play-table";
 import { toTableInput } from "@/components/builds/build-table-adapter";
 
-const NOTES_MAX = 1000;
-
 export type UpdateHistoryItem = {
   id: string;
   versionCode: number | null;
@@ -237,12 +235,15 @@ export function UpdateClient({
               onClear={() => setPending(null)}
               onBusyChange={setApkBusy}
               actionsLocked={sending}
+              notes={notes}
+              onNotesChange={setNotes}
+              notesRequired={notesRequired}
             />
 
             {versionBlocked && (
               <p role="alert" className="text-[14px] font-bold text-red-600 dark:text-red-400">
                 Code de version {pending.manifest.versionCode} refusé — il doit être supérieur à{" "}
-                {latestVersionCode}.
+                {latestVersionCode} (le code du build en ligne).
               </p>
             )}
 
@@ -263,36 +264,6 @@ export function UpdateClient({
                 </p>
               </div>
             )}
-
-            <div className="flex flex-col gap-3">
-              <label
-                htmlFor="build-notes"
-                className="text-[14px] font-bold text-foreground flex items-center gap-2"
-              >
-                Notes de version
-                {notesRequired ? (
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    requis
-                  </span>
-                ) : (
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    optionnel
-                  </span>
-                )}
-              </label>
-              <textarea
-                id="build-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value.slice(0, NOTES_MAX))}
-                rows={4}
-                disabled={sending}
-                placeholder="Quoi de neuf dans cette version ? (visible dans l'historique)"
-                className="w-full bg-background border border-border/60 rounded-2xl px-5 py-4 text-[15px] font-medium placeholder:text-muted-foreground/40 text-foreground outline-none focus:border-foreground/40 transition-colors resize-y"
-              />
-              <p className="text-[12px] font-medium text-muted-foreground tabular-nums self-end">
-                {notes.trim().length} / {NOTES_MAX}
-              </p>
-            </div>
 
             {serverMessage && (
               <p role="alert" className="text-[14px] font-bold text-red-600 dark:text-red-400">

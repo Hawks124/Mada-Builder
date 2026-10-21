@@ -72,7 +72,28 @@ export function AvatarImage({
     </span>
   );
 
-  if (!src || failed || !isRemoteImageAllowed(src)) return fallback;
+  if (!src || failed) return fallback;
+
+  // src LOCAL (blob:/data:) : l'optimiseur d'images ne sait pas les
+  // traiter (ni les fetch, ni les allowlister) → il rendait le
+  // placeholder et il fallait un refresh pour voir l'image. Ce cas est
+  // AVANT le contrôle d'hôte : un `blob:` n'a pas d'hôte allowlisté.
+  if (src.startsWith("blob:") || src.startsWith("data:")) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={name}
+        width={size}
+        height={size}
+        onError={() => setFailed(true)}
+        className={cn("rounded-full object-cover shrink-0", className)}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
+  if (!isRemoteImageAllowed(src)) return fallback;
 
   return (
     <AvatarBoundary fallback={fallback}>

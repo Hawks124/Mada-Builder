@@ -11,8 +11,23 @@ export const metadata: Metadata = {
  * `/contact` — le seul formulaire public sans auth (les sponsors et
  * partenaires ne sont pas forcément membres). Indexable : c'est aussi
  * la porte d'entrée « annonceurs » du SEO.
+ *
+ * Pré-remplissage : `?sujet=…&message=…&lien=…` (le bouton « Contacter
+ * la revue » du dashboard ouvre la page avec le contexte de la fiche).
+ * Les paramètres sont lus ICI (serveur) et passés au formulaire : pas de
+ * `useSearchParams` dans un composant client, qui exigerait un Suspense
+ * et casserait le prérendu de la page.
  */
-export default function ContactPage() {
+export default async function ContactPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const one = (key: string): string | null => {
+    const v = params[key];
+    return typeof v === "string" ? v : null;
+  };
   return (
     <main className="w-full">
       <div className="container px-4 md:px-8 max-w-3xl mx-auto pt-16 md:pt-20 pb-24 flex flex-col gap-10">
@@ -29,7 +44,7 @@ export default function ContactPage() {
             interne — juste un email en retour.
           </p>
         </div>
-        <ContactForm />
+        <ContactForm sujet={one("sujet")} messageInitial={one("message")} lien={one("lien")} />
       </div>
     </main>
   );

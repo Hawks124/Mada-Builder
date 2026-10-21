@@ -34,10 +34,14 @@ export type ProductType = {
   count: number;
   icon: Icon;
   /**
-   * Orientation imposée des captures : un SaaS desktop ou un CLI en
-   * portrait n'existe pas — le type pilote, pas l'utilisateur. "both"
-   * (web — desktop ET phone —, jeu, bot, autre) = toggle actif, avec
-   * `defaultOrientation` comme point de départ.
+   * Orientation SUGGÉRÉE pour la galerie de captures : portrait pour une
+   * app mobile, paysage pour un CLI / SaaS / package… C'est un point de
+   * départ, pas un verrou : le maker peut basculer librement (le
+   * basculement purge les captures de l'orientation abandonnée). La
+   * barrière, elle, reste entière — une fois l'orientation choisie, TOUTES
+   * les captures doivent la respecter. "both" (web — desktop ET phone —,
+   * jeu, bot, autre) = pas de suggestion figée, `defaultOrientation` sert
+   * de point de départ.
    */
   orientation: TypeOrientation;
   /** Orientation initiale quand `orientation` vaut "both". */

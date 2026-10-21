@@ -80,6 +80,11 @@ export function parseProductForm(fd: FormData) {
   const stagedLogoRaw = str(fd, "stagedLogo");
   const stagedScreenshots = jsonArr(fd, "stagedScreenshots") ?? [];
   const audience = str(fd, "audience");
+  // API MOBILE : mode « merge » — le mobile n'envoie que les champs
+  // liens qu'il modifie ; les ABSENTS sont conservés, les champs VIDÉS
+  // sont effacés (`clearedLinks`). Sans ça, chaque édition mobile
+  // effaçait tous les autres liens de la fiche.
+  const parsedLinks = parseProductLinkFields(fd);
   return {
     data: {
       name: str(fd, "name"),
@@ -106,7 +111,8 @@ export function parseProductForm(fd: FormData) {
       targetCountries: jsonArr(fd, "targetCountries"),
       languagesSupported: jsonArr(fd, "languages"),
       galleryOrientation: str(fd, "galleryOrientation"),
-      links: parseProductLinkFields(fd),
+      links: parsedLinks?.links,
+      clearedLinks: parsedLinks?.cleared,
     },
     logo,
     screenshots,

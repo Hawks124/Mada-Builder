@@ -13,6 +13,8 @@ interface SubmitFormState {
   /** Produit en cours d'édition (?edit=id) — null en création. */
   editApp: DashboardApp | null;
   isEditing: boolean;
+  /** Revision en attente (fiche publiee) : bandeau maker + valeurs en attente. */
+  pendingRevisionAt: Date | null;
   /** Track binaire (D6) : sans track → section APK inline ; avec track → lien Update (verrou). */
   hasTrack: boolean;
   /** Pricing (remonté de metadata — règle privacy si monétisé). */
@@ -27,12 +29,20 @@ interface SubmitFormState {
   errors: Record<string, string>;
   /** Résumé médias (validation publish : logo + ≥1 capture). */
   mediaSummary: { hasLogo: boolean; shotCount: number };
+  /** Notes de version du binaire (premier APK) — visibles sur la fiche. */
+  buildNotes: string;
   /** Brouillon local (création) — null en édition ou si vide. */
   draft: Record<string, string> | null;
   /** Médias existants (édition) — affichage seul, absents = conservés. */
   existingMedia: {
     iconUrl: string | null;
-    shots: { url: string; width: number | null; height: number | null }[];
+    shots: {
+      url: string;
+      width: number | null;
+      height: number | null;
+      /** Orientation mesurée à l'upload (bascule + purge côté serveur). */
+      orientation: "portrait" | "landscape";
+    }[];
   } | null;
 }
 
@@ -47,6 +57,8 @@ interface SubmitFormContextValue extends SubmitFormState {
   setErrors: (errors: Record<string, string>) => void;
   clearError: (key: string) => void;
   setMediaSummary: (summary: { hasLogo: boolean; shotCount: number }) => void;
+  /** Notes de version (champ libre, 1000 signes max). */
+  setBuildNotes: (value: string) => void;
 }
 
 const SubmitFormContext = React.createContext<SubmitFormContextValue | null>(null);
@@ -96,6 +108,7 @@ export function SubmitFormProvider({
   initialDraft,
   existingMedia,
   hasTrack,
+  pendingRevisionAt = null,
   children,
 }: {
   editApp: DashboardApp | null;
@@ -104,10 +117,18 @@ export function SubmitFormProvider({
   /** Médias existants (édition) — affichage seul. */
   existingMedia?: {
     iconUrl: string | null;
-    shots: { url: string; width: number | null; height: number | null }[];
+    shots: {
+      url: string;
+      width: number | null;
+      height: number | null;
+      /** Orientation mesurée à l'upload (bascule + purge côté serveur). */
+      orientation: "portrait" | "landscape";
+    }[];
   } | null;
   /** Track binaire (édition) — faux en création. */
   hasTrack?: boolean;
+  /** Révision en attente (fiche publiée) — bandeau maker. */
+  pendingRevisionAt?: Date | null;
   children: React.ReactNode;
 }) {
   const draft = editApp ? null : (initialDraft ?? null);
@@ -143,6 +164,8 @@ export function SubmitFormProvider({
   const [linkPolicies, setLinkPolicies] = React.useState<Record<string, UrlPolicy>>({});
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [mediaSummary, setMediaSummary] = React.useState({ hasLogo: false, shotCount: 0 });
+  // Notes de version du premier APK (champ libre) - envoyées avec le build.
+  const [buildNotes, setBuildNotes] = React.useState("");
 
   const setLinkValue = React.useCallback((id: string, value: string) => {
     setLinkValues((prev) => (prev[id] === value ? prev : { ...prev, [id]: value }));
@@ -177,12 +200,14 @@ export function SubmitFormProvider({
       editApp,
       isEditing: editApp !== null,
       hasTrack: hasTrack ?? false,
+      pendingRevisionAt: pendingRevisionAt ?? null,
       pricing,
       platforms,
       linkValues,
       linkPolicies,
       errors,
       mediaSummary,
+      buildNotes,
       draft,
       existingMedia: existingMedia ?? null,
       setProductType,
@@ -195,12 +220,14 @@ export function SubmitFormProvider({
       setErrors,
       clearError,
       setMediaSummary,
+      setBuildNotes,
     }),
     [
       productType,
       audience,
       lifecycle,
       editApp,
+      pendingRevisionAt,
       hasTrack,
       pricing,
       platforms,
@@ -208,6 +235,7 @@ export function SubmitFormProvider({
       linkPolicies,
       errors,
       mediaSummary,
+      buildNotes,
       draft,
       existingMedia,
       setLinkPolicy,

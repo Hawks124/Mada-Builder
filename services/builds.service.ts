@@ -69,28 +69,33 @@ export async function createBuild(input: {
   if (input.sizeBytes > MAX_BUILD_BYTES) {
     throw new ProfileError("VALIDATION", "APK trop lourd (300 Mo maximum).");
   }
-  // Règles Update (D4) : track = ≥1 build existant. Alors versionCode
-  // (non nul) STRICTEMENT supérieur au max + notes requises (≤1000).
-  // Premier build : aucune contrainte (notes optionnelles). Échecs ici =
-  // avant HEAD : pas de purge (le cron balaye l'orphelin).
-  const existing = await db
+  // Règles Update (D4) : la référence de version est le build **EN
+  // LIGNE** (status `approved`), pas le dernier build ajouté.
+  //
+  // Pourquoi : le `versionCode` d'Android se compare à ce qui est
+  // INSTALLÉ. Un build rejeté n'a jamais été distribué : l'utiliser comme
+  // référence brûlait le numéro de version pour un rejet réparable (le
+  // motif de rejet dit pourtant « corrigez et re-soumettre »), et forçait
+  // le maker à bumper son APK pour une simple correction de notes. La
+  // référence est donc `approved` — et les rejets gardent leur ligne
+  // (l'historique), l'index unique est partiel (migration 0047).
+  //
+  // Sans build approuvé : aucune contrainte (premier build, notes
+  // optionnelles).
+  const approved = await db
     .select({ versionCode: productBuilds.versionCode })
     .from(productBuilds)
-    .where(eq(productBuilds.productId, input.productId));
-  const maxCode = existing.reduce<number | null>(
-    (m, r) => (typeof r.versionCode === "number" ? Math.max(m ?? -1, r.versionCode) : m),
-    null,
-  );
-  const hasTrack = existing.length > 0;
+    .where(and(eq(productBuilds.productId, input.productId), eq(productBuilds.status, "approved")));
+  const onlineCodes = approved
+    .map((r) => r.versionCode)
+    .filter((c): c is number => typeof c === "number");
+  const maxCode = onlineCodes.length > 0 ? Math.max(...onlineCodes) : null;
+  const hasTrack = maxCode !== null;
   const newCode =
     typeof input.versionCode === "number" && Number.isInteger(input.versionCode)
       ? input.versionCode
       : null;
-  if (maxCode !== null) {
-    if (newCode === null || newCode <= maxCode) {
-      throw new ProfileError("VALIDATION", `Le code de version doit être supérieur à ${maxCode}.`);
-    }
-  }
+  assertVersionAllowed({ onlineCodes, newCode });
   const whatsnew = typeof input.whatsnew === "string" ? input.whatsnew.trim() : "";
   if (hasTrack && whatsnew === "") {
     throw new ProfileError("VALIDATION", "Notes de version requises (mise à jour).");
@@ -161,21 +166,32 @@ export async function createBuild(input: {
   if (declaredCert !== null && declaredCert !== serverCertSha!) {
     await purgeAndReject("Divergence signature — renvoyez le fichier d'origine.");
   }
-  // Un seul pending à la fois (garde TARDIVE, volontairement après la
-  // re-vérif : un faux ZIP doit toujours être purgé, jamais laisser
-  // d'orphelin R2 — et la re-vérif a déjà coûté ses lectures).
-  // Empiler les updates embrouille la revue et le dashboard.
+  // Un build en revue peut être REMPLACÉ par un envoi plus récent.
+  //
+  // Avant, un envoi était refusé tant qu'un build était en revue : le
+  // maker était bloqué jusqu'au verdict de l'admin (à l'échelle d'une
+  // communauté, une revue à 3 jours = 3 jours d'arrêt sur la version
+  // suivante). Le remplacement garde la trace (l'ancien passe «
+  // rejeté / remplacé ») et le nouveau part en revue à sa place : la
+  // file reste à UN build pending par produit, mais le maker n'est plus
+  // bloqué.
   const [stillPending] = await db
-    .select({ id: productBuilds.id })
+    .select({ id: productBuilds.id, r2Key: productBuilds.r2Key })
     .from(productBuilds)
     .where(and(eq(productBuilds.productId, input.productId), eq(productBuilds.status, "pending")))
     .limit(1);
   if (stillPending) {
-    await deleteR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key).catch(() => {});
-    throw new ProfileError(
-      "VALIDATION",
-      "Un binaire est déjà en revue — attendez le verdict avant d'envoyer une nouvelle version.",
-    );
+    await db
+      .update(productBuilds)
+      .set({
+        status: "rejected",
+        rejectionReason: "Remplacé par un envoi plus récent.",
+        reviewedAt: new Date(),
+      })
+      .where(eq(productBuilds.id, stillPending.id));
+    // Le binaire du build remplacé n'est plus downloadable (seul le
+    // build approuvé l'est) : on ne garde pas d'orphelin R2.
+    await deleteR2Object(PRODUCT_BUILDS_BUCKET, stillPending.r2Key).catch(() => {});
   }
   try {
     const [row] = await db
@@ -217,7 +233,41 @@ export async function createBuild(input: {
   }
 }
 
+/**
+ * Règle de version d'un build.
+ *
+ * La référence est le build **EN LIGNE** (approuvé) : c'est lui que
+ * l'utilisateur a installé, donc lui seul fixe ce qu'un « nouveau »
+ * `versionCode` doit dépasser. Un build REJETÉ n'a jamais été
+ * distribué : l'utiliser comme référence brûlait le numéro de version
+ * pour un rejet réparable (le motif de rejet dit pourtant « corrigez et
+ * re-soumettre ») et forçait le maker à bumper son APK pour une simple
+ * correction de notes.
+ *
+ * Pure (pas de DB) : la règle est testable hors réseau.
+ */
+export function assertVersionAllowed(input: {
+  /** Codes des builds EN LIGNE (approuvés). */
+  onlineCodes: number[];
+  /** Code du build soumis (null = illisible). */
+  newCode: number | null;
+}): void {
+  const maxCode = input.onlineCodes.reduce<number | null>((m, c) => Math.max(m ?? -1, c), null);
+  if (maxCode === null) return;
+  if (input.newCode === null || input.newCode <= maxCode) {
+    throw new ProfileError(
+      "VALIDATION",
+      `Le code de version doit être supérieur à ${maxCode} (le build en ligne).`,
+    );
+  }
+}
+
 export type BuildListItem = typeof productBuilds.$inferSelect;
+
+// L'identité d'un build (certificat/package) est calculée dans `lib/`
+// (module pur) : la fiche de revue admin est un composant client, elle ne
+// peut pas importer ce service (qui tire la connexion Postgres).
+export { diffBuildIdentity } from "@/lib/build-identity";
 
 /**
  * Téléchargement APK — événement + compteur dénormalisé.
@@ -563,6 +613,8 @@ export async function getProductsBuildStatus(productIds: string[]): Promise<
       latestVersionCode: number | null;
       buildCount: number;
       hasPendingBuild: boolean;
+      /** Nombre de binaires EN REVUE (pas le nombre de produits). */
+      pendingBuildCount: number;
     }
   >
 > {
@@ -573,10 +625,18 @@ export async function getProductsBuildStatus(productIds: string[]): Promise<
       latestVersionCode: number | null;
       buildCount: number;
       hasPendingBuild: boolean;
+      /** Nombre de binaires EN REVUE (pas le nombre de produits). */
+      pendingBuildCount: number;
     }
   > = {};
   for (const id of productIds)
-    out[id] = { hasBuilds: false, latestVersionCode: null, buildCount: 0, hasPendingBuild: false };
+    out[id] = {
+      hasBuilds: false,
+      latestVersionCode: null,
+      buildCount: 0,
+      hasPendingBuild: false,
+      pendingBuildCount: 0,
+    };
   if (productIds.length === 0) return out;
   const rows = await db
     .select({
@@ -591,7 +651,10 @@ export async function getProductsBuildStatus(productIds: string[]): Promise<
     if (!entry) continue;
     entry.hasBuilds = true;
     entry.buildCount += 1;
-    if (r.status === "pending") entry.hasPendingBuild = true;
+    if (r.status === "pending") {
+      entry.hasPendingBuild = true;
+      entry.pendingBuildCount += 1;
+    }
     if (typeof r.versionCode === "number") {
       entry.latestVersionCode = Math.max(entry.latestVersionCode ?? -1, r.versionCode);
     }

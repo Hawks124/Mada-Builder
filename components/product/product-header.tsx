@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { startTransition } from "react";
 import { ChatCircleTextIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { ProductAvatar } from "@/components/ui/product-avatar";
 import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
 import { useVoteWall } from "@/components/votes/use-vote-wall";
@@ -31,30 +31,38 @@ export type ProductHeaderData = {
   apk?: { downloadPath: string; versionLabel: string } | null;
 };
 
-export function ProductHeader({ product }: { product: ProductHeaderData }) {
+export function ProductHeader({
+  product,
+  preview = false,
+}: {
+  product: ProductHeaderData;
+  /**
+   * Aperçu (fiche pas encore en ligne) : pas de vote (une fiche en revue
+   * n'est pas votable) et pas de lien vers les commentaires (la section
+   * n'existe pas dans l'aperçu).
+   */
+  preview?: boolean;
+}) {
   const category = getCategoryById(product.categoryId);
   return (
     <div className="flex flex-col gap-4">
       {/* Row 1: Logo + Vote CTA (same row on mobile too) */}
       <div className="flex items-start gap-4 md:gap-6">
-        {/* Logo réel ou initiales (même fallback que partout) */}
-        {product.iconUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={product.iconUrl}
+        {/* Logo réel ou initiales — `ProductAvatar` ajoute le repli si
+            l'image ne charge pas (une URL morte ne doit jamais casser
+            l'affichage). */}
+        <span
+          className={cn(
+            "w-20 h-20 md:w-28 md:h-28 rounded-3xl shadow-md shrink-0 overflow-hidden flex items-center justify-center font-extrabold text-3xl md:text-4xl",
+          )}
+        >
+          <ProductAvatar
+            iconUrl={product.iconUrl}
+            initials={product.initials}
+            gradient={product.iconGradient}
             alt={`Logo de ${product.name}`}
-            className="w-20 h-20 md:w-28 md:h-28 rounded-3xl shadow-md shrink-0 object-cover bg-muted/20"
           />
-        ) : (
-          <div
-            className={cn(
-              "w-20 h-20 md:w-28 md:h-28 rounded-3xl bg-linear-to-br shadow-md shrink-0 flex items-center justify-center text-white font-extrabold text-3xl md:text-4xl",
-              product.iconGradient,
-            )}
-          >
-            {product.initials}
-          </div>
-        )}
+        </span>
 
         {/* Right of logo: name + tagline + stats */}
         <div className="flex-1 min-w-0 flex flex-col gap-1.5 pt-1">
@@ -102,26 +110,32 @@ export function ProductHeader({ product }: { product: ProductHeaderData }) {
               </span>
             </Link>
             <div className="w-1 h-1 rounded-full bg-border" />
-            <Link
-              href="#comments"
-              className="flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ChatCircleTextIcon weight="fill" className="w-4 h-4" />
-              <span>
-                {product.commentsCount} commentaire{product.commentsCount > 1 ? "s" : ""}
-              </span>
-            </Link>
+            {!preview && (
+              <Link
+                href="#comments"
+                className="flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChatCircleTextIcon weight="fill" className="w-4 h-4" />
+                <span>
+                  {product.commentsCount} commentaire{product.commentsCount > 1 ? "s" : ""}
+                </span>
+              </Link>
+            )}
           </div>
         </div>
 
-        {/* Vote button — same row on all screen sizes, compact on mobile */}
-        <AnimatedVoteButton
-          productId={product.id}
-          productName={product.name}
-          votes={product.votes}
-          curated={product.curated}
-          initialVoted={product.initialVoted}
-        />
+        {/* Vote button — same row on all screen sizes, compact on mobile.
+            Veille : PAS de bouton et PAS de compte (hors classement, vote
+            impossible) — le badge « Veille » en tient lieu. */}
+        {!preview && !product.curated && (
+          <AnimatedVoteButton
+            productId={product.id}
+            productName={product.name}
+            votes={product.votes}
+            curated={product.curated}
+            initialVoted={product.initialVoted}
+          />
+        )}
       </div>
 
       {/* Binaire vérifié (D5) : badge + version (le téléchargement vit
@@ -167,13 +181,16 @@ function AnimatedVoteButton({
       type="button"
       disabled={pending || curated}
       onClick={() => {
-        guardedVote(() => {
-          const next = !voted;
-          setPending(true);
-          startTransition(async () => {
-            // Optimiste immédiat (même animation qu'avant, vrais chiffres).
-            setVoted(next);
-            setCount((c) => c + (next ? 1 : -1));
+        const next = !voted;
+        // Optimiste IMMÉDIAT : l'état part AU CLIC. Le mur d'auth tranche
+        // ensuite (et revient en arrière si le visiteur n'a pas de
+        // session) — avant, le clic attendait la vérification de session
+        // (aller-retour réseau) et l'UI restait figée.
+        setVoted(next);
+        setCount((c) => c + (next ? 1 : -1));
+        setPending(true);
+        void guardedVote(
+          async () => {
             const res = await toggleVoteAction({ productId });
             if (res.ok) {
               setVoted(res.voted);
@@ -190,8 +207,17 @@ function AnimatedVoteButton({
               toast("err", res.message ?? "Vote impossible pour le moment.");
             }
             setPending(false);
-          });
-        });
+          },
+          {
+            onBlocked: () => {
+              // Pas de session : on annule l'update optimiste (la
+              // redirection vers /signin suit, le vote sera rejoué).
+              setVoted(!next);
+              setCount((c) => c + (next ? -1 : 1));
+              setPending(false);
+            },
+          },
+        );
       }}
       aria-pressed={voted}
       aria-label={offReason ?? `Voter pour ${productName}`}

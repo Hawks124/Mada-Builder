@@ -52,6 +52,7 @@ export async function getMakerAppsDashboard(userId: string): Promise<DashboardAp
           latestVersionCode: number | null;
           buildCount: number;
           hasPendingBuild: boolean;
+          pendingBuildCount: number;
         }
       > => ({}),
     ),
@@ -80,6 +81,7 @@ export async function getMakerAppsDashboard(userId: string): Promise<DashboardAp
     app.hasBuilds = builds[app.id]?.hasBuilds ?? false;
     app.buildCount = builds[app.id]?.buildCount ?? 0;
     app.hasPendingBuild = builds[app.id]?.hasPendingBuild ?? false;
+    app.pendingBuildCount = builds[app.id]?.pendingBuildCount ?? 0;
     const revenue = revenues.get(app.id);
     if (revenue) {
       app.revenue = {

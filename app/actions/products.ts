@@ -136,7 +136,7 @@ export async function submitProductAction(
   // l'avalerait → échec affiché après un submit réussi + bruit Sentry).
   let result: { id: string; slug: string; status: string };
   try {
-    const links = parseProductLinkFields(formData) ?? {};
+    const links = parseProductLinkFields(formData)?.links ?? {};
     const logoRaw = formData.get("logo");
     const logo = logoRaw instanceof File && logoRaw.size > 0 ? logoRaw : null;
     const screenshots = formData
@@ -253,7 +253,11 @@ export async function updateProductAction(
           formData.get("galleryOrientation") === null
             ? undefined
             : str(formData.get("galleryOrientation")),
-        links: parseProductLinkFields(formData),
+        // WEB : le formulaire envoie TOUS les champs liens (un champ vidé
+        // = « efface ») → mode remplacement total, inchangé. `clearedLinks`
+        // n'est PAS transmis ici : c'est le mode « merge » de l'API
+        // mobile (absent = conservé).
+        links: parseProductLinkFields(formData)?.links,
       },
       { logo, screenshots },
     );

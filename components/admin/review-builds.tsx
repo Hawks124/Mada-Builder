@@ -10,11 +10,13 @@ import {
   HourglassIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { ProductAvatar } from "@/components/ui/product-avatar";
 import { waitingFr } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { BuildPlayTable, formatMo } from "@/components/builds/build-play-table";
 import { toTableInput } from "@/components/builds/build-table-adapter";
 import { approveBuildAction, rejectBuildAction, type BuildListItem } from "@/app/actions/builds";
+import { diffBuildIdentity } from "@/lib/build-identity";
 
 export type ReviewBuildItem = BuildListItem & {
   downloadUrl: string | null;
@@ -177,14 +179,12 @@ export function ReviewBuilds({
   builds,
   productIconUrl,
   productInitials,
-  productGradient,
 }: {
   builds: ReviewBuildItem[];
   /** Logo fiche en repli (D6) : l'icône APK n'est pas stockée en base. */
   productIconUrl?: string | null;
   /** Repli initiales (calculé serveur, comme la file fiches). */
   productInitials?: string;
-  productGradient?: string;
 }) {
   if (builds.length === 0) {
     return (
@@ -211,25 +211,19 @@ export function ReviewBuilds({
           previousApproved?.certSha256 &&
           b.certSha256 &&
           previousApproved.certSha256 !== b.certSha256;
+        // Package différent = ce n'est pas la même application. La
+        // signature peut être valide (l'APK est bien signé, lisible) et
+        // le fichier être celui d'une AUTRE app : sans ce signal, le
+        // reviewer valide en comparant le numéro de version et le
+        // binaire erroné part en production.
+        const otherApp = diffBuildIdentity(b, previousApproved).packageChanged;
         const exceeded = b.status === "pending" && b.waitingHours > 24;
         return (
           <div key={b.id}>
             <div className="group flex gap-4 py-5 px-3 rounded-2xl hover:bg-muted/40 transition-colors">
               {/* Logo fiche (même repli que partout), sinon initiales */}
               <span className="w-12 h-12 rounded-2xl shrink-0 overflow-hidden shadow-sm">
-                {productIconUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={productIconUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span
-                    className={cn(
-                      "flex h-full w-full items-center justify-center text-white font-black text-base bg-linear-to-br",
-                      productGradient ?? "from-zinc-500 to-zinc-700",
-                    )}
-                  >
-                    {productInitials ?? "?"}
-                  </span>
-                )}
+                <ProductAvatar iconUrl={productIconUrl} initials={productInitials ?? "?"} />
               </span>
 
               {/* Body */}
@@ -254,11 +248,32 @@ export function ReviewBuilds({
                       Clé différente
                     </span>
                   )}
+                  {otherApp && (
+                    <span
+                      title={`Package différent du build en ligne (${previousApproved?.package}) — ce n'est pas une mise à jour de cette app.`}
+                      className="inline-flex items-center rounded border border-red-500/40 bg-red-500/10 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.14em] leading-none shrink-0 text-red-600 dark:text-red-400"
+                    >
+                      Autre app
+                    </span>
+                  )}
                 </div>
 
                 <p className="font-mono text-[12px] font-medium text-muted-foreground truncate">
                   {b.package ?? "package inconnu"}
                 </p>
+
+                {/* Alerte « autre app » : le signal le plus grave de la
+                    revue binaire. Un APK d'une autre application se
+                    parse, se signe et se lit parfaitement — seul le
+                    package le distingue. Sans cette ligne, l'admin
+                    approuve un binaire qui remplacera le vrai
+                    téléchargement de la fiche. */}
+                {otherApp && (
+                  <p className="text-[12px] font-semibold leading-relaxed text-red-600 dark:text-red-400">
+                    Package différent du build en ligne ({previousApproved?.package}) — ce fichier
+                    n&apos;est pas une mise à jour de cette app. À refuser.
+                  </p>
+                )}
 
                 {/* Note de version (update) : le reviewer la lit AVANT de
                     trancher — même contenu que la fiche publique. */}

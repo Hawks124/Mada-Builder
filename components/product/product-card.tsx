@@ -1,17 +1,16 @@
 "use client";
 
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { ProductAvatar } from "@/components/ui/product-avatar";
 import {
   SealCheckIcon,
   StarIcon,
-  GlobeIcon,
-  AppleLogoIcon,
-  AndroidLogoIcon,
   ChatCircleTextIcon,
   DownloadSimpleIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
+import { getPlatformById } from "@/config/platforms";
 import { getPricingById } from "@/config/pricing";
 import { getRatingById } from "@/config/ratings";
 import { VoteButton } from "@/components/votes/vote-button";
@@ -74,23 +73,17 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
     <div className="group flex flex-col p-6 rounded-[10px] bg-muted/40 hover:bg-muted/70 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:hover:shadow-black/50 border border-transparent hover:border-border/50 h-full relative">
       {/* CARD TOP: Icon & Vote */}
       <div className="flex items-start justify-between w-full mb-5">
-        {product.iconUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={product.iconUrl}
-            alt=""
-            className="w-12 h-12 md:w-14 md:h-14 rounded-2xl object-cover shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3 bg-muted/20"
+        <span
+          className={cn(
+            "w-12 h-12 md:w-14 md:h-14 rounded-2xl overflow-hidden flex items-center justify-center font-black text-lg shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3 group-hover:shadow-[0_0_15px_rgba(0,0,0,0.15)] dark:group-hover:shadow-[0_0_15px_rgba(255,255,255,0.15)]",
+          )}
+        >
+          <ProductAvatar
+            iconUrl={product.iconUrl}
+            initials={product.initials}
+            gradient={product.iconGradient}
           />
-        ) : (
-          <div
-            className={cn(
-              "w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg bg-linear-to-br shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3 group-hover:shadow-[0_0_15px_rgba(0,0,0,0.15)] dark:group-hover:shadow-[0_0_15px_rgba(255,255,255,0.15)]",
-              product.iconGradient,
-            )}
-          >
-            {product.initials}
-          </div>
-        )}
+        </span>
         <div className="flex items-center gap-2">
           {product.installPath ? (
             <Link
@@ -113,18 +106,19 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
                 <span className="text-[12px] font-bold leading-none">{product.comments ?? 0}</span>
               </Link>
 
-              <VoteButton
-                productId={product.id}
-                productName={product.name}
-                votes={product.votes}
-                initialVoted={product.initialVoted ?? false}
-                variant="pill"
-                disabledReason={
-                  product.curated
-                    ? "Produit en veille : hors classement, votes désactivés."
-                    : undefined
-                }
-              />
+              {/* Veille : ni bouton de vote, ni compte. Un produit hors
+                  classement ne se vote pas — un compteur affiché
+                  invite à un vote impossible. Le badge « Veille » (plus
+                  bas) prend la place. */}
+              {!product.curated && (
+                <VoteButton
+                  productId={product.id}
+                  productName={product.name}
+                  votes={product.votes}
+                  initialVoted={product.initialVoted ?? false}
+                  variant="pill"
+                />
+              )}
             </>
           )}
         </div>
@@ -146,81 +140,92 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
               Veille
             </span>
           )}
-          {product.updatedLabel && (
-            <span
-              title={`Mis à jour récemment : ${product.updatedLabel}`}
-              className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400"
-            >
-              {product.updatedLabel}
-            </span>
-          )}
         </div>
+        {/* Version + date : LIGNE DÉDIÉE, en texte simple (pas de pastille).
+            Dans la rangée du titre, le badge version écrasait le nom (et le
+            nom débordait) ; ici le fait « mise à jour » est le sujet de
+            la carte, il mérite sa place — sans container. */}
+        {product.updatedLabel && (
+          <p className="text-[12px] font-semibold text-muted-foreground tabular-nums">
+            {product.updatedLabel}
+          </p>
+        )}
         <p className="text-[14px] leading-snug font-medium text-muted-foreground line-clamp-2 h-11">
           {product.tagline}
         </p>
 
-        {/* Meta Line: Rating, Platforms, Classification, Pricing */}
+        {/* Meta Line: Rating, Platforms, Classification, Pricing.
+            Les séparateurs sont INTERCALÉS entre les segments présents :
+            avant, un point orphelin ouvrait la ligne quand le produit
+            n'avait pas de note (produit en veille). */}
         <div className="flex items-center gap-2.5 mt-3 flex-wrap">
-          {/* Veille : hors jeu (avis désactivés) → pas de note affichée. */}
-          {!product.curated && product.rating != null && product.rating !== "" && (
-            <div className="flex items-center gap-1 text-[11px] font-bold text-foreground">
-              <StarIcon weight="fill" className="w-3.5 h-3.5 text-yellow-500" />
-              {product.rating}
-            </div>
-          )}
-          <div className="w-0.75 h-0.75 rounded-full bg-border" />
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            {product.platforms?.includes("web") && (
-              <GlobeIcon
-                weight="fill"
-                className="w-3.5 h-3.5 hover:text-foreground transition-colors"
-              />
-            )}
-            {product.platforms?.includes("ios") && (
-              <AppleLogoIcon
-                weight="fill"
-                className="w-3.5 h-3.5 hover:text-foreground transition-colors"
-              />
-            )}
-            {product.platforms?.includes("android") && (
-              <AndroidLogoIcon
-                weight="fill"
-                className="w-3.5 h-3.5 hover:text-foreground transition-colors"
-              />
-            )}
-          </div>
-          <div className="w-0.75 h-0.75 rounded-full bg-border" />
-          <AgeBadge value={rating.badge} size="xs" />
-
-          {pricing && pricing.id !== "free" && (
-            <>
-              <div className="w-0.75 h-0.75 rounded-full bg-border" />
+          {[
+            // Veille : hors jeu (avis désactivés) → pas de note affichée.
+            !product.curated && product.rating != null && product.rating !== "" ? (
               <span
+                key="note"
+                className="flex items-center gap-1 text-[11px] font-bold text-foreground"
+              >
+                <StarIcon weight="fill" className="w-3.5 h-3.5 text-yellow-500" />
+                {product.rating}
+              </span>
+            ) : null,
+            // Plateformes réelles (config) — avant : trois icônes codées en
+            // dur (web/iOS/Android), les 5 autres invisibles.
+            (product.platforms ?? []).length > 0 ? (
+              <span key="plateformes" className="flex items-center gap-1.5 text-muted-foreground">
+                {(product.platforms ?? []).map((id) => {
+                  const platform = getPlatformById(id);
+                  if (!platform) return null;
+                  const PlatformIcon = platform.icon;
+                  return (
+                    <span key={id} title={platform.label}>
+                      <PlatformIcon
+                        weight="fill"
+                        className="w-3.5 h-3.5 hover:text-foreground transition-colors"
+                      />
+                    </span>
+                  );
+                })}
+              </span>
+            ) : null,
+            <span key="age">
+              <AgeBadge value={rating.badge} size="xs" />
+            </span>,
+            pricing && pricing.id !== "free" ? (
+              <span
+                key="prix"
                 className={`text-[9px] font-black uppercase tracking-widest ${pricing.accentClass}`}
               >
                 {pricing.label}
               </span>
-            </>
-          )}
-          {product.revenue != null && (
-            <>
-              <div className="w-0.75 h-0.75 rounded-full bg-border" />
-              <RevenueBadge
-                revenue={{
-                  provider: product.revenue.provider,
-                  displayMode: product.revenue.displayMode,
-                  mrrCents: product.revenue.mrrCents,
-                  arrCents: product.revenue.mrrCents * 12,
-                  activeSubscribers: 0,
-                  currency: product.revenue.currency,
-                  lastSyncedAt: "",
-                  lastSyncedLabel: "",
-                  history: [],
-                }}
-                size="sm"
-              />
-            </>
-          )}
+            ) : null,
+            product.revenue != null ? (
+              <span key="revenus">
+                <RevenueBadge
+                  revenue={{
+                    provider: product.revenue.provider,
+                    displayMode: product.revenue.displayMode,
+                    mrrCents: product.revenue.mrrCents,
+                    arrCents: product.revenue.mrrCents * 12,
+                    activeSubscribers: 0,
+                    currency: product.revenue.currency,
+                    lastSyncedAt: "",
+                    lastSyncedLabel: "",
+                    history: [],
+                  }}
+                  size="sm"
+                />
+              </span>
+            ) : null,
+          ]
+            .filter((x): x is React.ReactElement => x !== null)
+            .map((segment, i) => (
+              <span key={i} className="flex items-center gap-2.5">
+                {i > 0 && <span className="w-0.75 h-0.75 rounded-full bg-border" />}
+                {segment}
+              </span>
+            ))}
         </div>
       </div>
 

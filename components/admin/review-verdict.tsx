@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import { startTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckIcon, XIcon, ArrowLeftIcon } from "@phosphor-icons/react";
+import { CheckIcon, XIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { approveProductAction, rejectProductAction } from "@/app/actions/products";
+import { reviewRevisionAction } from "@/app/actions/admin";
 
 // Verdict — SEUL endroit où l'approbation existe (anti-clic accidentel).
 // Approve = un appel (email maker best-effort côté serveur).
@@ -17,9 +17,20 @@ import { approveProductAction, rejectProductAction } from "@/app/actions/product
 export function ReviewVerdict({
   productId,
   productName,
+  kind = "product",
+  approveLabel,
+  rejectLabel,
 }: {
   productId: string;
   productName: string;
+  /**
+   * "product" = fiche en attente de publication (statut) ;
+   * "revision" = révision du contenu d'une fiche DÉJÀ en ligne (la
+   * fiche reste publiée, c'est le contenu qui attend).
+   */
+  kind?: "product" | "revision";
+  approveLabel?: string;
+  rejectLabel?: string;
 }) {
   const [verdict, setVerdict] = React.useState<"approved" | "rejected" | null>(null);
   const [rejecting, setRejecting] = React.useState(false);
@@ -31,19 +42,30 @@ export function ReviewVerdict({
   // Retour file après verdict (le dossier n'existe plus en pending).
   React.useEffect(() => {
     if (!verdict) return;
-    const t = setTimeout(() => router.push("/admin/review"), 2000);
+    const t = setTimeout(
+      () => router.push(kind === "revision" ? "/admin/revisions" : "/admin/review"),
+      2000,
+    );
     return () => clearTimeout(t);
-  }, [verdict, router]);
+  }, [verdict, router, kind]);
 
   const doApprove = () => {
     if (pending) return;
     setPending(true);
     setError(null);
     startTransition(async () => {
-      const res = await approveProductAction({ productId });
+      const res =
+        kind === "revision"
+          ? await reviewRevisionAction({ productId, decision: "approved" })
+          : await approveProductAction({ productId });
       if (res.ok) {
         setVerdict("approved");
-        toast("ok", `${productName} publié — retour à la file…`);
+        toast(
+          "ok",
+          kind === "revision"
+            ? `${productName} — révision appliquée.`
+            : `${productName} publié — retour à la file…`,
+        );
       } else {
         setError(res.message ?? "Approbation impossible pour le moment.");
       }
@@ -56,11 +78,23 @@ export function ReviewVerdict({
     setPending(true);
     setError(null);
     startTransition(async () => {
-      const res = await rejectProductAction({ productId, reason: rejectReason.trim() });
+      const res =
+        kind === "revision"
+          ? await reviewRevisionAction({
+              productId,
+              decision: "rejected",
+              reason: rejectReason.trim(),
+            })
+          : await rejectProductAction({ productId, reason: rejectReason.trim() });
       if (res.ok) {
         setVerdict("rejected");
         setRejecting(false);
-        toast("ok", `${productName} rejeté — retour à la file…`);
+        toast(
+          "ok",
+          kind === "revision"
+            ? `${productName} — révision refusée.`
+            : `${productName} rejeté — retour à la file…`,
+        );
       } else {
         setError(res.message ?? "Rejet impossible pour le moment.");
       }
@@ -80,16 +114,13 @@ export function ReviewVerdict({
           )}
         >
           {verdict === "approved"
-            ? `${productName} publié — le maker est notifié. Retour à la file…`
-            : `${productName} rejeté — motif envoyé au maker. Retour à la file…`}
+            ? kind === "revision"
+              ? `${productName} — révision appliquée.`
+              : `${productName} publié — le maker est notifié.`
+            : kind === "revision"
+              ? `${productName} — révision refusée, le contenu validé reste en ligne.`
+              : `${productName} rejeté — motif envoyé au maker.`}
         </div>
-        <Link
-          href="/admin/review"
-          className="flex items-center gap-2 text-[14px] font-bold text-muted-foreground hover:text-foreground transition-colors w-fit"
-        >
-          <ArrowLeftIcon weight="bold" className="h-4 w-4" />
-          Retour à la file
-        </Link>
       </div>
     );
   }
@@ -103,7 +134,7 @@ export function ReviewVerdict({
         className="w-full flex items-center justify-center gap-2 rounded-full bg-emerald-600 h-12 text-[15px] font-bold text-white hover:bg-emerald-500 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait"
       >
         <CheckIcon weight="bold" className="w-4 h-4" />
-        {pending ? "Publication…" : "Approuver"}
+        {pending ? "Publication…" : (approveLabel ?? "Approuver")}
       </button>
       {!rejecting ? (
         <button
@@ -116,7 +147,7 @@ export function ReviewVerdict({
           className="w-full flex items-center justify-center gap-2 rounded-full border border-border/60 h-12 text-[15px] font-bold text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors cursor-pointer disabled:opacity-50"
         >
           <XIcon weight="bold" className="w-4 h-4" />
-          Rejeter
+          {rejectLabel ?? "Rejeter"}
         </button>
       ) : (
         <div className="flex flex-col gap-2 rounded-2xl border border-border/40 bg-muted/20 p-3">

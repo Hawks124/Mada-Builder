@@ -28,6 +28,25 @@ export function getWindowLabel(window: RankingWindow): string {
   return RANKING_WINDOWS.find((w) => w.id === window)?.label ?? "Aujourd'hui";
 }
 
+/**
+ * Libellé court du compteur de la pastille « vitesse » — il doit dire
+ * sur QUELLE fenêtre le nombre est compté (« 12 votes cette semaine »),
+ * sinon le chiffre ne veut rien dire : on ne sait pas s'il est cumulé
+ * ou s'il s'agit de la semaine en cours.
+ */
+export function getWindowVotesLabel(window: RankingWindow): string {
+  switch (window) {
+    case "today":
+      return "aujourd'hui";
+    case "week":
+      return "cette semaine";
+    case "month":
+      return "ce mois";
+    default:
+      return "au total";
+  }
+}
+
 export type RankedProduct = {
   id: string;
   name: string;
@@ -98,7 +117,7 @@ const MOCK_FEATURED: FeaturedProductData = {
   initials: "AV",
   iconUrl: null,
   dateLabel: "Ven. 19 Sept. 2026",
-  platforms: ["Web", "iOS", "Android"],
+  platforms: ["web", "ios", "android"],
   pricingLabel: "Freemium",
   pricingDetail: "Dès 15.000Ar/mois",
   ageRating: "4+",

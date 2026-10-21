@@ -25,10 +25,18 @@ export default async function UpdateProductPage({ params }: { params: Promise<{ 
   const row = items.find((r) => r.id === id);
   if (!row || !row.platforms.includes("android")) notFound();
   const builds = await listProductBuilds(id).catch(() => []);
-  const coded = builds.flatMap((b) =>
-    typeof b.versionCode === "number" ? [{ code: b.versionCode, name: b.versionName }] : [],
-  );
-  const latest = coded.length > 0 ? coded.reduce((a, b) => (b.code > a.code ? b : a)) : null;
+  // Référence de version = le build **EN LIGNE** (approuvé), comme la
+  // garde serveur. Avant, on prenait le max de TOUS les builds : un
+  // build rejeté (jamais distribué) brûlait son numéro de version et le
+  // maker ne pouvait plus re-soumettre son APK après une correction de
+  // notes — le message affichait « doit être supérieur à 3 » alors que
+  // le build en ligne était le 2.
+  const online = builds
+    .filter((b) => b.status === "approved")
+    .flatMap((b) =>
+      typeof b.versionCode === "number" ? [{ code: b.versionCode, name: b.versionName }] : [],
+    );
+  const latest = online.length > 0 ? online.reduce((a, b) => (b.code > a.code ? b : a)) : null;
   // Historique (D6) : statuts + notes + lien de test (URLs signées courtes
   // au rendu — jamais de r2Key sérialisée au client). Métadonnées
   // manifest/certs incluses pour le tableau du dernier build.
@@ -70,7 +78,7 @@ export default async function UpdateProductPage({ params }: { params: Promise<{ 
       productId={id}
       productName={row.name}
       productIconUrl={row.iconUrl ?? null}
-      hasTrack={builds.length > 0}
+      hasTrack={online.length > 0}
       latestVersionCode={latest?.code ?? null}
       latestVersionName={latest?.name ?? null}
       history={history}

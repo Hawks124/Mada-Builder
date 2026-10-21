@@ -31,6 +31,15 @@ import type { ProductCardProps } from "@/components/product/product-card";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Cartes des sections « Fraîchement shippé » et « Mises à jour
+ * récentes » : 3 rangées de 3. Avant : 6 fixes — une troncature
+ * invisible (le lien « Parcourir tout » ne menait pas au tri par
+ * récence, donc les mises à jour au-delà de 6 n'étaient atteignables
+ * nulle part).
+ */
+const HOME_CARDS = 12;
+
 export default async function Home() {
   // Compteur vitrine anonyme — after() : zéro impact TTFB, jamais
   // d'échec de rendu pour une stat (best-effort interne). Plus de
@@ -40,18 +49,20 @@ export default async function Home() {
   // hoquet Supabase) — chaque section dégrade vers vide/CTA au lieu de
   // la Runtime Error page blanche (vue en QA : getNewest qui pète).
   const [newest, featured, sessionUser] = await Promise.all([
-    getNewest(6).catch(() => []),
+    getNewest(HOME_CARDS).catch(() => []),
     getFeatured().catch(() => null),
     getSessionUser(),
   ]);
-  // Teaser classement : première fenêtre non vide (today → week → month →
-  // all). La home ne montre JAMAIS un filtre vide quand une autre fenêtre
-  // a du contenu — séquentiel conditionnel (1 requête en pratique).
+  // Teaser classement : première fenêtre **vivante** (today → week → month
+  // → all). On juge une fenêtre « vivante » sur les VOTES, pas sur le
+  // nombre d'items : une fenêtre qui sort des produits mais aucun vote
+  // affiche un classement mort (le visiteur voit des cartes sans
+  // score). Séquentiel conditionnel (1 requête en pratique).
   const homeWindows = ["today", "week", "month", "all"] as const;
   let board = await getLeaderboard({ window: homeWindows[0], page: 1 }).catch(() => null);
   let boardWindow: (typeof homeWindows)[number] = homeWindows[0];
   for (const w of homeWindows.slice(1)) {
-    if (board !== null && board.items.length > 0) break;
+    if (board !== null && board.totalVotes > 0) break;
     boardWindow = w;
     board = await getLeaderboard({ window: w, page: 1 }).catch(() => null);
   }
@@ -61,7 +72,7 @@ export default async function Home() {
   const homeIds = [...new Set([...board.items.map((i) => i.id), ...newest.map((n) => n.id)])];
   const [badges, recentBuilds, revenueViews] = await Promise.all([
     getProductsUpdateBadges(homeIds).catch((): Record<string, string> => ({})),
-    getRecentApprovedBuilds(6).catch(() => []),
+    getRecentApprovedBuilds(HOME_CARDS).catch(() => []),
     getRevenueViewsForProducts(newest.map((n) => n.id)).catch(
       (): Map<string, CardRevenue> => new Map(),
     ),
@@ -73,6 +84,7 @@ export default async function Home() {
   const votedIds = await getUserVotedIds(sessionUser?.id ?? null, [
     ...board.items.map((i) => i.id),
     ...newest.map((n) => n.id),
+    ...recentBuilds.map((b) => b.productId),
   ]).catch(() => new Set<string>());
   const voted = [...votedIds];
 
@@ -205,7 +217,7 @@ export default async function Home() {
 
       {/* ─── RECENT UPDATES (D6) ─── */}
       <div className="w-full bg-background border-t border-border/20 relative">
-        <RecentUpdates items={recentUpdates} />
+        <RecentUpdates items={recentUpdates} votedIds={voted} />
       </div>
 
       {/* ─── VERIFIED REVENUE WALL ─── */}

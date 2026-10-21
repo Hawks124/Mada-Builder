@@ -10,6 +10,7 @@ import { PRICING_MODELS } from "@/config/pricing";
 import { LIFECYCLE_STATUS } from "@/config/lifecycle";
 import { AGE_RATINGS } from "@/config/ratings";
 import type { FacetGroup, FacetItem } from "@/components/categories/category-index";
+import type { RealCounts } from "@/services/catalog-counts.service";
 
 /**
  * Sérialisation serveur → client pour la page catégories.
@@ -46,12 +47,12 @@ function hoverText(classes: string | undefined): string | undefined {
     .join(" ");
 }
 
-function domainItem(c: ProductCategory): FacetItem {
+function domainItem(c: ProductCategory, count: number): FacetItem {
   return {
     id: c.id,
     label: c.name,
     description: c.subtitle,
-    count: c.count,
+    count,
     // Préfixe `cat-` : trois ids de catégorie (`saas`, `iot`, `other`)
     // existent aussi comme type de produit.
     iconId: `cat-${c.id}`,
@@ -61,16 +62,37 @@ function domainItem(c: ProductCategory): FacetItem {
   };
 }
 
+/**
+ * Compteur d'un item : le nombre RÉEL de produits publiés quand on l'a,
+ * le compteur de config sinon (repli si la DB est injoignable).
+ *
+ * `counts === null` = compteurs indisponibles (incident DB) → on garde les
+ * compteurs de config. Sinon : une catégorie sans produit publié n'est
+ * pas une catégorie → elle est retirée de la liste (une page de catégorie
+ * vide n'aide personne, et un compteur « 0 » sur une carte est pire que
+ * l'absence de carte).
+ */
+function countOf(
+  counts: RealCounts | null | undefined,
+  map: keyof Omit<RealCounts, "total">,
+  id: string,
+  fallback: number,
+): number {
+  if (!counts) return fallback;
+  return counts[map].get(id) ?? 0;
+}
+
 /** Domaines regroupés en familles — la vue « Par domaine ». */
-export function getDomainGroups(): FacetGroup[] {
+export function getDomainGroups(counts?: RealCounts | null): FacetGroup[] {
   return CATEGORY_FAMILIES.map((family) => ({
     id: family.id,
     label: family.label,
     items: getFamilyCategories(family)
-      .map(domainItem)
+      .map((c) => domainItem(c, countOf(counts, "byCategory", c.id, c.count)))
       // Tri par count décroissant : chaque colonne se lit alors de haut en
       // bas du plus gros au plus petit, sans avoir à comparer les nombres.
-      .sort((a, b) => b.count - a.count),
+      .sort((a, b) => b.count - a.count)
+      .filter((item) => (counts ? item.count > 0 : true)),
   })).filter((f) => f.items.length > 0);
 }
 
@@ -82,43 +104,68 @@ function axisItem(
   item: { id: string; label: string; description: string; count: number },
   hrefParam: string,
   accentClass?: string,
+  count?: number,
 ): FacetItem {
   return {
     id: item.id,
     label: item.label,
     description: item.description,
-    count: item.count,
+    count: count ?? item.count,
     iconId: item.id,
     href: `/discover?${hrefParam}=${item.id}`,
     hoverTextClass: hoverText(accentClass),
   };
 }
 
+/**
+ * Un axe de facette, compteurs réels et triés.
+ *
+ * `map` → la table de comptage correspondante ; `counts === null` =
+ * compteurs indisponibles (incident DB) → on garde les compteurs de
+ * config et on ne masque rien. Sinon : une facette sans produit publié
+ * est retirée (un compteur « 0 » sur une carte est pire que son absence).
+ */
+function axisGroup(
+  label: string,
+  map: keyof Omit<RealCounts, "total">,
+  items: FacetItem[],
+  counts?: RealCounts | null,
+): FacetGroup {
+  const withCounts = items.map((item) => ({
+    ...item,
+    count: countOf(counts, map, item.id, item.count),
+  }));
+  return facetGroup(
+    map,
+    label,
+    withCounts.filter((item) => (counts ? item.count > 0 : true)).sort((a, b) => b.count - a.count),
+  );
+}
+
 /** Les 5 axes transverses — la vue « Par critère ». */
-export function getCriteriaGroups(): FacetGroup[] {
+export function getCriteriaGroups(counts?: RealCounts | null): FacetGroup[] {
   return [
-    facetGroup(
-      "type",
+    axisGroup(
       "Type de produit",
-      [...PRODUCT_TYPES]
-        // Trié par count décroissant : en ordre de config, la troncature
-        // repliée cacherait `saas` (78 produits).
-        .sort((a, b) => b.count - a.count)
-        .map((t) => axisItem(t, "type")),
+      "byType",
+      PRODUCT_TYPES.map((t) => axisItem(t, "type")),
+      counts,
     ),
-    facetGroup(
-      "platform",
+    axisGroup(
       "Plateforme",
+      "byPlatform",
       PLATFORMS.map((p) => axisItem(p, "platform", p.accentClass)),
+      counts,
     ),
-    facetGroup(
-      "pricing",
+    axisGroup(
       "Modèle économique",
+      "byPricing",
       PRICING_MODELS.map((p) => axisItem(p, "pricing", p.accentClass)),
+      counts,
     ),
-    facetGroup(
-      "lifecycle",
+    axisGroup(
       "Avancement",
+      "byLifecycle",
       LIFECYCLE_STATUS.map((l) => ({
         id: l.id,
         label: l.label,
@@ -128,10 +175,11 @@ export function getCriteriaGroups(): FacetGroup[] {
         href: `/discover?lifecycle=${l.id}`,
         hoverTextClass: hoverText(l.textClass),
       })),
+      counts,
     ),
-    facetGroup(
-      "age",
+    axisGroup(
       "âge",
+      "byAudience",
       AGE_RATINGS.map((a) => ({
         id: a.id,
         label: a.short,
@@ -142,6 +190,7 @@ export function getCriteriaGroups(): FacetGroup[] {
         href: `/discover?age=${a.id}`,
         badge: a.badge,
       })),
+      counts,
     ),
   ];
 }
@@ -155,10 +204,22 @@ export function getCriteriaGroups(): FacetGroup[] {
  * `grep -r` sur l'arborescence entière, sinon elle conclut à tort que la
  * fonction est orpheline et la suppression passe en compile.
  */
-export function getCategoryStats() {
+export function getCategoryStats(counts?: RealCounts | null) {
+  if (!counts) {
+    // Repli (DB injoignable) : les compteurs de config.
+    return {
+      categoryCount: PRODUCT_CATEGORIES.length,
+      typeCount: PRODUCT_TYPES.length,
+      productCount: PRODUCT_CATEGORIES.reduce((acc, c) => acc + c.count, 0),
+      real: false,
+    };
+  }
+  // Compteurs réels : le nombre de catégories / types qui ont au moins
+  // un produit publié, et le total des produits publiés.
   return {
-    categoryCount: PRODUCT_CATEGORIES.length,
-    typeCount: PRODUCT_TYPES.length,
-    productCount: PRODUCT_CATEGORIES.reduce((acc, c) => acc + c.count, 0),
+    categoryCount: counts.byCategory.size,
+    typeCount: counts.byType.size,
+    productCount: counts.total,
+    real: true,
   };
 }

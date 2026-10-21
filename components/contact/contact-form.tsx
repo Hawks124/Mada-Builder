@@ -19,9 +19,25 @@ const MAX_MESSAGE = 2000;
  * Succès honnête : « bien reçu, réponse sous 5 jours ouvrés » — pas de
  * ticket bidon, pas d'id interne exposé.
  */
-export function ContactForm() {
-  const [subject, setSubject] = React.useState<ContactSubject>("sponsoring");
-  const [message, setMessage] = React.useState("");
+export function ContactForm({
+  sujet,
+  messageInitial,
+  lien,
+}: {
+  /** Motif pré-sélectionné (si l'URL en donne un valide). */
+  sujet?: string | null;
+  /** Message pré-rempli (le maker le modifie). */
+  messageInitial?: string | null;
+  /** « Lien concerné » pré-rempli. */
+  lien?: string | null;
+}) {
+  const [subject, setSubject] = React.useState<ContactSubject>(() =>
+    (CONTACT_SUBJECTS as readonly { id: ContactSubject }[]).some((s) => s.id === sujet)
+      ? (sujet as ContactSubject)
+      : "sponsoring",
+  );
+  const [message, setMessage] = React.useState(() => messageInitial ?? "");
+  const prefilledLink = lien ?? "";
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [sent, setSent] = React.useState(false);
@@ -104,6 +120,7 @@ export function ContactForm() {
         name="productUrl"
         type="url"
         isOptional
+        defaultValue={prefilledLink}
         placeholder="https://… (produit, dossier, article)"
         maxLength={500}
         autoComplete="off"

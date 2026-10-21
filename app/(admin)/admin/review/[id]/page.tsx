@@ -12,6 +12,7 @@ import {
   MinusIcon,
   ArrowSquareOutIcon,
   SealCheckIcon,
+  EyeIcon,
   MonitorIcon,
   TerminalIcon,
 } from "@phosphor-icons/react/dist/ssr";
@@ -127,20 +128,22 @@ export default async function AdminReviewDetailPage({
   const builds = preloadedBuilds ?? (await getBuildsForReview(dossier.id));
   const showBuilds = builds.length > 0 || item.platforms.includes("android");
 
-  // Remplissage calculé (jamais de liste en dur) : base toujours exigée +
-  // point d'accès + champs effectifs du type remplis.
-  const requiredBase = [
-    "Nom",
-    "Tagline",
-    "Type",
-    "Avancement",
-    "Audience",
-    "Description",
-    "Catégorie",
-    "Plateformes",
-    "Modèle",
-    "Logo",
+  // Remplissage RÉELLEMENT calculé : chaque exigence porte son état.
+  // (Avant : une liste de libellés en dur, tous affichés cochés — une
+  // fiche sans plateforme annonçait « ✓ Plateformes ».)
+  const requiredBase: { label: string; filled: boolean }[] = [
+    { label: "Nom", filled: item.productName.trim() !== "" },
+    { label: "Tagline", filled: item.tagline.trim() !== "" },
+    { label: "Type", filled: item.productTypeId.trim() !== "" },
+    { label: "Avancement", filled: !!item.lifecycle },
+    { label: "Audience", filled: item.audienceId.trim() !== "" },
+    { label: "Description", filled: item.description.trim().length >= 20 },
+    { label: "Catégorie", filled: item.categoryIds.length > 0 },
+    { label: "Plateformes", filled: item.platforms.length > 0 },
+    { label: "Modèle", filled: item.pricing.trim() !== "" },
+    { label: "Logo", filled: !!item.iconUrl },
   ];
+  const missingRequired = requiredBase.filter((f) => !f.filled).map((f) => f.label);
   const optionalFields: { label: string; filled: boolean }[] = [
     ...linkIds.map((id) => ({
       label: PRODUCT_LINK_FIELDS[id]?.label ?? id,
@@ -216,6 +219,18 @@ export default async function AdminReviewDetailPage({
             ))}
             <LifecyclePill lifecycleId={item.lifecycle} />
             <AgeBadge value={rating.badge} size="xs" />
+            {/* Aperçu : la fiche telle qu'un visiteur la verra (le staff a
+                déjà tout sous les yeux ici, mais l'aperçu montre le RENDU
+                final — logo, captures, description, liens). */}
+            <Link
+              href={`/preview/${item.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded border border-border/50 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] leading-none text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+            >
+              <EyeIcon weight="bold" className="w-3 h-3" />
+              Aperçu
+            </Link>
             {buildOnly ? (
               <span className="inline-flex items-center rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.75 text-[9px] font-black uppercase tracking-[0.14em] leading-none text-emerald-600 dark:text-emerald-400 shrink-0">
                 Fiche approuvée — binaire seul
@@ -405,16 +420,28 @@ export default async function AdminReviewDetailPage({
             <div className="flex flex-col gap-4">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-foreground mb-2">
-                  Requis — toujours complets
+                  {missingRequired.length === 0
+                    ? "Requis — tous complets"
+                    : `Requis — ${missingRequired.length} manquant${missingRequired.length > 1 ? "s" : ""} (${missingRequired.join(", ")})`}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {requiredBase.map((f) => (
                     <span
-                      key={f}
-                      className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400"
+                      key={f.label}
+                      title={f.filled ? "Complet" : "Manquant"}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold border",
+                        f.filled
+                          ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                          : "bg-red-500/10 border border-red-500/25 text-red-600 dark:text-red-400",
+                      )}
                     >
-                      <CheckIcon weight="bold" className="w-3 h-3" />
-                      {f}
+                      {f.filled ? (
+                        <CheckIcon weight="bold" className="w-3 h-3" />
+                      ) : (
+                        <MinusIcon weight="bold" className="w-3 h-3" />
+                      )}
+                      {f.label}
                     </span>
                   ))}
                 </div>
@@ -473,7 +500,6 @@ export default async function AdminReviewDetailPage({
                 builds={builds}
                 productIconUrl={item.iconUrl}
                 productInitials={item.initials}
-                productGradient={item.iconGradient}
               />
             </ProofSection>
           )}

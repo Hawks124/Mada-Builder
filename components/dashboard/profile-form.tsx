@@ -38,13 +38,16 @@ const PROFILE_TIPS = [
   "Photo carrée et lisible, même en miniature.",
   "Occupation honnête — elle s'affiche en badge public.",
   "Localisation : la ville suffit. Elle ancre vos produits dans leur marché (délais, mobile money, langue) et nourrit la fierté locale — jamais d'adresse exacte.",
-  "Bio courte (160 caractères) : qui vous aide, et en quoi.",
+  "Bio courte (400 caractères) : qui vous aide, et en quoi.",
   "Liens vérifiés uniquement — ils apparaissent en public.",
 ];
 
 // Miroir de AVATAR_MAX_INPUT_BYTES (services/users.service.ts) — la source
 // de vérité reste le service, jamais ce chiffre.
 const AVATAR_MAX_INPUT_BYTES = 10 * 1024 * 1024;
+
+// Miroir de `updateProfileSchema.bio` (services/users.service.ts).
+const BIO_MAX = 400;
 
 export type ProfileInitial = {
   username: string;
@@ -88,6 +91,8 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
     avatarUrl?: string;
   });
   const [preview, setPreview] = React.useState<string | null>(null);
+  // Compteur live de la bio (400 max) : sans lui, on navigue à l'aveugle.
+  const [bioLength, setBioLength] = React.useState(() => (initial.bio ?? "").length);
   const [clientError, setClientError] = React.useState<string | null>(null);
   // Fichier brut en cours de cadrage (dialog) — jamais envoyé tel quel.
   const [cropSrc, setCropSrc] = React.useState<string | null>(null);
@@ -95,7 +100,13 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
   const avatarInputRef = React.useRef<HTMLInputElement>(null);
   // Garde anti-double-toast (le message succès est constant).
   const lastAvatarToast = React.useRef<string | null>(null);
-  const currentAvatar = preview ?? avatarState.avatarUrl ?? initial.avatarUrl;
+  // Source de l'image affichée, par ordre de priorité :
+  // 1. l'URL serveur (upload terminé) — c'est l'image RÉCADRÉE, persistée ;
+  // 2. le preview local (l'original, avant ou pendant l'upload) ;
+  // 3. l'avatar en base.
+  // Avant, le preview local gardait la priorité sur l'URL déjà uploadée →
+  // on affichait la mauvaise image (non recadrée) jusqu'au refresh.
+  const currentAvatar = (avatarState.ok && avatarState.avatarUrl) || preview || initial.avatarUrl;
 
   // Succès avatar → toast partagé (l'erreur reste inline : contexte retry).
   React.useEffect(() => {
@@ -268,20 +279,26 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
             />
             <ProfileOccupation defaultValue={initial.occupation} onChange={() => setDirty(true)} />
             <div className="flex flex-col gap-2">
-              <label htmlFor="profile-bio" className="text-[14px] font-bold text-foreground">
-                Bio
-              </label>
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor="profile-bio" className="text-[14px] font-bold text-foreground">
+                  Bio
+                </label>
+                <span className="text-[12px] font-medium tabular-nums text-muted-foreground">
+                  {bioLength} / {BIO_MAX}
+                </span>
+              </div>
               <textarea
                 id="profile-bio"
                 name="bio"
-                rows={4}
-                maxLength={160}
+                rows={5}
+                maxLength={BIO_MAX}
                 placeholder="Qui êtes-vous, que construisez-vous ?"
                 defaultValue={initial.bio ?? ""}
-                className="w-full bg-background border border-border/60 rounded-2xl px-5 py-4 text-[15px] font-medium placeholder:text-muted-foreground/30 text-foreground outline-none resize-none leading-relaxed focus:border-foreground/40 hover:border-foreground/20 transition-colors"
+                onChange={(e) => setBioLength(e.target.value.length)}
+                className="w-full bg-background border border-border/60 rounded-2xl px-5 py-4 text-[15px] font-medium placeholder:text-muted-foreground/30 text-foreground outline-none resize-y leading-relaxed focus:border-foreground/40 hover:border-foreground/20 transition-colors"
               />
               <span className="text-[12px] font-medium text-muted-foreground leading-relaxed">
-                160 caractères max, affichée sous votre nom.
+                {BIO_MAX} caractères max, affichée sous votre nom.
               </span>
             </div>
             <InputField

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { ProductAvatar } from "@/components/ui/product-avatar";
 import { ChatCircleTextIcon, SealCheckIcon, StarIcon, TrendUpIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { getCategoryById } from "@/config/categories";
@@ -77,25 +78,18 @@ export function DiscoverRowCard({
     <div className="group relative flex flex-col p-5 rounded-[20px] bg-muted/40 hover:bg-muted/70 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:hover:shadow-black/50 border border-transparent hover:border-border/50 h-full">
       {/* Zone haute : logo + identité + engagement */}
       <div className="flex items-start gap-4">
-        {product.iconUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={product.iconUrl}
-            alt=""
-            aria-hidden="true"
-            className="w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-2xl object-cover shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3 bg-muted/20"
+        <span
+          className={cn(
+            "w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-2xl overflow-hidden flex items-center justify-center font-black text-lg shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3",
+          )}
+          aria-hidden="true"
+        >
+          <ProductAvatar
+            iconUrl={product.iconUrl}
+            initials={product.initials}
+            gradient={product.iconGradient}
           />
-        ) : (
-          <div
-            className={cn(
-              "w-12 h-12 md:w-14 md:h-14 shrink-0 rounded-2xl flex items-center justify-center text-white font-black text-lg bg-linear-to-br shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3",
-              product.iconGradient,
-            )}
-            aria-hidden="true"
-          >
-            {product.initials}
-          </div>
-        )}
+        </span>
 
         <div className="flex-1 min-w-0 flex flex-col gap-0.5">
           {kicker != null && (
@@ -130,16 +124,16 @@ export function DiscoverRowCard({
               {product.commentsCount}
             </span>
           </span>
-          <VoteButton
-            productId={product.id}
-            productName={product.name}
-            votes={product.votes}
-            initialVoted={voted}
-            variant="pill"
-            disabledReason={
-              product.curated ? "Produit en veille : hors classement, votes désactivés." : undefined
-            }
-          />
+          {/* Veille : ni bouton de vote, ni compte (hors classement). */}
+          {!product.curated && (
+            <VoteButton
+              productId={product.id}
+              productName={product.name}
+              votes={product.votes}
+              initialVoted={voted}
+              variant="pill"
+            />
+          )}
         </div>
       </div>
 
@@ -181,16 +175,20 @@ export function DiscoverRowCard({
           </>
         )}
 
-        <span
-          className={cn(
-            "ml-auto flex items-center gap-1 text-[11px] font-bold tabular-nums",
-            lifecycle.textClass,
-          )}
-          title={lifecycle.description}
-        >
-          <TrendUpIcon weight="bold" className="w-3.5 h-3.5" />+{product.dailyVotes}
-          <span className="sr-only">votes aujourd&apos;hui</span>
-        </span>
+        {/* Vélocité du jour : la pastille n'a de sens que pour un
+            produit votable (une veille est hors classement). */}
+        {!product.curated && (
+          <span
+            className={cn(
+              "ml-auto flex items-center gap-1 text-[11px] font-bold tabular-nums",
+              lifecycle.textClass,
+            )}
+            title={lifecycle.description}
+          >
+            <TrendUpIcon weight="bold" className="w-3.5 h-3.5" />+{product.dailyVotes}
+            <span className="sr-only">votes aujourd&apos;hui</span>
+          </span>
+        )}
       </div>
 
       {/* Pied : catégorie + maker */}
