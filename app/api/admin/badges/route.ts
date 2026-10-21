@@ -6,15 +6,16 @@ import { ApiError, CACHE_PRIVATE, apiCatch, apiError, apiOk, withCache } from "@
 import { getPendingCountCached, getRejectedCountCached } from "@/services/stats.service";
 import { getBuildStats } from "@/services/builds.service";
 import { countNewContactMessages } from "@/services/contact.service";
+import { countPendingRevisions } from "@/services/products.service";
 import { captureError } from "@/lib/monitoring";
 
 export const dynamic = "force-dynamic";
 
-export type BadgeKey = "pending" | "rejected" | "builds" | "contact";
+export type BadgeKey = "pending" | "rejected" | "builds" | "contact" | "revisions";
 export type BadgeState = { value: number; ok: boolean; at: number };
 export type BadgesResponse = Record<BadgeKey, BadgeState>;
 
-const ALL_KEYS: BadgeKey[] = ["pending", "rejected", "builds", "contact"];
+const ALL_KEYS: BadgeKey[] = ["pending", "rejected", "builds", "contact", "revisions"];
 
 /**
  * Délai par compteur (8 s, même budget que l'overview admin). Sans borne,
@@ -44,6 +45,8 @@ const COUNTERS: Record<BadgeKey, () => Promise<number>> = {
       BADGE_DEADLINE_MS,
     ),
   contact: () => withDeadline(countNewContactMessages(), BADGE_DEADLINE_MS),
+  // Revisions de fiches publiees : le contenu attend un regard admin.
+  revisions: () => withDeadline(countPendingRevisions(), BADGE_DEADLINE_MS),
 };
 
 /**

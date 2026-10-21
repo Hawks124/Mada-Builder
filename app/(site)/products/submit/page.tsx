@@ -23,6 +23,10 @@ export default async function SubmitProductPage({
   let editApp = null;
   let editMedia: EditMedia = null;
   let hasTrack = false;
+  // Revision en attente : la fiche reste en ligne avec son contenu
+  // valide, la modification attend un regard admin. Le maker doit le
+  // savoir (sinon il croit que son edit a ete perdu).
+  let pendingRevisionAt: Date | null = null;
   if (edit) {
     const user = await getSessionUser();
     if (user) {
@@ -36,6 +40,7 @@ export default async function SubmitProductPage({
         hasTrack =
           (await getProductsBuildStatus([found.id]).catch(() => null))?.[found.id]?.hasBuilds ??
           false;
+        pendingRevisionAt = found.pendingAt ?? null;
       }
     }
   }
@@ -45,6 +50,7 @@ export default async function SubmitProductPage({
       editApp={editApp}
       editMedia={editMedia}
       hasTrack={hasTrack}
+      pendingRevisionAt={pendingRevisionAt}
     />
   );
 }

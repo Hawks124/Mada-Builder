@@ -8,6 +8,7 @@ import {
   UsersIcon,
   PackageIcon,
   HourglassIcon,
+  PencilSimpleIcon,
   CaretDoubleLeftIcon,
   CaretDoubleRightIcon,
   ListIcon,
@@ -56,6 +57,13 @@ const NAV_ITEMS = [
     icon: HourglassIcon,
     match: (pathname: string) => pathname === "/admin/review",
     badgeKey: "pending" as const,
+  },
+  {
+    href: "/admin/revisions",
+    label: "Révisions",
+    icon: PencilSimpleIcon,
+    match: (pathname: string) => pathname.startsWith("/admin/revisions"),
+    badgeKey: "revisions" as const,
   },
   {
     href: "/admin/builds",

@@ -28,6 +28,7 @@ import {
   unbanNotifyText,
 } from "@/lib/email-templates/unban-notify";
 import { closePendingAppealsForUser } from "@/services/appeals.service";
+import { reviewRevision } from "@/services/products.service";
 import { captureError } from "@/lib/monitoring";
 import { appOrigin } from "@/app/actions/auth";
 import { logAdminAction } from "@/services/admin-audit.service";
@@ -397,5 +398,49 @@ export async function setUserRoleAction(input: {
     };
   } catch (e) {
     return mapAdminError(e, "admin.role");
+  }
+}
+
+/**
+ * Tranche une RÉVISION en attente (fiche publiée dont le contenu
+ * sensible a été modifié).
+ *
+ * - approuver : le contenu et les médias sont appliqués à la fiche ;
+ * - refuser : la fiche garde son contenu validé, la modification est
+ *   jetée (et les médias uploadés purgés).
+ *
+ * Dans les deux cas, la fiche reste en ligne : c'est la règle des
+ * stores, et les changements ne filent pas.
+ */
+export async function reviewRevisionAction(input: {
+  productId: string;
+  decision: "approved" | "rejected";
+  reason?: string;
+}): Promise<AdminActionState> {
+  try {
+    const { id } = await requireStaffId();
+    const { applied } = await reviewRevision({
+      isStaff: true,
+      productId: input.productId,
+      decision: input.decision,
+      reason: input.reason,
+      staffId: id,
+    });
+    await logAdminAction({
+      actorId: id,
+      targetId: input.productId,
+      action: input.decision === "approved" ? "revision_approved" : "revision_rejected",
+      note: input.reason ?? null,
+    });
+    revalidatePath("/admin/revisions");
+    revalidatePath("/admin/products");
+    return {
+      ok: true,
+      message: applied
+        ? "Révision appliquée — la fiche est à jour."
+        : "Révision refusée — la fiche garde son contenu validé.",
+    };
+  } catch (e) {
+    return mapAdminError(e, "admin.revision");
   }
 }

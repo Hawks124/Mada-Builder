@@ -13,6 +13,8 @@ interface SubmitFormState {
   /** Produit en cours d'édition (?edit=id) — null en création. */
   editApp: DashboardApp | null;
   isEditing: boolean;
+  /** Revision en attente (fiche publiee) : bandeau maker + valeurs en attente. */
+  pendingRevisionAt: Date | null;
   /** Track binaire (D6) : sans track → section APK inline ; avec track → lien Update (verrou). */
   hasTrack: boolean;
   /** Pricing (remonté de metadata — règle privacy si monétisé). */
@@ -106,6 +108,7 @@ export function SubmitFormProvider({
   initialDraft,
   existingMedia,
   hasTrack,
+  pendingRevisionAt = null,
   children,
 }: {
   editApp: DashboardApp | null;
@@ -124,6 +127,8 @@ export function SubmitFormProvider({
   } | null;
   /** Track binaire (édition) — faux en création. */
   hasTrack?: boolean;
+  /** Révision en attente (fiche publiée) — bandeau maker. */
+  pendingRevisionAt?: Date | null;
   children: React.ReactNode;
 }) {
   const draft = editApp ? null : (initialDraft ?? null);
@@ -195,6 +200,7 @@ export function SubmitFormProvider({
       editApp,
       isEditing: editApp !== null,
       hasTrack: hasTrack ?? false,
+      pendingRevisionAt: pendingRevisionAt ?? null,
       pricing,
       platforms,
       linkValues,
@@ -221,6 +227,7 @@ export function SubmitFormProvider({
       audience,
       lifecycle,
       editApp,
+      pendingRevisionAt,
       hasTrack,
       pricing,
       platforms,

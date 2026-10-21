@@ -34,6 +34,7 @@ import {
   processImage,
 } from "@/lib/images";
 import {
+  countPendingRevisions,
   isListedProduct,
   parseLinkFields,
   purgeStaleDrafts,
@@ -48,6 +49,7 @@ import {
   toEditApp,
   toReviewItem,
   updateProduct,
+  reviewRevision,
 } from "@/services/products.service";
 import { hasAccessPoint } from "@/config/product-links";
 import { getRelatedProducts } from "@/services/ranking.service";
@@ -2345,9 +2347,138 @@ async function main(): Promise<void> {
     console.log(`  (ids de liens jamais vus en base : ${jamaisVus.join(", ")})`);
   }
 
+  // 15. Révisions : le contenu sensible d'une fiche PUBLIÉE ne bouge pas
+  //     tout de suite (règle des stores) — il attend un regard admin.
+  //     15.1 le nom modifié ne part pas en re-revue « statut » : la fiche
+  //          reste publiée, la modification est en attente.
+  const [pubProduct] = await db
+    .insert(products)
+    .values({
+      slug: `verify-revision-${TAG}`,
+      makerId: maker.id,
+      name: "Produit Revision",
+      tagline: "Tagline revision.",
+      description: "Description revision assez longue.",
+      category: "dev-tools",
+      categories: ["dev-tools"],
+      productType: "app_web",
+      platforms: ["web"],
+      pricingModel: "free",
+      galleryOrientation: "landscape",
+      status: "published",
+      publishedAt: new Date(),
+      upvoteCount: 0,
+      links: { website: "https://example.com" },
+    })
+    .returning({ id: products.id });
+  const editResult = await updateProduct(maker.id, pubProduct.id, {
+    name: "Produit Revision — nouveau nom",
+    tagline: "Nouvelle tagline de revision.",
+    description: "Nouvelle description de revision, assez longue pour passer le contrat.",
+    links: { website: "https://example.com/platformes" },
+  } as never);
+  const [pubRow] = await db
+    .select({
+      status: products.status,
+      name: products.name,
+      tagline: products.tagline,
+      pendingPayload: products.pendingPayload,
+      pendingAt: products.pendingAt,
+    })
+    .from(products)
+    .where(eq(products.id, pubProduct.id));
+  check("révision : la fiche reste en ligne", pubRow?.status === "published");
+  check("révision : le nom public n'a pas bougé", pubRow?.name === "Produit Revision");
+  check("révision : la tagline publique n'a pas bougé", pubRow?.tagline === "Tagline revision.");
+  check("révision : la modification est en attente", pubRow?.pendingAt !== null);
+  const payload = (pubRow?.pendingPayload ?? {}) as Record<string, unknown>;
+  check(
+    "révision : le nouveau nom est en attente",
+    payload.name === "Produit Revision — nouveau nom" &&
+      payload.tagline === "Nouvelle tagline de revision.",
+  );
+  check("révision : le lien modifié est en attente", payload.links !== undefined);
+  check("révision : l'édition est signalée au maker", editResult.rereview === true);
+
+  // 15.2 Le compteur de la file admin.
+  const enAttente = await countPendingRevisions();
+  check("révisions : le compteur de la file", enAttente >= 1);
+
+  // 15.3 Un refus garde le contenu validé et jette la modification.
+  await reviewRevision({
+    isStaff: true,
+    productId: pubProduct.id,
+    decision: "rejected",
+    reason: "Test",
+    staffId: maker.id,
+  });
+  const [afterReject] = await db
+    .select({ name: products.name, pendingAt: products.pendingAt })
+    .from(products)
+    .where(eq(products.id, pubProduct.id));
+  check("révision refusée : le contenu validé reste", afterReject?.name === "Produit Revision");
+  check("révision refusée : plus rien en attente", afterReject?.pendingAt === null);
+
+  // 15.4 Une approbation applique la modification.
+  await updateProduct(maker.id, pubProduct.id, {
+    name: "Produit Revision — nom_approuve",
+  } as never);
+  await reviewRevision({
+    isStaff: true,
+    productId: pubProduct.id,
+    decision: "approved",
+    staffId: maker.id,
+  });
+  const [afterApprove] = await db
+    .select({ name: products.name, pendingAt: products.pendingAt })
+    .from(products)
+    .where(eq(products.id, pubProduct.id));
+  check(
+    "révision approuvée : la modification est appliquée",
+    afterApprove?.name === "Produit Revision — nom_approuve",
+  );
+  check("révision approuvée : plus rien en attente", afterApprove?.pendingAt === null);
+
+  // 15.5 Les règles de la fiche sont rejouées même si les liens ne
+  //      changent pas (avant : passer en subscription sans privacy
+  //      passait).
+  const [regleProduct] = await db
+    .insert(products)
+    .values({
+      slug: `verify-regles-${TAG}`,
+      makerId: maker.id,
+      name: "Produit Regles",
+      tagline: "Tagline regles.",
+      description: "Description regles assez longue.",
+      category: "dev-tools",
+      categories: ["dev-tools"],
+      productType: "app_web",
+      pricingModel: "free",
+      galleryOrientation: "landscape",
+      status: "published",
+      publishedAt: new Date(),
+      upvoteCount: 0,
+      links: { website: "https://example.com" },
+    })
+    .returning({ id: products.id });
+  let regleRefusee = false;
+  try {
+    // Passer en "subscription" sans politique de confidentialité : la
+    // règle doit refuser (avant : elle n'était rejouée qu'au changement
+    // de liens).
+    await updateProduct(maker.id, regleProduct.id, {
+      pricingModel: "subscription",
+    } as never);
+  } catch {
+    regleRefusee = true;
+  }
+  check("règles : monétisé sans privacy refusé", regleRefusee);
+  await db.delete(products).where(eq(products.id, regleProduct.id));
+
   await db.delete(productBuilds).where(eq(productBuilds.productId, buildProduct.id));
   await db.delete(products).where(eq(products.id, buildProduct.id));
   await db.delete(products).where(eq(products.id, lienProduct.id));
+  await db.delete(products).where(eq(products.id, pubProduct.id));
 
   // 12. Nettoyage makers dédiés (ligne + auth — run suivant hermétique).
   // Le maker `verify-backend@example.com` (créé §maker si absent) est

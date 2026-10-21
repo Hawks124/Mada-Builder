@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { getSessionUser } from "@/lib/supabase/server";
 import { fetchProductForPreview } from "@/services/products.service";
+import { getUserVotedIds } from "@/services/votes.service";
 import { appGradientFor, appInitialsFor } from "@/services/products.service";
 import { ProductSheet } from "@/components/product/product-sheet";
 
@@ -59,6 +60,11 @@ export default async function ProductPreviewPage({ params }: { params: Promise<{
   const found = await fetchProductForPreview(sessionUser.id, id, { isStaff });
   if (!found) notFound();
   const { product, shots } = found;
+  // Etat reel du vote : l'aperçu montre la fiche telle qu'elle sera, y
+  // compris le bouton de vote (force a "pas vote" avant).
+  const previewVoted = (
+    await getUserVotedIds(sessionUser.id, [product.id]).catch(() => new Set<string>())
+  ).has(product.id);
 
   const socialLinks: Record<string, string> = {};
   const rawSocial = product.makerSocialLinks as unknown;
@@ -116,7 +122,7 @@ export default async function ProductPreviewPage({ params }: { params: Promise<{
           makerDisplayName: product.makerDisplayName,
           makerAvatarUrl: product.makerAvatarUrl,
           votes: product.upvoteCount,
-          initialVoted: false,
+          initialVoted: previewVoted,
           iconUrl: product.iconUrl,
           initials: appInitialsFor(product.name),
           iconGradient: appGradientFor(product.id),
@@ -172,7 +178,7 @@ export default async function ProductPreviewPage({ params }: { params: Promise<{
           targetCountries: product.targetCountries,
           languagesSupported: product.languagesSupported,
           votes: product.upvoteCount,
-          initialVoted: false,
+          initialVoted: previewVoted,
           iconUrl: product.iconUrl,
           initials: appInitialsFor(product.name),
           iconGradient: appGradientFor(product.id),

@@ -6,6 +6,22 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **File des révisions** (admin) : les fiches publiées dont le
+  contenu sensible (nom, tagline, description, liens, tags, requirements,
+  commande d'installation) ou les médias ont été modifiés. Chaque
+  ligne montre le diff (avant / après) et se tranche : appliquer ou
+  refuser. Pastille admin + audit (`revision_approved` /
+  `revision_rejected`, migration 0049).
+- **Bandeau maker** : « une modification est en attente de revue » dans
+  le formulaire d'édition — et le formulaire affiche les valeurs
+  PROPOSEES (le maker ne voit pas disparaitre son texte).
+- **Tuile « Binaires en revue »** dans le dashboard maker : le nombre de
+  binaires en attente de verdict (le total était déjà là ; c'est
+  l'attente qui manquait, pas le total).
+- **Un seul point de vérification** (`npm run check`) : types, lint,
+  format, les trois scripts de non-régression et le build de
+  production, en une commande, lancée une fois par lot.
+
 - **Liste complète des liens d'un produit** (doc mobile, §1-ter) :
   les 31 clés possibles du jsonb `products.links`, le bloc de liens
   par type de produit (le formulaire n'en propose qu'un sous-ensemble),
@@ -462,6 +478,37 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   fraude), mobile (`GET revenue`, `revenue-connections` ×3).
 
 ### Corrigé
+
+- **Une fiche publiée disparut du site a chaque retouche** : le
+  nom et les liens modifiaient le statut en `pending` → la fiche n'était
+  plus servie publiquement (`fetchProductBySlug` ne sert que les
+  `published`) jusqu'à l'approbation. La règle des stores est
+  appliquée : la fiche reste en ligne avec son contenu VALIDÉ, et la
+  modification attend un regard admin (colonnes `pending_*`, migration
+  0048). Les changements ne filent pas : tant que l'admin n'a pas
+  validé, le public voit l'ancien contenu.
+- **Le logo et les captures d'une fiche publiée étaient remplacés
+  sans revue** : ils partaient directement en base. Même traitement que
+  le texte : ils attendent la validation, dans la même révision.
+- **Les règles de la fiche étaient contournables** :
+  `assertLinkRules` n'était rejoué QUE si les liens changeaient. Un
+  produit publié pouvait donc passer en `subscription`, en `android` ou
+  en audience `enfants` sans revalidation → politique de confidentialité,
+  sécurité enfants ou téléchargement direct banni
+  contournés. Les règles sont rejouées désormais à chaque
+  édition d'une fiche en ligne, sur la fiche effective.
+- **Les produits en veille affichaient un vote impossible** : le bouton
+  était désactivé mais le COMPTE restait visible, et la pastille
+  de vélocité ("+N votes aujourd'hui") s'affichait aussi (flux,
+  recherche, catégories, fiche produit). Un produit hors classement ne
+  se vote pas : ni bouton, ni compte, ni vélocité — le badge
+  « Veille » en tient lieu.
+- **Les boutons de vote de la home « Mises à jour récentes » ne
+  savaient pas si l'utilisateur avait voté** : les états de vote
+  n'étaient pas propagés à cette section (la home récupérait
+  déjà les ids mais ne les passait pas) → un utilisateur ayant
+  voté voyait « pas voté ». L'aperçu (`/preview`) forçait
+  aussi `initialVoted: false`.
 
 - **Un APK re-soumis après un rejet était refusé** : la référence
   de version était le MAX de tous les builds, rejet compris — un build

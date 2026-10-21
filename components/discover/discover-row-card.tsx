@@ -124,16 +124,16 @@ export function DiscoverRowCard({
               {product.commentsCount}
             </span>
           </span>
-          <VoteButton
-            productId={product.id}
-            productName={product.name}
-            votes={product.votes}
-            initialVoted={voted}
-            variant="pill"
-            disabledReason={
-              product.curated ? "Produit en veille : hors classement, votes désactivés." : undefined
-            }
-          />
+          {/* Veille : ni bouton de vote, ni compte (hors classement). */}
+          {!product.curated && (
+            <VoteButton
+              productId={product.id}
+              productName={product.name}
+              votes={product.votes}
+              initialVoted={voted}
+              variant="pill"
+            />
+          )}
         </div>
       </div>
 
@@ -175,16 +175,20 @@ export function DiscoverRowCard({
           </>
         )}
 
-        <span
-          className={cn(
-            "ml-auto flex items-center gap-1 text-[11px] font-bold tabular-nums",
-            lifecycle.textClass,
-          )}
-          title={lifecycle.description}
-        >
-          <TrendUpIcon weight="bold" className="w-3.5 h-3.5" />+{product.dailyVotes}
-          <span className="sr-only">votes aujourd&apos;hui</span>
-        </span>
+        {/* Vélocité du jour : la pastille n'a de sens que pour un
+            produit votable (une veille est hors classement). */}
+        {!product.curated && (
+          <span
+            className={cn(
+              "ml-auto flex items-center gap-1 text-[11px] font-bold tabular-nums",
+              lifecycle.textClass,
+            )}
+            title={lifecycle.description}
+          >
+            <TrendUpIcon weight="bold" className="w-3.5 h-3.5" />+{product.dailyVotes}
+            <span className="sr-only">votes aujourd&apos;hui</span>
+          </span>
+        )}
       </div>
 
       {/* Pied : catégorie + maker */}

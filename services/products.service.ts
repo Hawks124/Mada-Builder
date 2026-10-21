@@ -1,5 +1,19 @@
 import { z } from "zod";
-import { and, count, desc, eq, ilike, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { db } from "@/db";
 import {
   products,
@@ -12,6 +26,7 @@ import {
   adminActions,
 } from "@/db/schema";
 import type { NewProduct } from "@/db/schema";
+import type { ProductLinks } from "@/db/schema/products";
 import type { DashboardApp } from "@/components/dashboard/dashboard-mock";
 import type { ReviewItem } from "@/components/admin/admin-mock";
 import { ProfileError, assertNotBanned, getUserProfile } from "@/services/users.service";
@@ -1136,6 +1151,11 @@ export async function fetchMyProducts(
       status: products.status,
       rejectionReason: products.rejectionReason,
       updatedAt: products.updatedAt,
+      // Revision en attente (la fiche publiee garde son contenu approuve
+      // en ligne ; ces colonnes portent la modification qui attend un
+      // regard admin).
+      pendingPayload: products.pendingPayload,
+      pendingAt: products.pendingAt,
     })
     .from(products)
     .where(and(...conditions))
@@ -1386,12 +1406,27 @@ export function toDashboardApp(
 ): DashboardApp {
   const status = row.status === "published" ? "live" : row.status;
   const lifecycle = (["dev", "beta", "live"] as const).find((l) => l === row.lifecycle) ?? "live";
+  // Révision en attente : le maker doit voir CE QU'IL A ÉCRIT (la
+  // fiche publique, elle, garde le contenu validé). Sans ça, il
+  // reverrait son texte validé et croirait que son edit a été perdu.
+  const pending = (row.pendingPayload ?? {}) as Record<string, unknown>;
+  const pendingName = typeof pending.name === "string" ? pending.name : row.name;
+  const pendingTagline = typeof pending.tagline === "string" ? pending.tagline : row.tagline;
+  const pendingDescription =
+    typeof pending.description === "string" ? pending.description : row.description;
+  const pendingTags = Array.isArray(pending.tags) ? (pending.tags as string[]) : row.tags;
+  const pendingRequirements = Array.isArray(pending.requirements)
+    ? (pending.requirements as string[])
+    : row.requirements;
+  const pendingInstallCommand =
+    typeof pending.installCommand === "string" ? pending.installCommand : row.installCommand;
+  const pendingLinks = (pending.links ?? row.links) as ProductLinks;
   return {
     id: row.id,
     slug: row.slug,
-    name: row.name,
-    tagline: row.tagline,
-    description: row.description,
+    name: pendingName,
+    tagline: pendingTagline,
+    description: pendingDescription,
     categoryId: row.categories[0] ?? row.category,
     productType: getProductTypeById(row.productType).label,
     productTypeId: row.productType,
@@ -1401,7 +1436,7 @@ export function toDashboardApp(
     version: row.version ?? undefined,
     lifecycle,
     launchedAt: monthYearFr(row.publishedAt ?? row.createdAt),
-    tags: row.tags,
+    tags: pendingTags,
     waitingText: row.status === "pending" ? waitingFr(row.createdAt) : undefined,
     votes: row.upvoteCount,
     views: 0,
@@ -1416,12 +1451,12 @@ export function toDashboardApp(
     rejectionReason: row.rejectionReason ?? undefined,
     curated: row.curated ?? false,
     revenue: undefined,
-    linkValues: row.links,
+    linkValues: pendingLinks,
     categoryIds: row.categories.length > 0 ? row.categories : [row.category],
     license: row.license ?? undefined,
-    installCommand: row.installCommand ?? undefined,
-    requirements: row.requirements ?? undefined,
-    changelogUrl: row.links.changelog,
+    installCommand: pendingInstallCommand ?? undefined,
+    requirements: pendingRequirements ?? undefined,
+    changelogUrl: pendingLinks.changelog,
     hasAds: row.hasAds,
     hasThirdParty: row.sharesData,
     targetCountries: row.targetCountries,
@@ -1686,6 +1721,49 @@ export async function getEditMedia(
 }
 
 /**
+ * Champs SENSIBLES d'une fiche PUBLIÉE : contenu libre, affiché
+ * publiquement et indexé par les moteurs.
+ *
+ * Un maker peut y glisser un lien noir (SEO), du spam, une commande
+ * piégée (`installCommand` est affichée comme une commande à
+ * exécuter), une capture trompeuse. Aucune règle automatique ne peut
+ * juger ça → re-revue HUMAINE obligatoire.
+ *
+ * Règle (la règle des stores) : la fiche reste EN LIGNE avec son
+ * contenu validé, la modification attend dans la file des révisions
+ * (colonnes `pending_*`, migration 0048). Les changements ne filent
+ * pas : tant que l'admin n'a pas validé, le public voit l'ancien.
+ *
+ * Les champs STRUCTURÉS (plateformes, modèle économique, audience,
+ * type, catégories) ne sont PAS sensibles : ils ne portent pas de
+ * contenu libre, mais ils DÉCLENCHENT des règles → ils sont appliqués
+ * immédiatement, avec les règles rejouées sur la fiche effective.
+ */
+export const SENSITIVE_EDIT_FIELDS = [
+  "name",
+  "tagline",
+  "description",
+  "tags",
+  "requirements",
+  "installCommand",
+] as const;
+
+/** Médias en attente (uploadés dans R2, pas encore attachés). */
+export type PendingMedia = {
+  logo: string | null;
+  shots: PreparedShot[];
+};
+
+/** Révision en attente d'une fiche publiée. */
+export type PendingRevision = {
+  /** Champs sensibles modifiés (valeurs nouvelles). */
+  payload: Record<string, unknown>;
+  /** Nouveaux médias (logo + captures), pas encore attachés. */
+  media: PendingMedia | null;
+  at: Date | null;
+};
+
+/**
  * Le maker édite sa fiche : textes libres immédiats ; nom OU liens
  * modifiés sur une fiche published → retour pending (re-revue).
  * Draft + `publish: true` → passage pending (publication depuis l'édition :
@@ -1767,10 +1845,35 @@ export async function updateProduct(
     throw new ProfileError("VALIDATION", "Au moins une catégorie.");
   }
 
-  const nameChanged = data.name !== undefined && data.name !== row.name;
   const linksChanged =
     mergedLinks !== undefined && canonicalLinks(mergedLinks) !== canonicalLinks(row.links);
-  const rereview = row.status === "published" && (nameChanged || linksChanged);
+  const isPublished = row.status === "published";
+
+  // ── Tier 1 : champs SENSIBLES + médias ───────────────────────────
+  // Sur une fiche PUBLIÉE, ils ne sont PAS appliqués : ils vont dans
+  // la révision en attente (la fiche reste en ligne avec son contenu
+  // validé, la modification attend un regard admin). Les changements
+  // ne filent pas.
+  //
+  // Sur un brouillon/pending, rien de tout ça : le travail en cours
+  // s'applique, la revue tranche au moment de la publication.
+  const sensitive: Record<string, unknown> = {};
+  if (isPublished) {
+    for (const field of SENSITIVE_EDIT_FIELDS) {
+      const next = (data as Record<string, unknown>)[field];
+      if (next === undefined) continue;
+      const prev = (row as Record<string, unknown>)[field];
+      if (JSON.stringify(next ?? null) !== JSON.stringify(prev ?? null)) {
+        sensitive[field] = next;
+      }
+    }
+    // Les liens (et le changelog, qui vit dans les liens) : comparés
+    // canoniquement (l'ordre des clés ne doit pas compter).
+    if (linksChanged) sensitive.links = mergedLinks;
+  }
+  const mediaChanged = isPublished && (Boolean(editLogo) || newShots.length > 0);
+  const needsRevision = Object.keys(sensitive).length > 0 || mediaChanged;
+
   // Publication depuis l'édition (draft + intent publish) : mêmes règles
   // que la création publish, puis statut → pending.
   // RE-SOUMISSION après rejet (rejected + intent publish) : même traitement
@@ -1814,48 +1917,64 @@ export async function updateProduct(
   }
 
   // Reachability seulement si les liens changent vraiment (pas à chaque
-  // édition) ; règles matrice seulement sur fiche en ligne (ni draft ni
-  // pending : travail en cours, la revue tranche) — SAUF publication
-  // depuis l'édition (mêmes règles que la création publish).
+  // édition) ; règles matrice rejouées à chaque édition d'une fiche en
+  // ligne — AVANT, elles n'étaient rejouées que si les liens changeaient :
+  // un produit publié pouvait passer en "subscription", en "android" ou en
+  // audience "enfants" SANS revalidation → privacy / kidsafety / download
+  // banni contournés. Les règles sont une contrainte de la fiche, pas
+  // des liens : elles suivent les champs qui les déclenchent.
   if (linksChanged && mergedLinks) await assertLinksReachable(mergedLinks);
-  if (mergedLinks !== undefined && (row.status === "published" || toQueue)) {
+  if (isPublished || toQueue) {
     assertLinkRules({
       productType: data.productType ?? row.productType,
       audience: data.audience ?? row.audience,
       pricingModel: data.pricingModel ?? row.pricingModel,
       platforms: data.platforms ?? row.platforms,
-      links: mergedLinks,
+      links: mergedLinks ?? (row.links as Record<string, string>),
     });
-  }
-  if (toQueue && mergedLinks === undefined) {
-    // Liens intouchés mais publication : valider l'existant stocké.
-    assertLinkRules({
-      productType: data.productType ?? row.productType,
-      audience: data.audience ?? row.audience,
-      pricingModel: data.pricingModel ?? row.pricingModel,
-      platforms: data.platforms ?? row.platforms,
-      links: row.links as Record<string, string>,
-    });
-  }
-  if (rereview) {
-    // Nom/liens d'une fiche publiée : re-revue (anti-squat, anti-lien-piège).
   }
 
+  // Contrat de PUBLICATION appliqué aussi à la révision : on ne met
+  // pas en file une fiche invalide (le contrat est le même que pour
+  // une publication — la forme est vérifiée par la machine, le
+  // contenu par l'admin).
+  if (needsRevision) {
+    const effective = effectiveProductForPublish(row, {
+      ...data,
+      ...(mergedLinks !== undefined ? { links: mergedLinks } : {}),
+    });
+    const checked = submitProductSchema.safeParse(effective);
+    if (!checked.success) {
+      throw new ProfileError("VALIDATION", zodFieldMessage(checked.error));
+    }
+  }
+
+  // Le patch applique les champs NON sensibles (structurés, cosmétique) ;
+  // les champs sensibles et les médias vont dans la révision.
   const patch: Partial<typeof products.$inferInsert> = { updatedAt: new Date() };
   for (const [key, value] of Object.entries(restData)) {
     if (key === "links" || value === undefined) continue;
+    if (isPublished && (SENSITIVE_EDIT_FIELDS as readonly string[]).includes(key)) continue;
     (patch as Record<string, unknown>)[key] = value;
   }
-  if (mergedLinks !== undefined) patch.links = mergedLinks;
-  if (rereview) {
-    patch.status = "pending";
-    patch.rejectionReason = null;
-  }
+  // Les liens vont dans la révision quand ils ont changé sur une fiche
+  // en ligne ; sinon ils s'appliquent (brouillon, ou liens inchangés).
+  const linksInRevision = isPublished && linksChanged;
+  if (mergedLinks !== undefined && !linksInRevision) patch.links = mergedLinks;
   if (toQueue) {
     patch.status = "pending";
     patch.rejectionReason = null;
   }
-  // Retour en file (publication, re-soumission, re-revue) : nouveau cycle
+  // La révision en attente (contenu sensible + médias) : rangée sur la
+  // fiche, JAMAIS appliquée. Tant que l'admin n'a pas validé, le
+  // public voit le contenu approuvé.
+  let pendingMedia: PendingMedia | null = null;
+  if (needsRevision) {
+    patch.pendingPayload = sensitive as never;
+    patch.pendingAt = new Date();
+    patch.pendingBy = viewerId;
+  }
+  // Retour en file (publication, re-soumission) : nouveau cycle
   // SLA (D0) — la date de (re-)soumission, jamais la naissance du brouillon.
   if (patch.status === "pending") patch.submittedAt = new Date();
   const [updated] = await db
@@ -1883,29 +2002,40 @@ export async function updateProduct(
             .where(eq(productScreenshots.productId, productId))
         : [];
     const prepared = await uploadProductFiles(productId, editLogo, newShots, effectiveOrientation);
-    if (prepared.logoUrl) {
-      const oldKey = r2KeyFromUrl(row.iconUrl);
-      if (oldKey) await deleteR2Object(PRODUCT_LOGOS_BUCKET, oldKey).catch(() => {});
+    if (needsRevision) {
+      // Les médias attendent la validation : on NE touche pas à la
+      // fiche (le public garde les images approuvées), on range les
+      // URLs dans la révision. L'admin les validera avec le texte.
+      pendingMedia = { logo: prepared.logoUrl, shots: prepared.shots };
       await db
         .update(products)
-        .set({ iconUrl: prepared.logoUrl })
+        .set({ pendingMedia: pendingMedia as never })
         .where(eq(products.id, productId));
-    }
-    if (prepared.shots.length > 0) {
-      await db.delete(productScreenshots).where(eq(productScreenshots.productId, productId));
-      await db.insert(productScreenshots).values(
-        prepared.shots.map((s, i) => ({
-          productId,
-          url: s.url,
-          position: i + 1,
-          orientation: s.orientation,
-          width: s.width,
-          height: s.height,
-        })),
-      );
-      for (const s of oldShots) {
-        const key = r2KeyFromUrl(s.url);
-        if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+    } else {
+      if (prepared.logoUrl) {
+        const oldKey = r2KeyFromUrl(row.iconUrl);
+        if (oldKey) await deleteR2Object(PRODUCT_LOGOS_BUCKET, oldKey).catch(() => {});
+        await db
+          .update(products)
+          .set({ iconUrl: prepared.logoUrl })
+          .where(eq(products.id, productId));
+      }
+      if (prepared.shots.length > 0) {
+        await db.delete(productScreenshots).where(eq(productScreenshots.productId, productId));
+        await db.insert(productScreenshots).values(
+          prepared.shots.map((s, i) => ({
+            productId,
+            url: s.url,
+            position: i + 1,
+            orientation: s.orientation,
+            width: s.width,
+            height: s.height,
+          })),
+        );
+        for (const s of oldShots) {
+          const key = r2KeyFromUrl(s.url);
+          if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+        }
       }
     }
     await cleanupStaged(staged.stagedKeys);
@@ -1921,7 +2051,184 @@ export async function updateProduct(
   if (updated.status === "pending" && row.status !== "pending") {
     notifyReviewAsync(productId);
   }
-  return { slug: updated.slug, status: updated.status, rereview };
+  // `rereview` = une révision est en attente (le contenu public n’a pas bougé).
+  return { slug: updated.slug, status: updated.status, rereview: needsRevision };
+}
+
+// ── Révisions en attente (re-revue d'une fiche publiée) ────────────────────
+/**
+ * Nombre de révisions en attente (pastille admin). Une requête.
+ */
+export async function countPendingRevisions(): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(products)
+    .where(and(isNull(products.deletedAt), isNotNull(products.pendingAt)));
+  return row?.n ?? 0;
+}
+
+/**
+ * File des révisions : les fiches PUBLIÉES dont le contenu sensible a
+ * été modifié et attend un regard admin.
+ *
+ * La fiche reste en ligne avec son contenu validé — c'est la règle des
+ * stores. Le public ne voit PAS la modification tant qu'elle n'est pas
+ * validée : les changements ne filent pas.
+ */
+export async function listPendingRevisions(input: { isStaff: boolean; limit?: number }): Promise<
+  {
+    id: string;
+    slug: string;
+    name: string;
+    makerUsername: string;
+    makerDisplayName: string;
+    payload: Record<string, unknown>;
+    media: PendingMedia | null;
+    pendingAt: Date | null;
+  }[]
+> {
+  if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
+  const rows = await db
+    .select({
+      id: products.id,
+      slug: products.slug,
+      name: products.name,
+      makerUsername: users.username,
+      makerDisplayName: users.displayName,
+      payload: products.pendingPayload,
+      media: products.pendingMedia,
+      pendingAt: products.pendingAt,
+    })
+    .from(products)
+    .innerJoin(users, eq(products.makerId, users.id))
+    .where(and(isNull(products.deletedAt), isNotNull(products.pendingAt)))
+    .orderBy(asc(products.pendingAt))
+    .limit(Math.min(Math.max(input.limit ?? 50, 1), 100));
+  return rows.map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    name: r.name,
+    makerUsername: r.makerUsername,
+    makerDisplayName: r.makerDisplayName,
+    payload: (r.payload ?? {}) as Record<string, unknown>,
+    media: (r.media ?? null) as PendingMedia | null,
+    pendingAt: r.pendingAt,
+  }));
+}
+
+/** Purge les médias d'une révision refusée (R2) — jamais d'orphelin. */
+async function purgePendingMedia(media: PendingMedia | null): Promise<void> {
+  if (!media) return;
+  if (media.logo) {
+    const key = r2KeyFromUrl(media.logo);
+    if (key) await deleteR2Object(PRODUCT_LOGOS_BUCKET, key).catch(() => {});
+  }
+  for (const s of media.shots ?? []) {
+    const key = r2KeyFromUrl(s.url);
+    if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+  }
+}
+
+/**
+ * Tranche une révision en attente : approuver (le contenu et les médias
+ * sont appliqués à la fiche) ou refuser (la fiche garde son contenu
+ * validé, la modification est jetée).
+ *
+ * À l'approbation, les règles de la fiche sont REJOUÉES : entre la mise
+ * en file et la décision, la fiche a pu changer (prix, audience,
+ * plateformes) — on n'applique jamais un changement qui viole les
+ * règles actuelles.
+ */
+export async function reviewRevision(input: {
+  isStaff: boolean;
+  productId: string;
+  decision: "approved" | "rejected";
+  reason?: string;
+  staffId: string;
+}): Promise<{ applied: boolean }> {
+  if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
+  const [row] = await db.select().from(products).where(eq(products.id, input.productId)).limit(1);
+  if (!row || row.deletedAt) throw new ProfileError("NOT_FOUND", "Produit introuvable.");
+  if (!row.pendingAt) throw new ProfileError("NOT_FOUND", "Aucune révision en attente.");
+  const payload = (row.pendingPayload ?? {}) as Record<string, unknown>;
+  const media = (row.pendingMedia ?? null) as PendingMedia | null;
+
+  if (input.decision === "rejected") {
+    await purgePendingMedia(media);
+    await db
+      .update(products)
+      .set({
+        pendingPayload: null,
+        pendingMedia: null,
+        pendingAt: null,
+        pendingBy: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, input.productId));
+    return { applied: false };
+  }
+
+  // Les liens de la révision (ou ceux en place) doivent toujours
+  // respecter les règles de la fiche.
+  const links =
+    (payload.links as Record<string, string> | undefined) ?? (row.links as Record<string, string>);
+  assertLinkRules({
+    productType: row.productType,
+    audience: row.audience,
+    pricingModel: row.pricingModel,
+    platforms: row.platforms,
+    links,
+  });
+
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  for (const [key, value] of Object.entries(payload)) {
+    if (key === "links") {
+      patch.links = links;
+      continue;
+    }
+    patch[key] = value;
+  }
+
+  // Médias : on remplace (l'ancien logo et les anciennes captures
+  // partent à la poubelle, comme à l'édition directe).
+  if (media?.logo) {
+    const oldKey = r2KeyFromUrl(row.iconUrl);
+    if (oldKey) await deleteR2Object(PRODUCT_LOGOS_BUCKET, oldKey).catch(() => {});
+    patch.iconUrl = media.logo;
+  }
+  if (media && media.shots.length > 0) {
+    const oldShots = await db
+      .select({ url: productScreenshots.url })
+      .from(productScreenshots)
+      .where(eq(productScreenshots.productId, input.productId));
+    await db.delete(productScreenshots).where(eq(productScreenshots.productId, input.productId));
+    await db.insert(productScreenshots).values(
+      media.shots.map((s, i) => ({
+        productId: input.productId,
+        url: s.url,
+        position: i + 1,
+        orientation: s.orientation,
+        width: s.width,
+        height: s.height,
+      })),
+    );
+    for (const s of oldShots) {
+      const key = r2KeyFromUrl(s.url);
+      if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+    }
+  }
+
+  await db
+    .update(products)
+    .set({
+      ...(patch as Record<string, never>),
+      pendingPayload: null,
+      pendingMedia: null,
+      pendingAt: null,
+      pendingBy: null,
+    })
+    .where(eq(products.id, input.productId));
+  return { applied: true };
 }
 
 // ── Revue (staff) ─────────────────────────────────────────────────────────

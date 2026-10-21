@@ -124,8 +124,10 @@ export function ProductHeader({
           </div>
         </div>
 
-        {/* Vote button — same row on all screen sizes, compact on mobile */}
-        {!preview && (
+        {/* Vote button — same row on all screen sizes, compact on mobile.
+            Veille : PAS de bouton et PAS de compte (hors classement, vote
+            impossible) — le badge « Veille » en tient lieu. */}
+        {!preview && !product.curated && (
           <AnimatedVoteButton
             productId={product.id}
             productName={product.name}

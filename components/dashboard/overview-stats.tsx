@@ -109,6 +109,14 @@ export function OverviewStats({
             tone: "neutral",
           },
           {
+            // File binaire : le maker doit voir ce qui attend un verdict
+            // (sans ça, un APK envoyé depuis des jours semble perdu).
+            label: "Binaires en revue",
+            value: `${totals.pendingBuilds ?? 0}`,
+            delta: (totals.pendingBuilds ?? 0) > 0 ? "en attente de verdict" : "aucun en attente",
+            tone: (totals.pendingBuilds ?? 0) > 0 ? "up" : "neutral",
+          },
+          {
             label: "Vues fiches",
             value: formatCompactCount(totals.totalViews),
             delta:

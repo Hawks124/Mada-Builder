@@ -613,6 +613,8 @@ export async function getProductsBuildStatus(productIds: string[]): Promise<
       latestVersionCode: number | null;
       buildCount: number;
       hasPendingBuild: boolean;
+      /** Nombre de binaires EN REVUE (pas le nombre de produits). */
+      pendingBuildCount: number;
     }
   >
 > {
@@ -623,10 +625,18 @@ export async function getProductsBuildStatus(productIds: string[]): Promise<
       latestVersionCode: number | null;
       buildCount: number;
       hasPendingBuild: boolean;
+      /** Nombre de binaires EN REVUE (pas le nombre de produits). */
+      pendingBuildCount: number;
     }
   > = {};
   for (const id of productIds)
-    out[id] = { hasBuilds: false, latestVersionCode: null, buildCount: 0, hasPendingBuild: false };
+    out[id] = {
+      hasBuilds: false,
+      latestVersionCode: null,
+      buildCount: 0,
+      hasPendingBuild: false,
+      pendingBuildCount: 0,
+    };
   if (productIds.length === 0) return out;
   const rows = await db
     .select({
@@ -641,7 +651,10 @@ export async function getProductsBuildStatus(productIds: string[]): Promise<
     if (!entry) continue;
     entry.hasBuilds = true;
     entry.buildCount += 1;
-    if (r.status === "pending") entry.hasPendingBuild = true;
+    if (r.status === "pending") {
+      entry.hasPendingBuild = true;
+      entry.pendingBuildCount += 1;
+    }
     if (typeof r.versionCode === "number") {
       entry.latestVersionCode = Math.max(entry.latestVersionCode ?? -1, r.versionCode);
     }

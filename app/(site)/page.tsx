@@ -84,6 +84,7 @@ export default async function Home() {
   const votedIds = await getUserVotedIds(sessionUser?.id ?? null, [
     ...board.items.map((i) => i.id),
     ...newest.map((n) => n.id),
+    ...recentBuilds.map((b) => b.productId),
   ]).catch(() => new Set<string>());
   const voted = [...votedIds];
 
@@ -216,7 +217,7 @@ export default async function Home() {
 
       {/* ─── RECENT UPDATES (D6) ─── */}
       <div className="w-full bg-background border-t border-border/20 relative">
-        <RecentUpdates items={recentUpdates} />
+        <RecentUpdates items={recentUpdates} votedIds={voted} />
       </div>
 
       {/* ─── VERIFIED REVENUE WALL ─── */}

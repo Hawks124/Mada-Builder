@@ -63,6 +63,8 @@ export type DashboardApp = {
   buildCount?: number;
   /** Un build est en revue : bouton Update remplacé par l'état (1 pending max). */
   hasPendingBuild?: boolean;
+  /** Nombre de binaires EN REVUE (tous produits) - tuile du dashboard. */
+  pendingBuildCount?: number;
   revenue?: DashboardRevenue;
   iconGradient: string;
   initials: string;
@@ -281,6 +283,8 @@ export type DashboardTotals = {
   globalRating: number;
   /** Binaires (D6) : total + nb de produits avec track (absents en public). */
   totalBuilds?: number;
+  /** Binaires en revue (total) - tuile "Binaires en revue". */
+  pendingBuilds?: number;
   appsWithApk?: number;
   /** Téléchargements APK cumulés (D6) — optionnel comme les binaires. */
   totalDownloads?: number;
@@ -323,6 +327,7 @@ export function getDashboardTotals(apps: DashboardApp[]): DashboardTotals {
     globalRating: totalRatings > 0 ? Math.round((weightedSum / totalRatings) * 10) / 10 : 0,
     totalBuilds: apps.reduce((acc, a) => acc + (a.buildCount ?? 0), 0),
     appsWithApk: apps.filter((a) => a.hasBuilds).length,
+    pendingBuilds: apps.reduce((acc, a) => acc + (a.pendingBuildCount ?? 0), 0),
   };
 }
 

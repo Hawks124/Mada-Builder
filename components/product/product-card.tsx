@@ -106,18 +106,19 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
                 <span className="text-[12px] font-bold leading-none">{product.comments ?? 0}</span>
               </Link>
 
-              <VoteButton
-                productId={product.id}
-                productName={product.name}
-                votes={product.votes}
-                initialVoted={product.initialVoted ?? false}
-                variant="pill"
-                disabledReason={
-                  product.curated
-                    ? "Produit en veille : hors classement, votes désactivés."
-                    : undefined
-                }
-              />
+              {/* Veille : ni bouton de vote, ni compte. Un produit hors
+                  classement ne se vote pas — un compteur affiché
+                  invite à un vote impossible. Le badge « Veille » (plus
+                  bas) prend la place. */}
+              {!product.curated && (
+                <VoteButton
+                  productId={product.id}
+                  productName={product.name}
+                  votes={product.votes}
+                  initialVoted={product.initialVoted ?? false}
+                  variant="pill"
+                />
+              )}
             </>
           )}
         </div>

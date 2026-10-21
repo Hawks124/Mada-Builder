@@ -113,6 +113,7 @@ function SubmitForm() {
   const intentRef = React.useRef<"publish" | "draft" | null>(null);
   const saveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const formRef = React.useRef<HTMLFormElement | null>(null);
+  const { pendingRevisionAt } = useSubmitForm();
   const { phase, sending, serverMessage, activeIntent, send } = useSubmitXhr(formRef, {
     // Android seul conditionne (plus isEditing : la chaîne décide via
     // intent publish OU édition — le !isEditing ici effaçait le fichier
@@ -156,9 +157,15 @@ function SubmitForm() {
           </h1>
           <p className="text-lg md:text-xl font-medium text-muted-foreground max-w-2xl">
             {isEditing && editApp
-              ? `Modifiez la fiche de ${editApp.name}. Les changements sur le nom et les liens repassent en revue.`
+              ? `Modifiez la fiche de ${editApp.name}. Le texte, les liens et les images passent en revue : votre fiche reste en ligne telle qu'elle a été validée, le temps que la modification soit examinee.`
               : "Ajoutez votre application pour que la communauté de makers de Madagascar puisse la découvrir et la soutenir."}
           </p>
+          {isEditing && pendingRevisionAt && (
+            <p className="mt-3 w-fit rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[13px] font-bold text-amber-700 dark:text-amber-300">
+              Une modification est en attente de revue — les valeurs ci-dessous sont celles que vous
+              avez proposées. La fiche publique, elle, garde son texte validé.
+            </p>
+          )}
         </div>
       </div>
 
@@ -360,11 +367,14 @@ function SubmitForm() {
 export function SubmitClient({
   editId,
   editApp,
+  pendingRevisionAt,
   editMedia,
   hasTrack,
 }: {
   editId: string | null;
   editApp: DashboardApp | null;
+  /** Date de la revision en attente (fiche publiee) — bandeau maker. */
+  pendingRevisionAt?: Date | null;
   editMedia?: {
     iconUrl: string | null;
     shots: {
@@ -411,6 +421,7 @@ export function SubmitClient({
       initialDraft={initialDraft}
       existingMedia={editMedia}
       hasTrack={hasTrack}
+      pendingRevisionAt={pendingRevisionAt ?? null}
       key={`${editId ?? "new"}:${restored ? "restored" : "fresh"}`}
     >
       <SubmitForm />
