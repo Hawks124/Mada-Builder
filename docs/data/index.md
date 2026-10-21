@@ -24,6 +24,7 @@ doute, le schéma fait foi, pas ce doc.
 | --------------------------------------------- | --------------------- | ------------------ | ------------- |
 | [users](users.md)                             | `users`               | own uniquement     | API           |
 | [products](products.md)                       | `products`            | public/own/staff   | API           |
+| [product_revisions](products.md)              | `product_revisions`   | non (deny-all)     | service       |
 | [product_screenshots](product_screenshots.md) | `product_screenshots` | public (published) | API (upload)  |
 | [votes](votes.md)                             | `votes`               | non (compteurs)    | API           |
 | [product_page_views](product_page_views.md)   | `product_page_views`  | non (agrégats)     | API (beacon)  |

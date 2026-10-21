@@ -52,6 +52,35 @@ RGPD ; `deleted_at` = retraits admin uniquement.
 
 Index : `maker`, `(maker, updated, id)` keyset, `(status, published)`, `category`, `score`, GIN `search_vector` (tsvector FR pondéré, GENERATED), trigram `name`.
 
+## `product_revisions` (révision en attente, migration 0050)
+
+Une fiche publiée dont le contenu sensible a été modifié : la
+modification n'est pas appliquée, elle attend un regard admin (la
+règle des stores — les changements ne filent pas).
+
+| Colonne            | Type               | Notes                                                      |
+| ------------------ | ------------------ | ---------------------------------------------------------- |
+| `id`               | `uuid` PK          |                                                            |
+| `product_id`       | `uuid` UNIQUE FK   | UNE révision en cours par produit (`products.id`, CASCADE) |
+| `maker_id`         | `uuid` NOT NULL FK | Auteur de la modification (`users.id`, CASCADE)            |
+| `payload`          | `jsonb` NOT NULL   | Champs sensibles modifiés (valeurs proposées)              |
+| `media`            | `jsonb` NULL       | Logo + captures proposés (déjà dans R2, pas attachés)      |
+| `created_at`       | `timestamptz`      | Date de la révision                                        |
+| `reviewed_at`      | `timestamptz` NULL | Date du verdict                                            |
+| `reviewed_by`      | `uuid` NULL FK     | Staff qui a tranché                                        |
+| `rejection_reason` | `text` NULL        | Motif du refus                                             |
+
+**Deny-all** : `REVOKE ALL` pour `anon` et `authenticated` + RLS
+sans policy. Le contenu en attente n'est donc **pas** lisible en
+direct (PostgREST anon) — c'était le cas avant, quand la révision
+vivait dans des colonnes de `products` (GRANT table-level + RLS qui
+ne filtre que les lignes).
+
+Les colonnes `pending_payload` / `pending_media` / `pending_at` /
+`pending_by` de `products` ont été **retirées** (migration 0050) : un
+`select=*` sur `products` reste valide et ne ramène plus de contenu
+non validé.
+
 ## RLS (`setup.sql`)
 
 - `products_select_public` : `anon, authenticated`, `published` + non supprimé.
@@ -62,7 +91,7 @@ Index : `maker`, `(maker, updated, id)` keyset, `(status, published)`, `category
 ## Règles métier miroir (serveur, jamais client)
 
 - Publish : logo + ≥ 1 capture, orientation du type, point d'accès (site/store/registre/démo), matrice liens (kids/monétisé/privacy), URLs joignables, install si dev-facing.
-- Nom/liens d'une fiche `published` → retour `pending` (re-revue).
+- Modif sensible d'une fiche `published` (nom, tagline, description, liens, tags, requirements, install, orientation) ou de ses médias → la fiche reste `published` et la modification part en **révision** (table `product_revisions`, deny-all) : le public voit le contenu validé, l'admin tranche.
 - `curated` : jamais posé par le maker (auto compte curation / toggle admin).
 - Slugs uniques, course 23505 → retry (jamais d'erreur brute).
 

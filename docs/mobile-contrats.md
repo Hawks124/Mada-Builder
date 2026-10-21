@@ -134,10 +134,56 @@ sont bien dans le jsonb :
 
 - `privacy` · `changelog` · `tos` · `kidsafety`
 
-À l'écriture, l'API v1 est en mode **merge** : un champ lien absent
-de la payload est **conservé**, un champ envoyé vide **efface** le
-lien. (Le formulaire web, lui, envoie tous les champs : son
-résultat est un remplacement complet — même sortie.)
+### Écrire les liens : 31 champs, PAS un objet `links`
+
+L'écriture ne prend **pas** un objet `links`. Le contrat est le même
+que le formulaire web : **un champ multipart par clé**, le nom du champ
+= l'id de la clé (`website`, `source`, `demo`, `docs`, `download`,
+`video`, `appstore`, `playstore`, `registry`, `privacy`, `changelog`…).
+
+Envoyer `links` en JSON est **ignoré silencieusement** (le champ n'est
+pas lu) : la fiche garde ses liens, et le mobile croit les avoir
+changés.
+
+| Ce que le mobile envoie       | Effet                                     |
+| ----------------------------- | ----------------------------------------- |
+| un champ lien **absent**      | **conservé** (mode merge)                 |
+| un champ lien **vide**        | **effacé**                                |
+| `changelogUrl` (champ séparé) | écrit le lien `changelog`                 |
+| `links` (objet JSON)          | **ignoré** — n'existe pas dans le contrat |
+
+> ⚠️ Ne pas envoyer `changelogUrl` **seul** sans les champs liens : le
+> mode merge est explicite côté serveur, mais une PATCH qui ne porte
+> que `changelogUrl` ne touche qu'au changelog (les autres liens sont
+> conservés). C'est le comportement voulu — mais si tu veux changer
+> plusieurs liens, envoie les champs correspondants (absent = conservé).
+
+## 1-quater. Les révisions en attente (fiche publiée modifiée)
+
+Quand le maker modifie le **contenu sensible** d'une fiche DÉJÀ en
+ligne (nom, tagline, description, liens, tags, requirements, commande
+d'installation, orientation de la galerie) ou ses **médias** (logo,
+captures), la modification **n'est pas appliquée** : la fiche reste en
+ligne avec son contenu validé, et la modification attend un regard
+admin (la règle des stores — les changements ne filent pas).
+
+| Où                             | Ce que tu vois                                              |
+| ------------------------------ | ----------------------------------------------------------- |
+| La fiche publique              | le contenu **validé** (jamais le contenu en attente)        |
+| `GET /me/products`             | le contenu **validé** + la fiche telle qu'elle est en base  |
+| Le tableau de bord maker (web) | le contenu **proposé** + un bandeau « en attente de revue » |
+| `/preview/{id}` (aperçu)       | le contenu **proposé** (c'est son rôle)                     |
+| L'admin                        | une ligne dans « Révisions » avec le diff                   |
+
+**La table `product_revisions` est en deny-all** (RLS + `REVOKE` pour
+`anon` et `authenticated`) : elle n'est **pas** lisible en direct. Ne
+la mets pas dans une requête PostgREST → `permission denied`. La liste
+des révisions passe par l'admin (staff) ou par le tableau de bord
+maker (qui passe par le service).
+
+Conséquence pour le mobile : **rien de special à faire** — lis
+`products` comme avant (les colonnes `pending_*` n'existent plus, donc
+un `select=*` reste valide et ne ramène plus de contenu non validé).
 
 ## 2. Enveloppe & erreurs (le `switch` Dart s'appuie sur `code`)
 
@@ -175,6 +221,7 @@ résultat est un remplacement complet — même sortie.)
 | `PATCH /me`                                   | Bearer            | JSON partiel (clés inconnues ignorées ; `timeZone` = IANA réel, jamais bloquant)                                                                                                                                                                                                                                                                                          | profil frais complet                                                                                                                                                                                                                                                                                   |
 | `PATCH /me/preferences`                       | Bearer            | `{ digestOptOut: boolean }` (préférences notif, extensible ; même service que le switch web)                                                                                                                                                                                                                                                                              | `{ digestOptOut }` frais (pas de refetch)                                                                                                                                                                                                                                                              |
 | `POST /me/avatar`                             | Bearer            | multipart `avatar`                                                                                                                                                                                                                                                                                                                                                        | `{ avatarUrl }`                                                                                                                                                                                                                                                                                        |
+| `GET /me/export`                              | Bearer            | Export RGPD complet (JSON : profil, produits, avis, commentaires, votes)                                                                                                                                                                                                                                                                                                  |
 | `DELETE /me`                                  | Bearer (banni OK) | `{"confirm":true}` exigé                                                                                                                                                                                                                                                                                                                                                  | `{ deleted: true }` → purger les tokens côté client                                                                                                                                                                                                                                                    |
 | `GET /onboarding`                             | Bearer (banni OK) | —                                                                                                                                                                                                                                                                                                                                                                         | `{ done, missing, form }` (`form.email` vide si placeholder)                                                                                                                                                                                                                                           |
 | `POST /onboarding`                            | Bearer (banni OK) | `{ displayName?, email?, occupation?, timeZone? }` (`timeZone` = IANA réel du device, validé serveur, best-effort)                                                                                                                                                                                                                                                        | `{ username, done, missing }` (`done` = aller au home)                                                                                                                                                                                                                                                 |
@@ -202,8 +249,8 @@ résultat est un remplacement complet — même sortie.)
 | `POST /uploads/presign` (apk)                 | Bearer            | `{ kind: "apk", productId, contentLength }` (≤300 Mo, APK universel ; type imposé)                                                                                                                                                                                                                                                                                        | 200 `{ url, key, expiresIn }` — PUT direct R2 (15 min) puis `POST /products/[id]/builds`                                                                                                                                                                                                               |
 | `POST /uploads/presign` (apk-multipart)       | Bearer            | `{ kind: "apk-multipart", action, ... }` — `create {productId, contentLength}` → `{uploadId, key}` ; `part {productId, key, uploadId, partNumber}` → `{url}` ; `parts {productId, key, uploadId}` → `{parts:[{n, etag}]}` (reprise) ; `complete {productId, key, uploadId, parts:[{n, etag}]}` ; `abort {...}` — parts 8 Mo conseillées, record inchangé après `complete` | Multipart resumable (D6) : retry par part, reprise via `parts`, abandons purgés > 24 h ; < 16 Mo = single-shot                                                                                                                                                                                         |
 | `POST /products/[id]/builds`                  | Bearer            | `{ r2Key, sha256, sizeBytes, versionCode?, versionName? }` (clé confinée vérifiée, HEAD prouvé)                                                                                                                                                                                                                                                                           | 201 `{ buildId }` (statut `pending`, revue bloquante D4) — détail : `docs/data/product_builds.md`                                                                                                                                                                                                      |
-| `GET /products/[id]/revenue`                  | non               | —                                                                                                                                                                                                                                                                                                                                                                         | `{ provider, displayMode, mrrCents, currency, activeSubscribers, lastSyncedAt, history[90] }` (cache court) — 404 sans connexion ; jamais la clé, jamais de PII (BÊTA)                                                                                                                                 |
-| `GET /products/[id]/revenue-connections`      | Bearer (maker)    | — (fiche à soi, sinon 404)                                                                                                                                                                                                                                                                                                                                                | `{ provider, displayMode, status, lastSyncedAt, lastError }` (sans clé)                                                                                                                                                                                                                                |
+| `GET /products/[id]/revenue`                  | non               | `{ mrrCents, arrCents, activeSubscribers, currency, lastSyncedLabel, displayMode }` (arrCents = mrrCents × 12)                                                                                                                                                                                                                                                            |
+| `GET /products/[id]/revenue-connections`      | Bearer (maker)    | `{ provider, keyHint, displayMode, status, lastError?, failedCount }` (fiche à soi, sinon 404)                                                                                                                                                                                                                                                                            |
 | `POST /products/[id]/revenue-connections`     | Bearer (maker)    | `{ provider, key, config?, displayMode? }` (5/h ; probe live + chiffrement)                                                                                                                                                                                                                                                                                               | 201 `{ connectionId, provider, keyHint }` — 422 si probe refusée (clé/permissions/config)                                                                                                                                                                                                              |
 | `DELETE /products/[id]/revenue-connections`   | Bearer (maker)    | — (1 connexion/fiche)                                                                                                                                                                                                                                                                                                                                                     | `{ revoked: true }` (clé purgée, snapshots conservés) — guides : `content/guides/revenus-verifies-*.md`                                                                                                                                                                                                |
 | `GET /api/products/[id]/download`             | aucun             | —                                                                                                                                                                                                                                                                                                                                                                         | 302 vers URL GET signée courte (dernier build approuvé ; 404 si fiche non publiée ou sans binaire) — **vérifier le SHA-256** (`latestBuild.sha256` de la fiche) après téléchargement, avant install (contrat install D4 : un tap, jamais silencieux)                                                   |

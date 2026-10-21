@@ -6,6 +6,20 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **Contrat mobile ecrit sur ce que l equipe code vraiment** : la forme
+  d'ecriture des liens (31 champs multipart, PAS un objet `links` — un
+  `links` JSON est ignore silencieusement), le mode merge explicite
+  (absent = conserve, vide = efface), le comportement des revisions en
+  attente (la table `product_revisions` est en deny-all : elle n'est pas
+  lisible en direct), la reponse revenus (champs `arrCents`,
+  `lastSyncedLabel`, `activeSubscribers`), le `GET /me/export` (absent
+  du tableau) et le "/me/products = miroir dashboard" (faux : l'API v1
+  n'expose ni vues, ni clics, ni rang, ni MRR, ni builds).
+- **docs/data** : la table `product_revisions` (deny-all) et la regle
+  miroir corrigee (une modif sensible d'une fiche publiee ne la fait plus
+  repasser en `pending` : la fiche reste publiee, la modification
+  attend un verdict).
+
 - **La cle « Revenus verifies » du formulaire web est branchee** : elle partait dans
   la payload et n'etait JAMAIS lue (le formulaire passe par la route
   `/api/submit`, pas par la Server Action qui la lisait) → le maker
