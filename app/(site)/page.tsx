@@ -38,7 +38,7 @@ export const dynamic = "force-dynamic";
  * récence, donc les mises à jour au-delà de 6 n'étaient atteignables
  * nulle part).
  */
-const HOME_CARDS = 9;
+const HOME_CARDS = 12;
 
 export default async function Home() {
   // Compteur vitrine anonyme — after() : zéro impact TTFB, jamais

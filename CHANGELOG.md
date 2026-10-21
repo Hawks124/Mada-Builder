@@ -6,6 +6,33 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **Produit du jour : une priorité, pas une file d'attente** (l'algo du slot
+  est réécrit ; le calcul est pur, donc testable hors base).
+  Une seule règle, deux bornes, aucun seuil sur la taille du catalogue :
+
+  ```
+  attente(p)  = min(jours depuis la dernière mise en avant — ou depuis sa
+                 publication si jamais mise en avant —, 7)
+  signal(p)   = note moyenne + votes pondérés 7 j + 2 × commentaires 7 j
+                 + 3 × avis 7 j
+  priorité(p) = min(signal(p), 7) + 2 × attente(p)
+  ```
+
+  - l'attente bornée : elle ne cumule plus au-delà d'une semaine → la file ne
+    peut pas grossir (le problème d'échelle) ;
+  - le signal borné : un produit très voté ne peut pas monopoliser le slot ;
+  - l'attente pèse double : celui qui n'a pas eu sa part l'emporte sur le bruyant.
+
+  Conséquences : le slot n'est JAMAIS vide tant qu'un produit éligible existe ;
+  l'ordre ne dépend plus de l'heure d'ajout ; personne n'est oublié et personne
+  ne hoggue ; publier ou republier ne remet PAS l'attente à zéro (le slot
+  n'est pas jouable). Les votes ne décident plus seuls : le produit du jour
+  est une VITRINE, pas un classement (le classement, c'est le leaderboard).
+
+- **Home : 12 cartes** au lieu de 9 sur « Fraîment shippé » et « Mises à jour
+  récentes » (le catalogue fait 11 produits publiés : 9 en cachait 2 ; 12
+  = 4 rangées de 3 sur desktop, tout le catalogue visible).
+
 - **File des révisions** (admin) : les fiches publiées dont le
   contenu sensible (nom, tagline, description, liens, tags, requirements,
   commande d'installation) ou les médias ont été modifiés. Chaque
@@ -478,6 +505,21 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   fraude), mobile (`GET revenue`, `revenue-connections` ×3).
 
 ### Corrigé
+
+- **Le produit du jour pouvait être vide** alors que le catalogue existait : l'algo
+  enfilait les produits dans une FILE (jamais-featuré d'abord, puis
+  moins-récemment-featuré, avec une fenêtre de 7 jours
+  d'éligibilité). Les 3 produits éligibles étaient tous dans la fenêtre →
+  plus aucun candidat → « Soyez le premier ». Deux autres
+  conséquences : l'ordre dépendait de l'HEURE D'ARRIVÉE (la FIFO des
+  ajouts — à l'échelle, le dernier publié attendait des semaines), et la
+  fenêtre était un seuil figé à recalculer à chaque changement de taille
+  du catalogue.
+- **Check de pagination rendu fragile** (`verify-products-backend`) : il
+  exigeait que ses 3 produits de test tiennent dans les 2 pages du flux
+  — une publication staff intercalée entre-temps le faisait échouer à tort
+  (la pagination keyset, elle, était correcte). Le check vérifie
+  maintenant la CONTINUITÉ de l'ordre, pas la position des fixtures.
 
 - **Les compteurs de catégories ne tenaient pas compte des sous-catégories** : ils
   ne comptaient que la catégorie PRINCIPALE, alors que la page

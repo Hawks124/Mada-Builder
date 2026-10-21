@@ -1,7 +1,7 @@
-import { and, desc, eq, gte, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import type { SQL, SQLWrapper } from "drizzle-orm";
 import { db } from "@/db";
-import { featuredProducts, products, users, votes } from "@/db/schema";
+import { comments, featuredProducts, products, reviews, users, votes } from "@/db/schema";
 import { ProfileError } from "@/services/users.service";
 import { PRICING_MODELS } from "@/config/pricing";
 import { getProductTypeById } from "@/config/product-types";
@@ -673,14 +673,19 @@ const FEATURED_SELECT = {
   platforms: products.platforms,
   audience: products.audience,
   galleryOrientation: products.galleryOrientation,
+  // Signal + attente du slot : le score se calcule sur ces colonnes.
+  ratingsSum: products.ratingsSum,
+  publishedAt: products.publishedAt,
+  updatedAt: products.updatedAt,
 };
 
 /**
  * Produit du jour — paresseux mais explicite : la ligne du jour existe
  * (cron quotidien) sinon elle est calculée ici (panne cron couverte).
- * Paliers : top (#1 d'hier non-featuré 30 j, catalogue ≥ 5) → rotation
- * (moins-récemment-featuré, re-feature ≥ 7 j) → dernier publié →
- * `null` (état "soyez le premier"). `pinned` du jour respecté.
+ * Une seule règle (priorité, pas file d'attente) : l'attente bornée
+ * (7 j) + le signal d'activité (votes pondérés, commentaires, avis, note
+ * moyenne) → jamais vide tant qu'un produit éligible existe, jamais
+ * l'ordre d'arrivée. Voir `computeFeatured`.
  */
 export async function getFeatured(now: Date = new Date()): Promise<FeaturedSlot | null> {
   const today = utcDateString(now);
@@ -789,12 +794,118 @@ type ComputedFeatured = {
   productId: string;
 };
 
-async function publishedCount(): Promise<number> {
-  // Catalogue ÉLIGIBLE (veille exclue — le seuil des paliers porte sur les
-  // fiches pouvant être featurées, pas sur le total brut).
-  const [{ value }] = await db
-    .select({ value: sql<number>`count(*)::int` })
+/**
+ * Produit du jour — une PRIORITÉ, pas une file d'attente.
+ *
+ * LE PROBLÈME RÉGLÉ : l'ancien algo enfilait les produits dans une FILE
+ * (jamais-featuré d'abord, puis moins-récemment-featuré, avec une fenêtre
+ * de 7 jours d'exigibilité). Trois conséquences :
+ *
+ * 1. le slot pouvait être VIDE : les 3 produits éligibles étaient tous
+ *    dans la fenêtre de 7 jours → plus aucun candidat → « soyez le
+ *    premier » alors que le catalogue existait ;
+ * 2. l'ordre dépendait de l'ARRIVÉE : à l'échelle, le slot devenait la
+ *    FIFO des ajouts et le dernier publié attendait des semaines ;
+ * 3. la fenêtre de 7 jours était un seuil figé, à recalculer à chaque
+ *    changement de taille du catalogue.
+ *
+ * LA RÈGLE (une seule, deux bornes, aucun seuil sur la taille) :
+ *
+ *   attente(p)  = min(jours depuis la dernière mise en avant de p — ou
+ *                  depuis sa publication si jamais mise en avant —, 7)
+ *   signal(p)   = note moyenne + votes PONDÉRÉS 7 j
+ *                  + 2 × commentaires 7 j + 3 × avis 7 j
+ *   priorité(p) = min(signal(p), 7) + 2 × attente(p)
+ *
+ * - l'ATTENTE bornée : elle ne cumule plus au-delà d'une semaine → la
+ *   file ne peut pas grossir (le problème d'échelle) ;
+ * - le SIGNAL borné : un produit très vote ne peut pas monopoliser le
+ *   slot (sans cette borne il gagnerait tous les jours) ;
+ * - l'attente pèse DOUBLE : celui qui n'a pas eu sa part l'emporte sur
+ *   celui qui est bruyant.
+ *
+ * Conséquences : le slot n'est JAMAIS vide tant qu'un produit éligible
+ * existe (il y a toujours un premier) ; l'ordre ne dépend plus de
+ * l'heure d'ajout ; personne n'est oublié (l'attente le fait remonter)
+ * et personne ne hoggue (une mise en avant remet son attente à zéro) ;
+ * publier ou republier ne remet PAS l'attente à zéro (c'est la dernière
+ * mise en avant qui compte) → le slot n'est pas jouable.
+ *
+ * Les votes ne décident plus seuls : ils pèsent dans le signal, mais
+ * l'ordre de service passe avant. Le produit du jour est une VITRINE,
+ * pas un classement (le classement, c'est le leaderboard).
+ */
+const FEATURED_ATTENTE_PLAFOND_JOURS = 7;
+const FEATURED_SIGNAL_PLAFOND = 7;
+const FEATURED_SIGNAL_FENETRE_JOURS = 7;
+const FEATURED_POIDS_ATTENTE = 2;
+const FEATURED_POIDS_COMMENTAIRE = 2;
+const FEATURED_POIDS_AVIS = 3;
+
+/**
+ * Candidat au produit du jour — les entrees du classement.
+ *
+ * Le calcul est PUR (aucune base) : il est testable seul, et c'est
+ * justement ce qui manquait à l'ancien algo (ses règles étaient
+ * melangees a la SQL, donc invérifiables).
+ */
+export type FeaturedCandidate = {
+  id: string;
+  /** Signal d'activite (note + votes pondérés + commentaires + avis). */
+  signal: number;
+  /** Jours d'attente (depuis la derniere mise en avant, ou la publication). */
+  attente: number;
+  /** Derniere modif de la fiche (proxy d'activite, gratuit). */
+  updatedAt: Date | null;
+  /** Date de publication (immuable : le tri par recence n'est pas jouable). */
+  publishedAt: Date | null;
+};
+
+/** La priorite : les deux bornes (attente + signal) sont les seuls reglages. */
+export function featuredPriorite(candidat: FeaturedCandidate): number {
+  return (
+    Math.min(candidat.signal, FEATURED_SIGNAL_PLAFOND) +
+    FEATURED_POIDS_ATTENTE * Math.min(candidat.attente, FEATURED_ATTENTE_PLAFOND_JOURS)
+  );
+}
+
+/**
+ * Le classement du slot — deterministe, et PAS l'ordre d'arrivee.
+ *
+ * 1. la priorite (le service d'abord, le signal ensuite) ;
+ * 2. a priorite egale, le plus recemment touche ;
+ * 3. puis le plus recent ;
+ * 4. puis l'id (stabilite totale : meme etat, meme resultat).
+ */
+export function classerFeatured<T extends FeaturedCandidate>(candidats: T[]): T[] {
+  return [...candidats].sort((a, b) => {
+    const pa = featuredPriorite(a);
+    const pb = featuredPriorite(b);
+    if (pb !== pa) return pb - pa;
+    const aAct = a.updatedAt ? a.updatedAt.getTime() : 0;
+    const bAct = b.updatedAt ? b.updatedAt.getTime() : 0;
+    if (bAct !== aAct) return bAct - aAct;
+    const aPub = a.publishedAt ? a.publishedAt.getTime() : 0;
+    const bPub = b.publishedAt ? b.publishedAt.getTime() : 0;
+    if (bPub !== aPub) return bPub - aPub;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+/** Jours écoulés depuis une date ISO (date seule) — 0 si même jour. */
+function joursEntre(iso: string | null, now: Date): number {
+  if (!iso) return 0;
+  const then = Date.parse(`${iso}T00:00:00Z`);
+  if (Number.isNaN(then)) return 0;
+  return Math.max(0, Math.floor((now.getTime() - then) / 86_400_000));
+}
+
+async function computeFeatured(now: Date): Promise<ComputedFeatured | null> {
+  // 1. Les candidats (publiés, hors veille).
+  const rows = await db
+    .select(FEATURED_SELECT)
     .from(products)
+    .innerJoin(users, eq(products.makerId, users.id))
     .where(
       and(
         eq(products.status, "published"),
@@ -802,119 +913,75 @@ async function publishedCount(): Promise<number> {
         eq(products.curated, false),
       ),
     );
-  return value;
-}
+  if (rows.length === 0) return null;
+  const ids = rows.map((r) => r.id);
 
-async function computeFeatured(now: Date): Promise<ComputedFeatured | null> {
-  const total = await publishedCount();
-  if (total === 0) return null;
-  if (total === 1) {
-    const [only] = await db
-      .select(FEATURED_SELECT)
-      .from(products)
-      .innerJoin(users, eq(products.makerId, users.id))
-      .where(
-        and(
-          eq(products.status, "published"),
-          isNull(products.deletedAt),
-          eq(products.curated, false),
-        ),
-      )
-      .orderBy(desc(products.publishedAt))
-      .limit(1);
-    if (!only) return null;
-    return { row: only, tier: "latest", productId: only.id };
-  }
-  if (total < 5) {
-    // Rotation : jamais-featuré d'abord, sinon moins-récemment-featuré
-    // (re-feature ≥ 7 j — le slot tourne même à faible volume).
-    const weekAgo = utcDateString(new Date(now.getTime() - 7 * 86_400_000));
-    const [row] = await db
+  // 2. Les mises en avant (équité : combien de fois, et quand la
+  //    dernière) + l'activité de la semaine (le signal).
+  const since = new Date(now.getTime() - FEATURED_SIGNAL_FENETRE_JOURS * 86_400_000);
+  const [feats, votes7, comm7, avis7] = await Promise.all([
+    db
       .select({
-        ...FEATURED_SELECT,
-        lastFeatured: sql<string | null>`max(${featuredProducts.featuredOn})`,
+        productId: featuredProducts.productId,
+        apparitions: sql<number>`count(*)::int`,
+        dernier: sql<string | null>`max(${featuredProducts.featuredOn})`,
       })
-      .from(products)
-      .innerJoin(users, eq(products.makerId, users.id))
-      .leftJoin(featuredProducts, eq(featuredProducts.productId, products.id))
-      .where(
-        and(
-          eq(products.status, "published"),
-          isNull(products.deletedAt),
-          eq(products.curated, false),
-          or(
-            sql`${featuredProducts.featuredOn} IS NULL`,
-            sql`${featuredProducts.featuredOn} < ${weekAgo}`,
-          )!,
-        ),
-      )
-      .groupBy(products.id, users.id)
-      .orderBy(sql`max(${featuredProducts.featuredOn}) ASC NULLS FIRST`, desc(products.publishedAt))
-      .limit(1);
-    if (!row) return null;
-    const { lastFeatured, ...rest } = row;
-    void lastFeatured;
-    return { row: rest, tier: "rotation", productId: rest.id };
-  }
-  // Normal : #1 d'hier (votes pondérés) non-featuré depuis 30 j.
-  const todayStart = startOfTodayUTC(now);
-  const yesterdayStart = new Date(todayStart.getTime() - 86_400_000);
-  const monthAgo = utcDateString(new Date(now.getTime() - 30 * 86_400_000));
-  const [row] = await db
-    .select({ ...FEATURED_SELECT, weighted: sql<number>`coalesce(sum(${votes.weight}), 0)::int` })
-    .from(products)
-    .innerJoin(users, eq(products.makerId, users.id))
-    .leftJoin(votes, eq(votes.productId, products.id))
-    .where(
-      and(
-        eq(products.status, "published"),
-        isNull(products.deletedAt),
-        eq(products.curated, false),
-        gte(products.publishedAt, yesterdayStart),
-        sql`${products.publishedAt} < ${todayStart.toISOString()}::timestamptz`,
-        sql`NOT EXISTS (SELECT 1 FROM ${featuredProducts} f WHERE f.product_id = ${products.id} AND f.featured_on >= ${monthAgo})`,
-      ),
-    )
-    .groupBy(products.id, users.id)
-    .orderBy(sql`coalesce(sum(${votes.weight}), 0) DESC`, products.publishedAt)
-    .limit(1);
-  if (!row) {
-    // Hier sans publication (week-end, vacances) : repli rotation.
-    return computeFeaturedRotationFallback(now);
-  }
-  const { weighted, ...rest } = row;
-  void weighted;
-  return { row: rest, tier: "top", productId: rest.id };
-}
+      .from(featuredProducts)
+      .where(inArray(featuredProducts.productId, ids))
+      .groupBy(featuredProducts.productId),
+    db
+      .select({
+        productId: votes.productId,
+        poids: sql<number>`coalesce(sum(${votes.weight}), 0)::int`,
+      })
+      .from(votes)
+      .where(and(inArray(votes.productId, ids), gte(votes.createdAt, since)))
+      .groupBy(votes.productId),
+    db
+      .select({ productId: comments.productId, n: sql<number>`count(*)::int` })
+      .from(comments)
+      .where(and(inArray(comments.productId, ids), gte(comments.createdAt, since)))
+      .groupBy(comments.productId),
+    db
+      .select({ productId: reviews.productId, n: sql<number>`count(*)::int` })
+      .from(reviews)
+      .where(and(inArray(reviews.productId, ids), gte(reviews.createdAt, since)))
+      .groupBy(reviews.productId),
+  ]);
+  const featMap = new Map(feats.map((f) => [f.productId, f]));
+  const voteMap = new Map(votes7.map((v) => [v.productId, v.poids]));
+  const commMap = new Map(comm7.map((c) => [c.productId, c.n]));
+  const avisMap = new Map(avis7.map((a) => [a.productId, a.n]));
 
-async function computeFeaturedRotationFallback(now: Date): Promise<ComputedFeatured | null> {
-  const weekAgo = utcDateString(new Date(now.getTime() - 7 * 86_400_000));
-  const [row] = await db
-    .select({
-      ...FEATURED_SELECT,
-      lastFeatured: sql<string | null>`max(${featuredProducts.featuredOn})`,
-    })
-    .from(products)
-    .innerJoin(users, eq(products.makerId, users.id))
-    .leftJoin(featuredProducts, eq(featuredProducts.productId, products.id))
-    .where(
-      and(
-        eq(products.status, "published"),
-        isNull(products.deletedAt),
-        eq(products.curated, false),
-        or(
-          sql`${featuredProducts.featuredOn} IS NULL`,
-          sql`${featuredProducts.featuredOn} < ${weekAgo}`,
-        )!,
-      ),
-    )
-    .groupBy(products.id, users.id)
-    .orderBy(sql`max(${featuredProducts.featuredOn}) ASC NULLS FIRST`, desc(products.publishedAt))
-    .limit(1);
-  if (!row) return null;
-  const { lastFeatured, ...rest } = row;
-  void lastFeatured;
-  return { row: rest, tier: "rotation", productId: rest.id };
+  // 3. La priorité de chaque candidat.
+  const scored: (FeaturedCandidate & { row: (typeof rows)[number] })[] = rows.map((row) => {
+    const feat = featMap.get(row.id);
+    const apparitions = feat?.apparitions ?? 0;
+    // Jamais mis en avant → l'attente court depuis sa publication (elle
+    // est due depuis qu'il existe).
+    const reference = feat?.dernier ?? (row.publishedAt ? utcDateString(row.publishedAt) : null);
+    const attente = Math.min(joursEntre(reference, now), FEATURED_ATTENTE_PLAFOND_JOURS);
+    const note = row.ratingsCount > 0 ? row.ratingsSum / row.ratingsCount : 0;
+    const signal =
+      note +
+      (voteMap.get(row.id) ?? 0) +
+      FEATURED_POIDS_COMMENTAIRE * (commMap.get(row.id) ?? 0) +
+      FEATURED_POIDS_AVIS * (avisMap.get(row.id) ?? 0);
+    return {
+      id: row.id,
+      signal,
+      attente,
+      updatedAt: row.updatedAt,
+      publishedAt: row.publishedAt,
+      row,
+      apparitions,
+    };
+  });
+
+  // 4. Le tri (fonction pure : deterministe, et PAS l'ordre d'arrivee).
+  const winner = classerFeatured(scored)[0];
+  if (!winner) return null;
+  return { row: winner.row, tier: "rotation", productId: winner.row.id };
 }
 
 /**
