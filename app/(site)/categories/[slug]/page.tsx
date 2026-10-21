@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CaretLeftIcon } from "@phosphor-icons/react/dist/ssr";
 import { cn } from "@/lib/utils";
 import { GridBackground } from "@/components/ui/grid-background";
+import { safeJsonLd } from "@/lib/safe-json-ld";
 import { DiscoverGrid } from "@/components/discover/discover-grid";
 import { FilterProvider } from "@/components/discover/sidebar-filter";
 import { parseDiscoverFilters } from "@/lib/discover-filters";
@@ -67,7 +68,7 @@ export default async function CategoryPage({ params }: { params: Promise<Params>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
+          __html: safeJsonLd(
             itemListLd(result.items, `${category.name} — produits tech malgaches`),
           ),
         }}

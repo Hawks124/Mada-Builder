@@ -6,6 +6,9 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **La règle du produit du jour est en SQL ET en TypeScript, et elle est vérifiée** : le cron `pg_cron` (00:05) applique désormais la même priorité que le service TS (attente bornée à 7 j + signal borné à 7, l'attente pesant double) — avant, la fonction SQL enfilait les produits (FIFO) et c'était elle qui tournait en prod, pas la nouvelle règle. Un script dédié (`npm run verify:featured`) rejoue les DEUX moteurs sur le même état et compare leur choix : ils ne peuvent pas diverger silencieusement.
+- **Outillage** : Chrome DevTools MCP déclaré dans la config opencode (console, réseau, traces de perf, et accès à ta session Chrome pour tester les écrans connectés). Zéro empreinte dans le produit.
+
 - **Produit du jour : une priorité, pas une file d'attente** (l'algo du slot
   est réécrit ; le calcul est pur, donc testable hors base).
   Une seule règle, deux bornes, aucun seuil sur la taille du catalogue :
@@ -505,6 +508,11 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   fraude), mobile (`GET revenue`, `revenue-connections` ×3).
 
 ### Corrigé
+
+- **XSS stocké via le JSON-LD** (le seul vrai bloquant) : le JSON-LD était injecté avec `dangerouslySetInnerHTML({ __html: JSON.stringify(...) })` dans une balise `<script>` — or `JSON.stringify` n'échappe PAS `<` : une chaîne contenant `</script>` **ferme la balise** dans le parseur HTML et le reste est interprété comme du HTML. Le vecteur était sans revue : le `displayName` d'un maker (validé sur la longueur seule) et sa `bio` arrivaient dans le `personLd` de son profil public, indexable — un compte inscrit pouvait injecter du script et voler la session d'un staff qui visitait le profil. Un helper `safeJsonLd()` échappe `<`/`>`/`&` sur les 6 injections.
+- **Le contenu NON VALIDé d'une fiche publiée était lisible par la clé anonyme publique** : la révision en attente vivait dans des colonnes de `products`, or le rôle `anon` a un GRANT de niveau TABLE sur `products` et la RLS ne filtre que les LIGNES → un `GET /rest/v1/products?select=pending_payload` renvoyait le texte en attente de validation (HTTP 200, vérifié). La révision part désormais dans SA table `product_revisions`, en déni-all (migration 0050) : `anon`/`authenticated` n'y ont plus accès du tout.
+- **L'aperçu (`/preview`) montrait le contenu VALIDÉ, pas la révision en attente** : le maker voyait son ancien texte et croyait que son édition avait disparu. L'aperçu montre désormais ce qui sera publié (texte ET médias proposés).
+- **La révision pouvait mélanger les médias de la v1 et le texte de la v2** : `pendingMedia` n'était jamais recalculé (les médias de la révision précédente restaient), et un refus purgeait des médias qui n'étaient plus ceux de la révision courante. Désormais la révision est fusionnée (un champ non touché garde sa valeur proposée, un champ remis à sa valeur validée sort de la révision) et les médias abandonnés sont purgés (R2).
 
 - **Le produit du jour pouvait être vide** alors que le catalogue existait : l'algo
   enfilait les produits dans une FILE (jamais-featuré d'abord, puis

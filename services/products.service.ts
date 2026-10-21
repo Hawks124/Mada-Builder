@@ -1,22 +1,9 @@
 import { z } from "zod";
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  ilike,
-  inArray,
-  isNotNull,
-  isNull,
-  lt,
-  ne,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   products,
+  productRevisions,
   productScreenshots,
   productPageViews,
   productLinkClicks,
@@ -1127,7 +1114,44 @@ export async function fetchProductForPreview(
     .from(productScreenshots)
     .where(eq(productScreenshots.productId, row.id))
     .orderBy(productScreenshots.position);
-  return { product: row, shots };
+  // Révision en attente : l'aperçu doit montrer CE QUI SERA PUBLIÉ
+  // (le texte et les médias proposés), pas le contenu validé. Sans ça,
+  // le maker voit son ancien texte dans l'aperçu et croit que sa
+  // modification a disparu (alors qu'elle est en file de revue).
+  const [revision] = await db
+    .select({ payload: productRevisions.payload, media: productRevisions.media })
+    .from(productRevisions)
+    .where(eq(productRevisions.productId, row.id))
+    .limit(1);
+  if (!revision) return { product: row, shots };
+  const payload = (revision.payload ?? {}) as Record<string, unknown>;
+  const media = (revision.media ?? null) as PendingMedia | null;
+  const product = {
+    ...row,
+    name: typeof payload.name === "string" ? payload.name : row.name,
+    tagline: typeof payload.tagline === "string" ? payload.tagline : row.tagline,
+    description: typeof payload.description === "string" ? payload.description : row.description,
+    tags: Array.isArray(payload.tags) ? (payload.tags as string[]) : row.tags,
+    requirements: Array.isArray(payload.requirements)
+      ? (payload.requirements as string[])
+      : row.requirements,
+    installCommand:
+      typeof payload.installCommand === "string" ? payload.installCommand : row.installCommand,
+    links: (payload.links as typeof row.links | undefined) ?? row.links,
+    iconUrl: media?.logo ?? row.iconUrl,
+  };
+  const previewShots =
+    media && media.shots.length > 0
+      ? media.shots.map((s, i) => ({
+          url: s.url,
+          caption: null,
+          orientation: s.orientation,
+          width: s.width,
+          height: s.height,
+          position: i + 1,
+        }))
+      : shots;
+  return { product, shots: previewShots };
 }
 
 /** Dashboard maker : tout ses produits (draft/pending/rejected inclus).
@@ -1151,13 +1175,13 @@ export async function fetchMyProducts(
       status: products.status,
       rejectionReason: products.rejectionReason,
       updatedAt: products.updatedAt,
-      // Revision en attente (la fiche publiee garde son contenu approuve
-      // en ligne ; ces colonnes portent la modification qui attend un
-      // regard admin).
-      pendingPayload: products.pendingPayload,
-      pendingAt: products.pendingAt,
+      // Révision en attente (table dédiée, deny-all) : le maker doit
+      // voir CE QU'IL A PROPOSÉ, pas le contenu validé.
+      revisionPayload: productRevisions.payload,
+      revisionAt: productRevisions.createdAt,
     })
     .from(products)
+    .leftJoin(productRevisions, eq(productRevisions.productId, products.id))
     .where(and(...conditions))
     .orderBy(desc(products.updatedAt), desc(products.id))
     .$dynamic();
@@ -1409,7 +1433,7 @@ export function toDashboardApp(
   // Révision en attente : le maker doit voir CE QU'IL A ÉCRIT (la
   // fiche publique, elle, garde le contenu validé). Sans ça, il
   // reverrait son texte validé et croirait que son edit a été perdu.
-  const pending = (row.pendingPayload ?? {}) as Record<string, unknown>;
+  const pending = (row.revisionPayload ?? {}) as Record<string, unknown>;
   const pendingName = typeof pending.name === "string" ? pending.name : row.name;
   const pendingTagline = typeof pending.tagline === "string" ? pending.tagline : row.tagline;
   const pendingDescription =
@@ -1857,13 +1881,32 @@ export async function updateProduct(
   //
   // Sur un brouillon/pending, rien de tout ça : le travail en cours
   // s'applique, la revue tranche au moment de la publication.
-  const sensitive: Record<string, unknown> = {};
+  //
+  // La révision en cours (table `product_revisions`) est reprise : un
+  // champ que le maker NE RE-TOUCHE PAS garde sa valeur proposée ; un
+  // champ remis à sa valeur VALIDÉE disparaît de la révision (il a
+  // annulé son changement).
+  const previousRevision = isPublished
+    ? (
+        await db
+          .select({ payload: productRevisions.payload, media: productRevisions.media })
+          .from(productRevisions)
+          .where(eq(productRevisions.productId, productId))
+          .limit(1)
+      )[0]
+    : undefined;
+  const sensitive: Record<string, unknown> = isPublished
+    ? { ...((previousRevision?.payload ?? {}) as Record<string, unknown>) }
+    : {};
   if (isPublished) {
     for (const field of SENSITIVE_EDIT_FIELDS) {
       const next = (data as Record<string, unknown>)[field];
       if (next === undefined) continue;
       const prev = (row as Record<string, unknown>)[field];
-      if (JSON.stringify(next ?? null) !== JSON.stringify(prev ?? null)) {
+      if (JSON.stringify(next ?? null) === JSON.stringify(prev ?? null)) {
+        // Remis à la valeur validée → plus de changement proposé.
+        delete sensitive[field];
+      } else {
         sensitive[field] = next;
       }
     }
@@ -1965,15 +2008,10 @@ export async function updateProduct(
     patch.status = "pending";
     patch.rejectionReason = null;
   }
-  // La révision en attente (contenu sensible + médias) : rangée sur la
-  // fiche, JAMAIS appliquée. Tant que l'admin n'a pas validé, le
-  // public voit le contenu approuvé.
+  // La révision en attente (contenu sensible + médias) : rangée dans la
+  // table `product_revisions` (deny-all), JAMAIS appliquée. Tant que
+  // l'admin n'a pas validé, le public voit le contenu approuvé.
   let pendingMedia: PendingMedia | null = null;
-  if (needsRevision) {
-    patch.pendingPayload = sensitive as never;
-    patch.pendingAt = new Date();
-    patch.pendingBy = viewerId;
-  }
   // Retour en file (publication, re-soumission) : nouveau cycle
   // SLA (D0) — la date de (re-)soumission, jamais la naissance du brouillon.
   if (patch.status === "pending") patch.submittedAt = new Date();
@@ -2007,10 +2045,6 @@ export async function updateProduct(
       // fiche (le public garde les images approuvées), on range les
       // URLs dans la révision. L'admin les validera avec le texte.
       pendingMedia = { logo: prepared.logoUrl, shots: prepared.shots };
-      await db
-        .update(products)
-        .set({ pendingMedia: pendingMedia as never })
-        .where(eq(products.id, productId));
     } else {
       if (prepared.logoUrl) {
         const oldKey = r2KeyFromUrl(row.iconUrl);
@@ -2040,6 +2074,62 @@ export async function updateProduct(
     }
     await cleanupStaged(staged.stagedKeys);
   }
+  // ── La révision en attente (table `product_revisions`, deny-all) ──
+  // Écriture APRÈS l'upload des médias : la révision doit porter les
+  // URLs définitives (sinon l'admin validerait une révision sans les
+  // images qu'elle annonce).
+  if (needsRevision) {
+    // Les médias de la révision précédente qui ne sont pas reconduits
+    // sont purgés (R2) : pas d'orphelin, pas de mélange v1/v2.
+    const oldMedia = (previousRevision?.media ?? null) as PendingMedia | null;
+    if (oldMedia) {
+      const kept = new Set((pendingMedia?.shots ?? []).map((s) => s.url));
+      if (oldMedia.logo && oldMedia.logo !== pendingMedia?.logo) {
+        const key = r2KeyFromUrl(oldMedia.logo);
+        if (key) await deleteR2Object(PRODUCT_LOGOS_BUCKET, key).catch(() => {});
+      }
+      for (const s of oldMedia.shots ?? []) {
+        if (kept.has(s.url)) continue;
+        const key = r2KeyFromUrl(s.url);
+        if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+      }
+    }
+    await db
+      .insert(productRevisions)
+      .values({
+        productId,
+        makerId: viewerId,
+        payload: sensitive as never,
+        media: pendingMedia as never,
+        createdAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: productRevisions.productId,
+        set: {
+          payload: sensitive as never,
+          media: pendingMedia as never,
+          createdAt: new Date(),
+          reviewedAt: null,
+          reviewedBy: null,
+          rejectionReason: null,
+        },
+      });
+  } else if (previousRevision) {
+    // Plus rien de proposé (le maker a tout remis à sa valeur validée) :
+    // la révision ne sert plus à rien → on la jette (et ses médias).
+    const oldMedia = (previousRevision.media ?? null) as PendingMedia | null;
+    if (oldMedia) {
+      if (oldMedia.logo) {
+        const key = r2KeyFromUrl(oldMedia.logo);
+        if (key) await deleteR2Object(PRODUCT_LOGOS_BUCKET, key).catch(() => {});
+      }
+      for (const s of oldMedia.shots ?? []) {
+        const key = r2KeyFromUrl(s.url);
+        if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+      }
+    }
+    await db.delete(productRevisions).where(eq(productRevisions.productId, productId));
+  }
   // Bascule d'orientation = purge des captures de l'autre orientation
   // (après le bloc média : les nouvelles captures sont déjà en base, on
   // écarte donc aussi celles qu'un re-upload aurait conservées).
@@ -2062,8 +2152,9 @@ export async function updateProduct(
 export async function countPendingRevisions(): Promise<number> {
   const [row] = await db
     .select({ n: count() })
-    .from(products)
-    .where(and(isNull(products.deletedAt), isNotNull(products.pendingAt)));
+    .from(productRevisions)
+    .innerJoin(products, eq(products.id, productRevisions.productId))
+    .where(isNull(products.deletedAt));
   return row?.n ?? 0;
 }
 
@@ -2095,14 +2186,15 @@ export async function listPendingRevisions(input: { isStaff: boolean; limit?: nu
       name: products.name,
       makerUsername: users.username,
       makerDisplayName: users.displayName,
-      payload: products.pendingPayload,
-      media: products.pendingMedia,
-      pendingAt: products.pendingAt,
+      payload: productRevisions.payload,
+      media: productRevisions.media,
+      pendingAt: productRevisions.createdAt,
     })
-    .from(products)
+    .from(productRevisions)
+    .innerJoin(products, eq(products.id, productRevisions.productId))
     .innerJoin(users, eq(products.makerId, users.id))
-    .where(and(isNull(products.deletedAt), isNotNull(products.pendingAt)))
-    .orderBy(asc(products.pendingAt))
+    .where(isNull(products.deletedAt))
+    .orderBy(asc(productRevisions.createdAt))
     .limit(Math.min(Math.max(input.limit ?? 50, 1), 100));
   return rows.map((r) => ({
     id: r.id,
@@ -2149,21 +2241,21 @@ export async function reviewRevision(input: {
   if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
   const [row] = await db.select().from(products).where(eq(products.id, input.productId)).limit(1);
   if (!row || row.deletedAt) throw new ProfileError("NOT_FOUND", "Produit introuvable.");
-  if (!row.pendingAt) throw new ProfileError("NOT_FOUND", "Aucune révision en attente.");
-  const payload = (row.pendingPayload ?? {}) as Record<string, unknown>;
-  const media = (row.pendingMedia ?? null) as PendingMedia | null;
+  const [revision] = await db
+    .select({ payload: productRevisions.payload, media: productRevisions.media })
+    .from(productRevisions)
+    .where(eq(productRevisions.productId, input.productId))
+    .limit(1);
+  if (!revision) throw new ProfileError("NOT_FOUND", "Aucune révision en attente.");
+  const payload = (revision.payload ?? {}) as Record<string, unknown>;
+  const media = (revision.media ?? null) as PendingMedia | null;
 
   if (input.decision === "rejected") {
     await purgePendingMedia(media);
+    await db.delete(productRevisions).where(eq(productRevisions.productId, input.productId));
     await db
       .update(products)
-      .set({
-        pendingPayload: null,
-        pendingMedia: null,
-        pendingAt: null,
-        pendingBy: null,
-        updatedAt: new Date(),
-      })
+      .set({ updatedAt: new Date() })
       .where(eq(products.id, input.productId));
     return { applied: false };
   }
@@ -2220,14 +2312,9 @@ export async function reviewRevision(input: {
 
   await db
     .update(products)
-    .set({
-      ...(patch as Record<string, never>),
-      pendingPayload: null,
-      pendingMedia: null,
-      pendingAt: null,
-      pendingBy: null,
-    })
+    .set(patch as Record<string, never>)
     .where(eq(products.id, input.productId));
+  await db.delete(productRevisions).where(eq(productRevisions.productId, input.productId));
   return { applied: true };
 }
 

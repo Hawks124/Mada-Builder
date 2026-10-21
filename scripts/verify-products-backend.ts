@@ -68,7 +68,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { assertVersionAllowed, diffBuildIdentity } from "@/services/builds.service";
 import { countPublishedByCategory, getRealCounts } from "@/services/catalog-counts.service";
-import { productBuilds } from "@/db/schema";
+import { safeJsonLd } from "@/lib/safe-json-ld";
+import { productBuilds, productRevisions } from "@/db/schema";
 import { KNOWN_LINK_IDS } from "@/services/products.service";
 
 let pass = 0;
@@ -2394,10 +2395,11 @@ async function main(): Promise<void> {
       status: products.status,
       name: products.name,
       tagline: products.tagline,
-      pendingPayload: products.pendingPayload,
-      pendingAt: products.pendingAt,
+      pendingPayload: productRevisions.payload,
+      pendingAt: productRevisions.createdAt,
     })
     .from(products)
+    .leftJoin(productRevisions, eq(productRevisions.productId, products.id))
     .where(eq(products.id, pubProduct.id));
   check("révision : la fiche reste en ligne", pubRow?.status === "published");
   check("révision : le nom public n'a pas bougé", pubRow?.name === "Produit Revision");
@@ -2425,8 +2427,9 @@ async function main(): Promise<void> {
     staffId: maker.id,
   });
   const [afterReject] = await db
-    .select({ name: products.name, pendingAt: products.pendingAt })
+    .select({ name: products.name, pendingAt: productRevisions.createdAt })
     .from(products)
+    .leftJoin(productRevisions, eq(productRevisions.productId, products.id))
     .where(eq(products.id, pubProduct.id));
   check("révision refusée : le contenu validé reste", afterReject?.name === "Produit Revision");
   check("révision refusée : plus rien en attente", afterReject?.pendingAt === null);
@@ -2442,8 +2445,9 @@ async function main(): Promise<void> {
     staffId: maker.id,
   });
   const [afterApprove] = await db
-    .select({ name: products.name, pendingAt: products.pendingAt })
+    .select({ name: products.name, pendingAt: productRevisions.createdAt })
     .from(products)
+    .leftJoin(productRevisions, eq(productRevisions.productId, products.id))
     .where(eq(products.id, pubProduct.id));
   check(
     "révision approuvée : la modification est appliquée",
@@ -2619,6 +2623,20 @@ async function main(): Promise<void> {
   check(
     "slot : rempli quand le catalogue a des produits éligibles",
     (catalogueVide[0]?.n ?? 0) === 0 || slotRempli !== null,
+  );
+
+  // 18. JSON-LD : l'injection dans la balise <script> est neutralisee.
+  //     Le payload d'un profil maker (nom, bio) n'est revu par PERSONNE :
+  //     avant, un "</script>" dans le displayName fermait la balise et
+  //     injectait du HTML sur une page publique indexable (XSS stocke).
+  const payloadXss = safeJsonLd({ name: `x</script><img src=x onerror=alert(1)>` });
+  check(
+    "JSON-LD : le < est echappe (aucune balise script fermable)",
+    !payloadXss.includes("</script>") && payloadXss.includes("\\u003c"),
+  );
+  check(
+    "JSON-LD : le JSON reste lisible a l'identique",
+    (JSON.parse(payloadXss) as { name: string }).name === `x</script><img src=x onerror=alert(1)>`,
   );
 
   await db.delete(productBuilds).where(eq(productBuilds.productId, buildProduct.id));

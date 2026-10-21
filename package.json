@@ -18,11 +18,12 @@
     "db:ping": "tsx scripts/db-ping.ts",
     "email:preview": "tsx scripts/render-email-previews.ts",
     "verify:clean": "tsx scripts/verify-clean.ts",
+    "verify:featured": "tsx scripts/verify-featured.ts",
     "check": "npm run check:types && npm run check:lint && npm run check:format && npm run check:verify && npm run check:build",
     "check:types": "tsc --noEmit -p tsconfig.json",
     "check:lint": "eslint app components services lib config scripts",
     "check:format": "prettier --check .",
-    "check:verify": "tsx scripts/verify-security.ts && tsx scripts/verify-apk-extract.ts && tsx scripts/verify-products-backend.ts",
+    "check:verify": "tsx scripts/verify-security.ts && tsx scripts/verify-apk-extract.ts && tsx scripts/verify-featured.ts && tsx scripts/verify-products-backend.ts",
     "check:build": "node scripts/build-isolated.mjs",
     "prepare": "husky",
     "check:encoding": "node scripts/check-encoding.mjs"

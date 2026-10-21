@@ -12,6 +12,7 @@ import { getRevenueViewsForProducts } from "@/services/revenue/views";
 import type { FeaturedProductData } from "@/services/home.service";
 import { itemListLd } from "@/lib/seo";
 import { siteUrl } from "@/lib/site-url";
+import { safeJsonLd } from "@/lib/safe-json-ld";
 
 const LEADERBOARD_TITLE = "Classement de la tech malgache | Mada-Made";
 const LEADERBOARD_DESC =
@@ -108,9 +109,7 @@ export default async function LeaderboardPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
-            itemListLd(chrono.items, "Classement des produits tech malgaches"),
-          ),
+          __html: safeJsonLd(itemListLd(chrono.items, "Classement des produits tech malgaches")),
         }}
       />
       <LeaderboardContent

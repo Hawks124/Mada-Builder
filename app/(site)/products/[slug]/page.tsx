@@ -19,6 +19,7 @@ import { siteUrl } from "@/lib/site-url";
 import { getRelatedProducts } from "@/services/ranking.service";
 import { getLinkVerdicts } from "@/services/url-check.service";
 import { appGradientFor, appInitialsFor } from "@/services/products.service";
+import { safeJsonLd } from "@/lib/safe-json-ld";
 
 type Params = { slug: string };
 
@@ -191,13 +192,10 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }}
       />
       {/* La FICHE = une seule vue (cf. `ProductSheet`) : l'aperçu d'une
           fiche en revue rend EXACTEMENT la même chose. */}
