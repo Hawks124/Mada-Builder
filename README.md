@@ -31,12 +31,13 @@ npm run db:setup             # trigger signup, RLS, buckets (idempotent)
 npm run dev
 ```
 
-| Script                                     | Usage                                                    |
-| ------------------------------------------ | -------------------------------------------------------- |
-| `npm run db:generate` / `db:migrate:local` | migration Drizzle (générer, appliquer avec `.env.local`) |
-| `npm run db:setup`                         | `setup.sql` post-migration (64 instructions, rejouable)  |
-| `npx tsx scripts/verify-*.ts`              | garde-fous (OTP, toasts, emails, API v1…)                |
-| `npx tsc --noEmit` + `npx eslint`          | vérifs avant chaque lot                                  |
+| Script                                     | Usage                                                                                                                                                                    |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `npm run db:generate` / `db:migrate:local` | migration Drizzle (générer, appliquer avec `.env.local`)                                                                                                                 |
+| `npm run db:setup`                         | `setup.sql` post-migration (64 instructions, rejouable)                                                                                                                  |
+| `npm run check`                            | **le point de vérification** : types, lint, format, les 4 non-régressions du web (sécurité, APK, produit du jour, produits) et le build — une commande, une fois par lot |
+| `npx tsx scripts/verify-*.ts`              | garde-fous (OTP, toasts, emails, API v1…)                                                                                                                                |
+| `npx tsc --noEmit` + `npx eslint`          | vérifs rapides pendant l'édition                                                                                                                                         |
 
 Sans clés Supabase, l'app tourne en mock (voir `docs/auth.md`).
 
@@ -56,3 +57,5 @@ Sans clés Supabase, l'app tourne en mock (voir `docs/auth.md`).
 ## Contribuer
 
 Projet open source sous licence MIT. Lire [`CONTRIBUTING.md`](./CONTRIBUTING.md) et le [code de conduite](./CODE_OF_CONDUCT.md). La [marque](./TRADEMARK.md) n'est pas couverte par la MIT. Faille de sécurité → [`SECURITY.md`](./SECURITY.md) (jamais en issue publique).
+
+Ce dépôt est référencé dans le [XERJ Corpus Hub](https://github.com/xerj-org/xerj), un index public de solutions réutilisables par les agents de code : les extraits y sont servis sous la licence du dépôt, avec attribution.
