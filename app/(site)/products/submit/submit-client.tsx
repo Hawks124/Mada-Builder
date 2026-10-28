@@ -113,6 +113,9 @@ function SubmitForm() {
   const intentRef = React.useRef<"publish" | "draft" | null>(null);
   const saveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const formRef = React.useRef<HTMLFormElement | null>(null);
+  // Erreur serveur : le message est ancré EN HAUT du formulaire (375 px,
+  // la fin est hors écran après un envoi) — ce réf porte l'ancre du scroll.
+  const topAlertRef = React.useRef<HTMLDivElement | null>(null);
   const { pendingRevisionAt } = useSubmitForm();
   const { phase, sending, serverMessage, activeIntent, send } = useSubmitXhr(formRef, {
     // Android seul conditionne (plus isEditing : la chaîne décide via
@@ -134,6 +137,17 @@ function SubmitForm() {
   React.useEffect(() => {
     if (phase.name === "idle") intentRef.current = null;
   }, [phase]);
+  // Échec serveur → le message vient d'apparaître en haut : on y emmène
+  // le regard. Validation client en revanche a déjà le focus du champ.
+  React.useEffect(() => {
+    if (!serverMessage) return;
+    const el = topAlertRef.current;
+    if (!el) return;
+    const reduce =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  }, [serverMessage]);
   React.useEffect(() => {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -160,6 +174,14 @@ function SubmitForm() {
               ? `Modifiez la fiche de ${editApp.name}. Le texte, les liens et les images passent en revue : votre fiche reste en ligne telle qu'elle a été validée, le temps que la modification soit examinee.`
               : "Ajoutez votre application pour que la communauté de makers de Madagascar puisse la découvrir et la soutenir."}
           </p>
+          {/* La guidance complète a une adresse canonique (mobile compris) —
+              la sidebar reste la version au bon moment sur desktop. */}
+          <Link
+            href="/guides/publier"
+            className="text-[13px] font-bold text-muted-foreground underline decoration-border/60 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground"
+          >
+            Guide complet — tout ce qui prépare une publication réussie
+          </Link>
           {isEditing && pendingRevisionAt && (
             <p className="mt-3 w-fit rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[13px] font-bold text-amber-700 dark:text-amber-300">
               Une modification est en attente de revue — les valeurs ci-dessous sont celles que vous
@@ -213,6 +235,20 @@ function SubmitForm() {
             <input type="hidden" name="lifecycle" value={lifecycle} />
             <input type="hidden" name="audience" value={audience} />
             <input type="hidden" name="pricing" value={pricing} />
+            {/* Échec serveur : message EN HAUT (première chose lue), mêmes
+                codes couleurs que le récap des erreurs inline. Le bloc du
+                bas est retiré : sur mobile, il n'a jamais été visible. */}
+            {serverMessage && (
+              <div
+                ref={topAlertRef}
+                role="alert"
+                className="rounded-2xl border border-red-500/40 bg-red-500/5 px-5 py-4"
+              >
+                <p className="text-[13px] font-black text-red-600 dark:text-red-400">
+                  {serverMessage}
+                </p>
+              </div>
+            )}
             <SubmitBasicsSection />
             <div className="w-full h-px bg-border/40" />
 
@@ -266,11 +302,6 @@ function SubmitForm() {
 
             {/* Bottom Actions */}
             <SubmitLinksSummary />
-            {serverMessage && (
-              <p role="alert" className="text-[14px] font-bold text-red-600 dark:text-red-400">
-                {serverMessage}
-              </p>
-            )}
             <InlineErrorSummary />
             <p className="text-right text-[13px] text-muted-foreground">
               Un brouillon s&apos;enregistre avec le seul nom — les champs marqués « Requis » seront
