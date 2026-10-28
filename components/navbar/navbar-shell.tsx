@@ -147,7 +147,12 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
           </div>
 
           <div className="md:hidden flex items-center gap-1.5">
-            <ThemeToggle />
+            {/* Toggle dans la barre seulement ≥ sm : à 320 px la barre
+                (wordmark 111 + connexion 117 + burger 40) déborde des
+                288 px utiles — sous sm il vit dans le menu mobile. */}
+            <div className="hidden sm:block">
+              <ThemeToggle />
+            </div>
             {user ? (
               <UserMenu size="sm" user={user} submitHref="/products/submit" />
             ) : (
@@ -254,6 +259,12 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
               label="Revenus vérifiés"
               onClick={() => setIsMobileMenuOpen(false)}
             />
+          </div>
+
+          {/* Thème : descendu ici sous sm (la barre 320 px déborde avec
+              lui) — même bouton, même animation, en bas du menu. */}
+          <div className="mt-auto pt-3 border-t border-border/40">
+            <ThemeToggle />
           </div>
         </div>
       )}

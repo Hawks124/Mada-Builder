@@ -565,6 +565,12 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Corrigé
 
+- **La navbar débordait à 320 px** : wordmark + connexion + toggle +
+  burger = 320 px pour 288 utiles — le burger sortait de l'écran (scroll
+  horizontal). Le ThemeToggle quitte la barre sous `sm` et vit en bas du
+  menu mobile (motif standard GitHub/Linear) : 274 px, marge 13 px.
+  Mesuré en live (largeurs réelles des éléments, Geist), pas estimé.
+
 - **Les preuves d'appel survivaient à la suppression du compte** : les
   fichiers du bucket privé « appeals » sont purgés dans les DEUX chemins
   (action web `deleteMyAccount` et API mobile `DELETE /me`) — le contrat
