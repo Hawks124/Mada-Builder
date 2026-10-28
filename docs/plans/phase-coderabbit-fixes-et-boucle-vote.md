@@ -100,11 +100,20 @@ IS NULL OR user_id = auth.uid())` (WITH CHECK inchangé) — le hijack
 
 ## 4. Lot C — flicker vote 4→5→4
 
-- [ ] Le compteur affiché = celui de la **réponse** de l'action
-      (autoritaire, jamais re-dérivé) ; neutraliser la re-dérivation
-      `useOptimistic` contre la prop fraîche arrivée mid-transition.
-- [ ] Reproduire + mesurer avant/après (dev server local).
-- [ ] Commit `fix(ui)`.
+- [x] Le compteur optimiste est **gelé au clic** (`frozenCountRef`,
+      `components/votes/vote-button.tsx`) : le reducer `useOptimistic`
+      était re-invoqué à chaque render intermédiaire de la transition
+      (payload RSC revalidé, réponse qui met `confirmed` à jour pendant le
+      vol) et re-décalait le compteur depuis `state.count`. Pendant le
+      vol, l'affichage ne dépend plus ni d'une prop fraîche ni de l'état
+      confirmé ; la réponse serveur reste **autoritaire** (`setConfirmed`)
+      et prend le relais au jet de l'optimiste ; les refus (mur, compte
+      jeune, erreur) reviennent toujours à l'état confirmé.
+- [ ] Repro live avant/après : le vote exige une session (mur auth —
+      voulu), aucune session de test n'est documentée → à mesurer avec
+      l'opérateur (qui a vu le flicker) en fin de série, en même temps
+      que les lots D/E.
+- [x] Commit `fix(ui)`.
 
 ## 5. Lot D — déconnexion sans pending (repro live requise)
 
