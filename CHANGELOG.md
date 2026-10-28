@@ -6,6 +6,29 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **Le pont d'écriture directe (migration 0055)** : avis, commentaires et
+  votes de commentaires sont écrits par l'app mobile en direct PostgREST —
+  la base devient l'arbitre unique (CHECK, RLS own-row, garde trigger,
+  grants par colonne) et pose les effets de bord (compteurs, score,
+  notifications) pour le web comme pour le mobile. Écritures directes de
+  `products` et `notifications` fermées aux clients. Contrat :
+  `docs/mobile-ecritures-directes.md`.
+- **La page `/guides/publier`** : le guide canonique de tout ce qui prépare
+  une publication réussie (nom/tagline, captures, médias avant l'écriture,
+  liens, texte, statuts de revue). Indexé, relié depuis `/guides` et depuis
+  le formulaire de soumission.
+- **Les jobs d'entretien** (`/api/cron/maintenance` + workflow samedi
+  03:43 UTC) : purge notifications lues / OTP expirés / RSVP contacts,
+  recount des téléchargements, sweep R2, dead man switch 26 h ; digest
+  hebdo verrouillé en table (`digests_sent`, 0054) ; webhook Resend
+  fail-closed (signature + fenêtre de replay 5 min) ; rate-limit IP sur
+  la route legacy download ; sync revenue 503 iff total-fail.
+- **La CSP est en Report-Only** (via `securityHeaders()` : HSTS,
+  X-Frame-Options DENY, nosniff, referrer strict-origin-when-cross-origin,
+  permissions-policy minimal) : rapports vers `/api/csp-report` (quota
+  par IP, jamais bloquant pour le visiteur). Le flip en enforce attend la
+  revue des reports.
+
 - **Contrat mobile ecrit sur ce que l equipe code vraiment** : la forme
   d'ecriture des liens (31 champs multipart, PAS un objet `links` — un
   `links` JSON est ignore silencieusement), le mode merge explicite
@@ -527,7 +550,24 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   (hub + 5 fiches 2026 + deep-links), legal (clés 5 providers, clause bêta,
   fraude), mobile (`GET revenue`, `revenue-connections` ×3).
 
+### Modifié
+
+- **Le quota de captures passe de 6 à 8** (source de vérité au service, le
+  composant de soumission suit) — Google Play plafonne à 8 screenshots ;
+  le budget multipart monte à 92 Mo en proportion (`/api/v1/meta` expose
+  déjà `productMaxBytes`, l'app mobile hérite). Le verify prouve le
+  plafond : les 8 passent entièrement, le 9e est rejeté avant tout insert.
+- **Le branding de la nav et du footer est un wordmark** (typographie
+  définitive) ; les compteurs du hero restent branchés mais masqués tant
+  que les chiffres honnêtes ne se sont pas établis ; le theme toggle est
+  corrigé pour les lecteurs d'écran (aria-pressed, libellé stable).
+
 ### Corrigé
+
+- **Les preuves d'appel survivaient à la suppression du compte** : les
+  fichiers du bucket privé « appeals » sont purgés dans les DEUX chemins
+  (action web `deleteMyAccount` et API mobile `DELETE /me`) — le contrat
+  RGPD est tenu, aucune preuve orpheline.
 
 - **Le mode d'ecriture des liens etait deduit de la payload** : une PATCH mobile
   avec seulement `changelogUrl` (aucun champ lien) tombait en mode
