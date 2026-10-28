@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { emailLogs } from "@/db/schema";
-import { apiCatch, apiOk, methodNotAllowed } from "@/lib/api/response";
+import { apiCatch, apiOk, methodNotAllowed, ApiError } from "@/lib/api/response";
 
 export const GET = async () => methodNotAllowed(["POST"]);
 
@@ -12,6 +12,8 @@ export const GET = async () => methodNotAllowed(["POST"]);
  * (`contact.updated` avec `unsubscribed: true` → `digest_opt_out` local).
  * `opened`/`clicked` IGNORÉS volontairement (pas de tracking
  * d'ouverture — §16). Secret `RESEND_WEBHOOK_SECRET` (whsec_…).
+ * Lot B : sans secret configuré → 503 franche (fail closed, avant :
+ * 200 menteur) + fenêtre anti-replay ±5 min sur `svix-timestamp`.
  * Échec de vérif = 401 (Resend retry) ; payload inconnu = 200 (pas de
  * retry inutile). `email_id` Resend ↔ `resend_id` des logs.
  */
@@ -45,13 +47,31 @@ function verifySvix(
 
 export async function POST(req: Request): Promise<Response> {
   try {
-    const secret = process.env.RESEND_WEBHOOK_SECRET ?? "";
-    if (!secret) return apiOk({ skipped: true });
+    const secret = (process.env.RESEND_WEBHOOK_SECRET ?? "").trim();
+    if (!secret) {
+      // Fail-closed (lot B) : avant, sans secret configuré la route
+      // répondait 200 (`skipped`) — fail-open : n'importe qui pouvait
+      // poster des événements forgés (stats email polluées, désinscriptions
+      // activées de l'extérieur) et le vrai webhook est silencieux. Même
+      // pattern que les routes cron : 503 franche.
+      throw new ApiError("INTERNAL", 503, "Webhook non configuré.");
+    }
     const body = await req.text();
     const id = req.headers.get("svix-id") ?? "";
     const timestamp = req.headers.get("svix-timestamp") ?? "";
     const signature = req.headers.get("svix-signature") ?? "";
-    if (!id || !timestamp || !signature || !verifySvix(secret, id, timestamp, signature, body)) {
+    // Fenêtre anti-replay (lot B) : la recommandation svix est de ±5 min.
+    // Au-delà, un body rejoué à froid porte un timestamp périmé (401 →
+    // Resend réessaie) — un body capté un jour ne sert plus rien.
+    const tsSeconds = Number(timestamp);
+    const fresh = Number.isFinite(tsSeconds) && Math.abs(Date.now() / 1000 - tsSeconds) <= 300;
+    if (
+      !id ||
+      !timestamp ||
+      !signature ||
+      !fresh ||
+      !verifySvix(secret, id, timestamp, signature, body)
+    ) {
       return new Response(
         JSON.stringify({ ok: false, code: "UNAUTHORIZED", message: "Signature invalide." }),
         {

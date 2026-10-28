@@ -52,7 +52,11 @@ async function main(): Promise<void> {
   }
   if (which === "digest") {
     const dry = process.argv.includes("--dry-run");
-    const r = await sendWeeklyDigest({ dryRun: dry });
+    // `--force` efface le verrou de la semaine (rattrapage après un
+    // envoi avorté — lot B). Jamais en cron de nuit : le verrou hebdo
+    // est là pour ça.
+    const force = process.argv.includes("--force");
+    const r = await sendWeeklyDigest({ dryRun: dry, force });
     console.log(`jobs: digest ${dry ? "(dry-run) " : ""}éligibles=${r.eligible} envoyés=${r.sent}`);
   }
   if (which === "audience") {
