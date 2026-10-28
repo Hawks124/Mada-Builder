@@ -1471,9 +1471,32 @@ async function main(): Promise<void> {
         fullShots[0].height === 800 &&
         fullShots[0].url.endsWith(".webp"),
     );
-    // Quota : 7 captures → refus AVANT tout insert (zéro orphelin).
-    const seven = Array.from(
-      { length: 7 },
+    // Quota : 8 captures = plafond exact → passe (draft) ; 9 → refus
+    // AVANT tout insert (zéro orphelin).
+    const eight = Array.from(
+      { length: 8 },
+      (_, i) => new File([portraitPng], `s${i}.png`, { type: "image/png" }),
+    );
+    const quotaEight = await submitProduct({
+      viewerId: submitter2,
+      data: {
+        ...baseData,
+        name: "Produit Vérif Quota 8",
+        productType: "app_mobile",
+        galleryOrientation: "portrait",
+      },
+      screenshots: eight,
+      asDraft: true,
+    });
+    const quotaEightShots = await db
+      .select({ id: productScreenshots.id })
+      .from(productScreenshots)
+      .where(eq(productScreenshots.productId, quotaEight.id));
+    check("quota 8 : les 8 captures du plafond passent", quotaEightShots.length === 8);
+    await db.delete(products).where(eq(products.id, quotaEight.id));
+
+    const nine = Array.from(
+      { length: 9 },
       (_, i) => new File([portraitPng], `s${i}.png`, { type: "image/png" }),
     );
     let quotaRejected = false;
@@ -1486,13 +1509,13 @@ async function main(): Promise<void> {
           productType: "app_mobile",
           galleryOrientation: "portrait",
         },
-        screenshots: seven,
+        screenshots: nine,
         asDraft: true,
       });
     } catch (e) {
       quotaRejected = e instanceof ProfileError && e.code === "VALIDATION";
     }
-    check("quota 6 refusé au 7e", quotaRejected);
+    check("quota 8 refusé au 9e", quotaRejected);
     const [quotaOrphan] = await db
       .select({ id: products.id })
       .from(products)

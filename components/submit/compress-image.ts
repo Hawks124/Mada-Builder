@@ -34,6 +34,21 @@ async function decode(
   }
 }
 
+/**
+ * Dimensions d'une image — un seul décodage partagé avec la compression.
+ *
+ * POURQUOI une source de vérité : la compression décode avec l'orientation
+ * EXIF (`from-image`) alors que la mesure de la soumission lisait
+ * `<img>.naturalWidth`, sans EXIF sur certains navigateurs — un JPEG
+ * tourné était classé « paysage » ici et « portrait » au serveur
+ * (`sharp.rotate`) → rejet injustifié. Même décodage : client et
+ * serveur tranchent pareil.
+ */
+export async function measureImage(file: File): Promise<{ width: number; height: number }> {
+  const { w, h } = await decode(file);
+  return { width: w, height: h };
+}
+
 export async function compressImage(file: File): Promise<File> {
   if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return file;
   try {

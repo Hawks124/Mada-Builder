@@ -550,7 +550,12 @@ const SHOT_OPTS = {
   maxLongEdge: 1600,
   allowGif: true,
 } as const;
-const MAX_SHOTS = 6;
+/**
+ * Quota captures : 8 = parité stores (Google Play plafonne à 8, App Store
+ * à 10 — on ne dépasse JAMAIS le plus restrictif). Couvre les fiches
+ * riches, médiums et pauvres en fonctionnalités sans déborder un store.
+ */
+const MAX_SHOTS = 8;
 
 export type PreparedShot = {
   url: string;
