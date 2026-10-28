@@ -77,6 +77,7 @@ const EXPLORER: FooterItem[] = [
   { label: "Classement", href: "/leaderboard" },
   { label: "Revenus vérifiés", href: "/revenue" },
   { label: "Guides makers", href: "/guides" },
+  { label: "Publier son produit", href: "/guides/publier" },
   { label: "Signature APK", href: "/guides/signature-apk" },
 ];
 

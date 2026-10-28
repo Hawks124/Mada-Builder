@@ -44,10 +44,12 @@ export function ThemeToggle() {
     <button
       onClick={handleToggle}
       className={cn(
-        "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted/60 text-foreground transition-all duration-300 ease-out cursor-pointer hover:bg-muted/80 ring-1 ring-border/20",
+        "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted/60 text-foreground transition-all duration-300 ease-out cursor-pointer hover:bg-muted/80 ring-1 ring-border/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         isAnimating && "scale-90",
       )}
-      aria-label="Toggle theme"
+      role="switch"
+      aria-checked={isDark}
+      aria-label="Changer de thème (clair / sombre)"
     >
       <div
         className={cn(

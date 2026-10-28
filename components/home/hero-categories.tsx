@@ -35,6 +35,12 @@ export async function HeroCategories() {
     }
   }
 
+  // Compteurs du hero : mécanique câblée (totaux réels + fallback mock,
+  // doctrine ADR-003) mais AFFICHAGE masqué volontairement tant que le
+  // catalogue est petit (choix opérateur, 2026-10-27). Réafficher :
+  // repasser le flag à `true`.
+  const SHOW_HERO_STATS = false;
+
   const anyLive = live && [...countsByCat.values()].some((v) => v > 0);
   /**
    * Slots = VRAIES top catégories quand le catalogue existe.
@@ -66,14 +72,19 @@ export async function HeroCategories() {
 
   return (
     <div className="relative w-full flex flex-col gap-6">
-      {/* ─── Stats Bar ─── */}
-      <div className="flex items-center gap-2 pl-2">
-        <StatPill value={productsValue} label="produits" />
-        <div className="h-3.5 w-px bg-border/60 mx-1.5" />
-        <StatPill value={makersValue} label="makers" />
-        <div className="h-3.5 w-px bg-border/60 mx-1.5" />
-        <StatPill value={String(PRODUCT_CATEGORIES.length)} label="catégories" />
-      </div>
+      {/* ─── Stats Bar ───
+        Compteurs masqués volontairement (choix opérateur, 2026-10-27) —
+        réaffichage = SHOW_HERO_STATS à `true`.
+      */}
+      {SHOW_HERO_STATS && (
+        <div className="flex items-center gap-2 pl-2">
+          <StatPill value={productsValue} label="produits" />
+          <div className="h-3.5 w-px bg-border/60 mx-1.5" />
+          <StatPill value={makersValue} label="makers" />
+          <div className="h-3.5 w-px bg-border/60 mx-1.5" />
+          <StatPill value={String(PRODUCT_CATEGORIES.length)} label="catégories" />
+        </div>
+      )}
 
       {/* ─── VERCEL STYLE ANIMATED BORDER WRAPPER ─── */}
       <div className="relative group/panel overflow-hidden rounded-[10px] p-[1.5px] shadow-sm hover:shadow-md transition-shadow">

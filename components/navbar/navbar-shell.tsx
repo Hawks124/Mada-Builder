@@ -8,7 +8,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ProductDropdown } from "./product-dropdown";
 import { CommunityDropdown, FACEBOOK_GROUP_URL } from "./community-dropdown";
 import { UserMenu } from "./user-menu";
-import { LogoMark } from "@/components/ui/logo";
+import { Wordmark } from "@/components/ui/wordmark";
 import {
   ListIcon,
   XIcon,
@@ -91,11 +91,8 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
       <div className="container mx-auto px-4 md:px-8 h-18 flex items-center justify-between">
         {/* Left: Logo & Nav Links */}
         <div className="flex items-center gap-10">
-          <Link href="/" className="flex items-center gap-2 group">
-            <LogoMark className="h-8 w-8 shadow-sm transform transition-all duration-300 group-hover:scale-110 group-hover:-rotate-6" />
-            <span className="font-bold text-lg tracking-tight hidden lg:inline-block">
-              Mada-Made
-            </span>
+          <Link href="/" className="flex items-center group">
+            <Wordmark className="transition-transform duration-300 group-hover:scale-[1.04] group-hover:-translate-y-px group-hover:-rotate-3 motion-reduce:transition-none" />
           </Link>
 
           {/* Desktop Nav */}
