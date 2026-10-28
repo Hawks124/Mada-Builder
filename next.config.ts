@@ -2,6 +2,46 @@ import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 import { remoteImagePatterns } from "./lib/remote-images";
 
+/**
+ * En-têtes de sécurité HTTP globaux (lot C) :
+ *  · X-Frame-Options DENY : la vitrine n'est pas une cible de framing
+ *    (clickjacking) — l'app n'embarque jamais elle-même en iframe.
+ *  · nosniff + Referrer-Policy : garde la vie privée des chemins.
+ *  · Permissions-Policy : on ne sollicite jamais camera/mic/geo.
+ *  · CSP en REPORT-ONLY : les violations partent dans
+ *    `/api/csp-report` (Sentry), sans aucune rupture fonctionnelle ;
+ *    le flip en enforce se décide après revue des reports
+ *    (docs/architecture.md « Sécurité HTTP »). `unsafe-inline` accepté
+ *    en style (bootstrap app Next/CSS variables), JAMAIS en script.
+ */
+function securityHeaders(): { key: string; value: string }[] {
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    // Sources image = lib/remote-images (mocks ADR-003 + OAuth + Supabase
+    // + R2). Blob/data : previews canvas + avatars inline.
+    `img-src 'self' data: blob: https://*.supabase.co https://*.r2.dev i.pravatar.cc picsum.photos lh3.googleusercontent.com avatars.githubusercontent.com gitlab.com`,
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "report-uri /api/csp-report",
+  ].join("; ");
+  return [
+    { key: "X-Frame-Options", value: "DENY" },
+    { key: "X-Content-Type-Options", value: "nosniff" },
+    { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+    {
+      key: "Permissions-Policy",
+      value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    },
+    { key: "Content-Security-Policy-Report-Only", value: csp },
+  ];
+}
+
 const nextConfig: NextConfig = {
   /**
    * Dossier de build. Surchargable par env : un `next build` lancé
@@ -30,6 +70,11 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      {
+        // Globaux (toutes routes, proxy robuste au cache statique).
+        source: "/:path*",
+        headers: securityHeaders(),
+      },
       {
         // Aperçu d'une fiche pas encore publiée : jamais indexé, jamais
         // mis en cache (contenu réservé au propriétaire / au staff).

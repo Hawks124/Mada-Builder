@@ -73,8 +73,27 @@ const ANON_DENIED = [
 ];
 
 /** SECURITY DEFINER acceptables pour `anon` (triggers de la plateforme
- *  + helpers de l'extension trigram, qui ne lisent que leurs index). */
-const ALLOWED_SECDEF = new Set(["handle_new_user", "lock_users_sensitive_columns"]);
+ *  + helpers de l'extension trigram, qui ne lisent que leurs index).
+ *
+ *  `handle_product_page_view_inserted` (lot compteurs, §17) monte
+ *  `view_count` sur vue anonyme : les policies `insert_public` laissent
+ *  anon insérer la ligne brute, et il n'existe aucune policy UPDATE sur
+ *  `products` — sans definer, le compteur ne monterait pas. Périmètre
+ *  audité : `SET search_path = public`, `+1 WHERE id = NEW.product_id`,
+ *  aucune autre table ni aucune écriture arbitraire.
+ *
+ *  `handle_product_download_inserted` reste accepté par prudence (un
+ *  autre environnement peut encore le porter), mais il a été RETIRÉ de
+ *  la base de référence : il double-comptait (recordDownload fait déjà
+ *  l'incrément atomique `download_count + 1` côté route serveur —
+ *  chemin contractuel, cf. docs/data/products.md).
+ */
+const ALLOWED_SECDEF = new Set([
+  "handle_new_user",
+  "lock_users_sensitive_columns",
+  "handle_product_page_view_inserted",
+  "handle_product_download_inserted",
+]);
 
 async function main(): Promise<void> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
