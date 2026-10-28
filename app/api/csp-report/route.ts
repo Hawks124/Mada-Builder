@@ -21,14 +21,19 @@ export async function POST(req: Request): Promise<Response> {
     let violatedDirective = "?";
     let documentUri = "?";
     try {
-      // Le report CSP arrive en objet JSON ; certains navigateurs
-      // (Reporting API récente) postent un TABLEAU de reports — on
-      // traite le premier, jamais de crash sur la forme.
-      const raw = (await req.json()) as
-        Record<string, string | undefined> | Array<Record<string, string | undefined>>;
-      const report = Array.isArray(raw) ? (raw[0] ?? {}) : raw;
-      violatedDirective = report["violated-directive"] ?? report["effective-directive"] ?? "?";
-      documentUri = report["document-uri"] ?? "?";
+      // La spec W3C enveloppe le report dans un objet racine
+      // `csp-report` ; certains agents plus récents postent les champs à
+      // la racine, ou un TABLEAU de reports — on lit l'enveloppe
+      // d'abord, la racine en repli, jamais de crash sur la forme.
+      const raw = (await req.json()) as Record<string, unknown> | Array<Record<string, unknown>>;
+      const outer = Array.isArray(raw) ? (raw[0] ?? {}) : raw;
+      const env = outer["csp-report"];
+      const report =
+        env instanceof Object && !Array.isArray(env) ? (env as Record<string, unknown>) : outer;
+      const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+      violatedDirective =
+        str(report["violated-directive"]) ?? str(report["effective-directive"]) ?? "?";
+      documentUri = str(report["document-uri"]) ?? "?";
     } catch {
       // Corps non JSON : signal de spam — 204 sans log (au fond, ne casse
       // jamais la page qui a déclenché).

@@ -379,6 +379,13 @@
       "when": 1793496000003,
       "tag": "0055_mobile_direct_writes_bridge",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793582400003,
+      "tag": "0056_fix_rls_user_devices_and_revisions",
+      "breakpoints": true
     }
   ]
 }
