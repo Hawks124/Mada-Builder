@@ -26,7 +26,9 @@ export async function HeroCategories() {
         getProductsCount("published"),
         getPublishedCountByCategory(),
       ]);
-      if (makers > 0) makersValue = makers.toLocaleString("fr-FR");
+      // Vrais totaux même faibles (décision opérateur, 2026-10-28) —
+      // jamais de faux chiffre quand le backend répond.
+      makersValue = makers.toLocaleString("fr-FR");
       productsValue = published.toLocaleString("fr-FR");
       countsByCat = byCat;
       live = true;
@@ -36,10 +38,10 @@ export async function HeroCategories() {
   }
 
   // Compteurs du hero : mécanique câblée (totaux réels + fallback mock,
-  // doctrine ADR-003) mais AFFICHAGE masqué volontairement tant que le
-  // catalogue est petit (choix opérateur, 2026-10-27). Réafficher :
-  // repasser le flag à `true`.
-  const SHOW_HERO_STATS = false;
+  // doctrine ADR-003), affichage RÉAFFICHÉ (décision opérateur,
+  // 2026-10-28 — affichés même faibles, chiffres honnêtes). Masquer :
+  // repasser le flag à `false`.
+  const SHOW_HERO_STATS = true;
 
   const anyLive = live && [...countsByCat.values()].some((v) => v > 0);
   /**
@@ -73,8 +75,8 @@ export async function HeroCategories() {
   return (
     <div className="relative w-full flex flex-col gap-6">
       {/* ─── Stats Bar ───
-        Compteurs masqués volontairement (choix opérateur, 2026-10-27) —
-        réaffichage = SHOW_HERO_STATS à `true`.
+        Compteurs réaffichés (totaux réels, même faibles — décision
+        opérateur, 2026-10-28).
       */}
       {SHOW_HERO_STATS && (
         <div className="flex items-center gap-2 pl-2">
