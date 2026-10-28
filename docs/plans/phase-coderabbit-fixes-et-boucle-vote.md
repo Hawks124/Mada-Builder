@@ -68,20 +68,35 @@ IS NULL OR user_id = auth.uid())` (WITH CHECK inchangé) — le hijack
       racine, tableau traité) — les reports n'écrivent plus "?" à vide.
 - [x] Verify : `scripts/verify-0056-rls.ts` 9 ok / 0 KO + `verify-mobile-direct`
       37 OK / 0 KO (le pont 0055 tient toujours).
-- [ ] Commit `fix(db)`.
+- [x] Commit `fix(db)` — `8632ccf` (0056 + journal + csp-report + verify
+  - ce plan).
 
 ## 3. Lot B — quick wins cron / notifications
 
-- [ ] maintenance : supprimer `.catch(() => ({ aborted: 0 }))` sur le
-      listage multipart → l'échec remonte dans `failures` → 503 (la règle
-      « 200 menteur interdit » écrite 5 lignes plus bas devient vraie).
-- [ ] digest hebdo : `throw` si `!dry && eligible > 0 && sent === 0` →
-      le catch existant libère le verrou → 500 → workflow rougit
-      (confirmer d'abord que le catch retire bien le verrou posé).
-- [ ] dead man switch : fraîcheur **par connexion active** (MAX
-      `captured_at` par connexion, plus le MAX global qui masquait les
-      connexions mortes > 26 h).
-- [ ] Verify + commit `fix(cron)`.
+- [x] maintenance : le `.catch(() => ({ aborted: 0 }))` sur le listage
+      multipart est supprimé (`app/api/cron/maintenance/route.ts:47`) →
+      l'échec remonte dans `failures` → 503 (la règle « 200 menteur
+      interdit » écrite 5 lignes plus bas est devenue vraie).
+- [x] digest hebdo : `throw` si `!dry && eligible > 0 && sent === 0`
+      (`services/notifications.service.ts`) → le catch existant retire
+      le verrou posé (confirmé : « on retire le verrou QU'ON A POSÉ »)
+      → 500 via `apiCatch` → workflow rougit ; l'audit ne s'exécute pas
+      (un échec n'est pas un historique de succès) ; le dryRun n'est
+      jamais touché (`!dry`).
+- [x] dead man switch : fraîcheur **par connexion active** — sous-
+      requête corrélée `MAX(s.captured_at) WHERE s.product_id = …`
+      (une connexion = un produit, requête indexée) ; une seule
+      connexion en retard suffit à briser le silence (le MAX global
+      masquait les mortes > 26 h derrière celles qui sync bien) ; le
+      message Sentry liste chaque connexion morte (id, provider,
+      dernier snapshot ou « jamais »).
+- [x] Verify : `verify-notifications` 26 OK / 0 KO — dont un ajustement
+      de TEST : « RLS anon fermé » accepte les deux fermetures
+      légitimes (401 = grant SELECT révoqué, forme actuelle du projet
+      cloud ; 200 + 0 ligne = policy masque). Un 200 avec des lignes
+      reste un échec franc. Diagnostiqué par sonde : 401 + 42501
+      grant — anon ne lit rien dans les deux formes.
+- [x] Commit `fix(cron)`.
 
 ## 4. Lot C — flicker vote 4→5→4
 

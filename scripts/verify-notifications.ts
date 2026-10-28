@@ -167,14 +167,21 @@ async function main(): Promise<void> {
   const after = await getNotifications(maker, { limit: 5 });
   check("unread à zéro", after.unreadCount === 0);
 
-  // 5. RLS own-row via Data API (anon ne voit rien).
+  // 5. RLS own-row via Data API (anon ne voit rien) — deux fermetures
+  //    légitimes : refus d'accès (401, grant SELECT révoqué à anon —
+  //    forme actuelle du projet cloud) ou 200 avec 0 ligne (policy RLS
+  //    masque). Une 200 AVEC des lignes reste un échec franc.
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const res = await fetch(`${url}/rest/v1/notifications?select=id&limit=1`, {
     headers: { apikey: anon, Authorization: `Bearer ${anon}` },
   });
-  const body = (await res.json().catch(() => [])) as unknown[];
-  check("RLS anon fermé", res.ok && body.length === 0);
+  const body = (await res.json().catch(() => null)) as unknown[] | null;
+  const closed =
+    res.status === 401 ||
+    res.status === 403 ||
+    (res.ok && Array.isArray(body) && body.length === 0);
+  check("RLS anon fermé", closed);
 
   // 6. Digest dry-run (forme, sans envoyer).
   const digest = await sendWeeklyDigest({ dryRun: true });

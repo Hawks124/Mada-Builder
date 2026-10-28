@@ -296,7 +296,10 @@ function isoWeekKey(d: Date): string {
  * ni crash). `force` efface le verrou courant (rattrapage manuel vers
  * un envoi avorté, neutre en dryRun) ; un crash brutal du run réel
  * retire le verrou QU'IL A POSÉ (best-effort) pour laisser un retry
- * complet la même semaine.
+ * complet la même semaine. Un run réel où des éligibles existent mais
+ * AUCUN email n'est parti (`eligible > 0 && sent === 0`) throw : le
+ * verrou est retiré par le catch et la route répond en erreur — un
+ * échec ne s'enregistre jamais comme un succès.
  */
 export async function sendWeeklyDigest(input?: {
   dryRun?: boolean;
@@ -392,6 +395,15 @@ export async function sendWeeklyDigest(input?: {
       } catch {
         // Un digest en échec n'empêche pas les autres.
       }
+    }
+    // Un run réel avec des éligibles mais AUCUN email parti est un
+    // échec déguisé en 200 (chaque sendEmail avalé par le catch
+    // par-user). On throw : le catch ci-dessous retire le verrou
+    // QU'ON A POSÉ (le retry re-part complet la même semaine) et la
+    // route répond en erreur → le workflow rougit. L'audit ne
+    // s'exécute pas — un échec n'est pas un historique de succès.
+    if (!dry && eligible > 0 && sent === 0) {
+      throw new Error(`Digest : ${eligible} éligible(s), 0 email envoyé.`);
     }
     if (!dry) {
       // Audit de la semaine (best-effort — jamais bloquant).

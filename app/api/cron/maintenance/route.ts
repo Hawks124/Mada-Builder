@@ -1,6 +1,6 @@
 import { sql, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { revenueConnections, revenueSnapshots } from "@/db/schema";
+import { revenueConnections } from "@/db/schema";
 import { apiCatch, apiOk, ApiError } from "@/lib/api/response";
 import { checkCron } from "@/lib/api/cron";
 import { captureError } from "@/lib/monitoring";
@@ -23,11 +23,13 @@ export const dynamic = "force-dynamic";
  *   3. purge des OTP expirés (table `auth_otp`) ;
  *   4. recomptage `download_count` (filet TS — la version SQL tourne
  *      déjà en pg_cron quotidien, c'est le même calcul idempotent) ;
- *   5. DEAD MAN SWITCH revenus (PRD §16) : si des connexions actives
- *      existent sans AUCUN snapshot frais (< 26 h = fenêtre horaire du
- *      job + marge) → Sentry. Le job horaire pourrait mourir en
- *      silence (secret expiré, workflow désactivé…) — une seule fois
- *      par semaine le silence est brisé.
+ *   5. DEAD MAN SWITCH revenus (PRD §16) — PAR CONNEXION ACTIVE :
+ *      une connexion active dont le produit n'a AUCUN snapshot
+ *      frais (< 26 h = fenêtre horaire du job + marge) → Sentry.
+ *      Le job horaire pourrait mourir en silence (secret expiré,
+ *      workflow désactivé…) — une seule fois par semaine le silence
+ *      est brisé, et une seule connexion en retard suffit (le MAX
+ *      global masquait les mortes derrière celles qui sync bien).
  *
  * Un 200 menteur est interdit ici : toute étape en échec → 503 (le
  * workflow rougit, comme pour digest/revenue).
@@ -44,7 +46,10 @@ export async function POST(req: Request): Promise<Response> {
       const { r2Configured, abortStaleMultipartUploads } = await import("@/lib/r2");
       if (r2Configured()) {
         summary.sweep = await sweepR2Orphans();
-        summary.multipart = await abortStaleMultipartUploads().catch(() => ({ aborted: 0 }));
+        // Pas de .catch avalé : un listage multipart en échec remonte au
+        // try ci-dessus → `failures` → 503. Un 200 menteur est interdit
+        // ici (règle écrite plus bas) — le sweep fait partie du lot.
+        summary.multipart = await abortStaleMultipartUploads();
       } else {
         summary.sweep = "skipped:r2-non-configure";
       }
@@ -83,29 +88,42 @@ export async function POST(req: Request): Promise<Response> {
       });
     }
 
-    // 5. Dead man switch revenus.
+    // 5. Dead man switch revenus — PAR CONNEXION ACTIVE : un MAX global
+    //    sur tous les snapshots masquerait une connexion morte (> 26 h)
+    //    derrière une autre qui sync bien. La fraîcheur se juge par
+    //    produit (une connexion = un produit) — une seule connexion en
+    //    retard suffit à briser le silence.
     try {
-      const [conn] = await db
-        .select({ n: sql<number>`count(*)::int` })
+      const conns = await db
+        .select({
+          productId: revenueConnections.productId,
+          provider: revenueConnections.provider,
+          last: sql<string | null>`(
+            SELECT MAX(s.captured_at) FROM revenue_snapshots s
+            WHERE s.product_id = ${revenueConnections.productId}
+          )`,
+        })
         .from(revenueConnections)
         .where(eq(revenueConnections.status, "active"));
-      if ((conn?.n ?? 0) > 0) {
-        const [row] = await db
-          .select({ last: sql<string | null>`MAX(captured_at)` })
-          .from(revenueSnapshots);
-        const lastAt = row?.last ? new Date(row.last) : null;
-        const stale = !lastAt || Date.now() - lastAt.getTime() > 26 * 3_600_000;
-        summary.revenueStale = stale;
-        if (stale) {
+      if (conns.length === 0) {
+        summary.revenueStale = "skipped:aucune-connexion-active";
+      } else {
+        const stale = conns.filter((c) => {
+          const lastAt = c.last ? new Date(c.last) : null;
+          return !lastAt || Date.now() - lastAt.getTime() > 26 * 3_600_000;
+        });
+        summary.revenueConns = conns.length;
+        summary.revenueStale = stale.length > 0;
+        if (stale.length > 0) {
           captureError(
             new Error(
-              `Sync revenus morte : dernier snapshot ${lastAt?.toISOString() ?? "jamais"} (> 26 h), ${conn?.n ?? 0} connexion(s) active(s)`,
+              `Sync revenus morte : ${stale.length}/${conns.length} connexion(s) active(s) sans snapshot < 26 h — ${stale
+                .map((c) => `${c.productId} (${c.provider}, dernier : ${c.last ?? "jamais"})`)
+                .join(" ; ")}`,
             ),
             { op: "jobs.maintenance.revenueDeadMan" },
           );
         }
-      } else {
-        summary.revenueStale = "skipped:aucune-connexion-active";
       }
     } catch (e) {
       failures.push("revenueDeadman");
