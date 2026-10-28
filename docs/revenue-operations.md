@@ -13,8 +13,17 @@
    valeur qu'en prod).
 3. **Vérifier** : onglet Actions → `revenue-sync` → `Run workflow` →
    réponse `{"synced":N,…}` (premier run à vide : zéros, normal).
+   **Lot B** : si le run est TOUT ROUGE (0 réussite, ≥ 1 échec), la
+   route répond **503** — le workflow rougit au lieu d'un 200
+   trompeur ; les échecs partiels restent 200 avec `failed: N`
+   (alertes par produit déjà gérées côté sync).
 4. **Contrôle continu** : `/admin` affiche « Sync revenus en échec » dès
    qu'une connexion décroche (motif exact par ligne).
+5. **Filet anti-silence (lot B)** : la maintenance hebdo
+   (`maintenance-weekly.yml`, samedi 03:43 UTC) fait tourner un
+   **dead man switch** — des connexions actives sans AUCUN snapshot
+   frais (< 26 h) = sync morte (secret expiré, workflow désactivé…)
+   → alerte Sentry, même si aucune autre pièce ne s'en est plainte.
 
 Sans `REVENUE_KEY`, connexions impossibles et sync en échec franche
 (fail closed — jamais de clé en clair). Sans `CRON_SECRET`, la route
@@ -30,13 +39,14 @@ une clé = un chiffrement, les makers reconnectent.
 
 ## Pannes types
 
-| Symptôme                                | Cause probable                             | Action                                  |
-| --------------------------------------- | ------------------------------------------ | --------------------------------------- |
-| `failing` « clé refusée / permissions » | Clé révoquée côté provider, scopes retirés | Le maker reconnecte (guide du provider) |
-| `failing` « ID projet/boutique requis » | Config manquante                           | Reconnecter avec l'ID                   |
-| `failing` après ~1 an (Lemon Squeezy)   | Clé expirée (politique 1 an)               | Recréer + reconnecter                   |
-| `failing` « limite de débit »           | Pic provider                               | Reprise automatique à l'heure suivante  |
-| Workflow rouge (non-200)                | `SITE_URL`/`CRON_SECRET` désalignés        | Re-saisir les secrets, re-run manuel    |
+| Symptôme                                | Cause probable                             | Action                                                  |
+| --------------------------------------- | ------------------------------------------ | ------------------------------------------------------- |
+| `failing` « clé refusée / permissions » | Clé révoquée côté provider, scopes retirés | Le maker reconnecte (guide du provider)                 |
+| `failing` « ID projet/boutique requis » | Config manquante                           | Reconnecter avec l'ID                                   |
+| `failing` après ~1 an (Lemon Squeezy)   | Clé expirée (politique 1 an)               | Recréer + reconnecter                                   |
+| `failing` « limite de débit »           | Pic provider                               | Reprise automatique à l'heure suivante                  |
+| Workflow rouge (non-200)                | `SITE_URL`/`CRON_SECRET` désalignés        | Re-saisir les secrets, re-run manuel                    |
+| Aucune snapshot fraîche (> 26 h)        | Workflow désactivé / runs silencieux morts | La maintenance hebdo alerte (Sentry) ; vérifier Actions |
 
 ## Emails d'alerte
 

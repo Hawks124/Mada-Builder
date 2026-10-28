@@ -9,6 +9,11 @@
 1. **Rien à créer** : `sendWeeklyDigest` envoie un email par inscrit
    éligible (ni supprimé, ni banni, ni opt-out, email réel) avec ≥1
    notification non lue (7 j). Ne marque rien comme lu.
+   **Verrou anti-doublon** (lot B) : une ligne par semaine ISO dans
+   `digests_sent` — un re-run (workflow_dispatch, double schedule)
+   répond `alreadySent: true` sans ré-envoyer. Un crash brutal retire
+   le verrou (best-effort) pour laisser un retry complet la même
+   semaine. `dryRun` ne pose JAMAIS le verrou (répétable).
 2. **Scheduler** : workflow `digest-weekly.yml` (lundi 7 h Tana =
    `0 4 * * 1` UTC), mêmes secrets que `revenue-sync` (`SITE_URL`,
    `CRON_SECRET`).
@@ -17,6 +22,12 @@
    (zéro non-lue = zéro envoi, normal).
 4. **Contrôle sec** : `npx tsx scripts/run-jobs.ts digest --dry-run`
    (comptes sans envoyer) ou `POST /api/cron/digest?dryRun=1` (Bearer).
+5. **Rattrapage** : envoi avorté à mi-parcours (Resend, redeploy...) →
+   `POST /api/cron/digest?force=1` (Bearer) ou
+   `npx tsx scripts/run-jobs.ts digest --force` — le verrou de la
+   semaine est effacé puis un run complet repart. Sans `force`, le
+   run avorté est NOTE dans l'audit (eligible/sent) et le verrou
+   reste posé.
 
 Sans `CRON_SECRET`, la route répond 503. Sans domaine Resend vérifié,
 les envois échouent en 422 (test-mode) — attrapés par inscrit, le
@@ -38,7 +49,11 @@ digest des autres part quand même.
 5. **Webhook** : même endpoint (`/api/webhooks/resend`), y ajouter
    l'événement `contact.updated`. Une désinscription via lien Resend
    passe `digest_opt_out` à vrai (vérifiable en settings) ; la prochaine
-   sync retire le contact.
+   sync retire le contact. **Fail-closed (lot B)** : sans
+   `RESEND_WEBHOOK_SECRET` configuré, la route répond **503** (avant :
+   200 menteur — n'importe qui pouvait poster des événements forgés)
+   ; une fenêtre **anti-replay ±5 min** empêche de rejouer un body
+   capté à froid (`svix-timestamp`, échec → 401, Resend réessaie).
 
 ## Préavis légal (changement confidentialité/conditions)
 
@@ -62,5 +77,8 @@ part malgré l'opt-out (préavis contractuel).
 | Digest `{"eligible":0,"sent":0}`       | Aucune non-lue (7 j)                   | Normal — vérifier un lundi actif           |
 | Envois 422 en masse                    | Domaine non vérifié (test-mode)        | Vérifier le domaine (`resend.com/domains`) |
 | `audience` refuse (pas d'ID)           | `RESEND_AUDIENCE_ID` absente           | Étapes 1–2 ci-dessus                       |
+| Digest `alreadySent: true`             | La semaine a déjà été émise (normal)   | Vérifier l'audit ; forcer = double envoi   |
+| Digest partiels (avorté à mi-parcours) | Resend/redeploy en cours de run        | Rattrapage : `?force=1` puis re-run        |
+| Webhook 503                            | `RESEND_WEBHOOK_SECRET` absent (prod)  | Poser le secret, redéployer (fail closed)  |
 | Désinscrit Resend toujours synchronisé | Webhook `contact.updated` non souscrit | L'ajouter, ou attendre la sync             |
 | Contact supprimé qui réapparaît        | Normal : toujours éligible en local    | Le retirer = opt-out local d'abord         |

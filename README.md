@@ -20,7 +20,22 @@
 
 ## Stack
 
-Next.js 16 (App Router) + TypeScript · Tailwind v4 · Postgres (Drizzle) · Supabase Auth (Google, GitHub, GitLab, email OTP) · R2 (médias + binaires APK) · Resend · Upstash (rate-limit) · Vercel + pg_cron (jobs).
+<p>
+  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js_16-000000?logo=nextdotjs&logoColor=white">
+  <img alt="React 19" src="https://img.shields.io/badge/React_19-61DAFB?logo=react&logoColor=black">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white">
+  <img alt="Tailwind v4" src="https://img.shields.io/badge/Tailwind_v4-06B6D4?logo=tailwindcss&logoColor=white">
+  <img alt="Zod 4" src="https://img.shields.io/badge/Zod_4-3068B3?logo=zod&logoColor=white">
+  <img alt="Postgres (Drizzle)" src="https://img.shields.io/badge/Postgres_%C2%B7_Drizzle-4169E1?logo=postgresql&logoColor=white">
+  <img alt="Supabase Auth" src="https://img.shields.io/badge/Supabase_Auth-3FCF8E?logo=supabase&logoColor=black">
+  <img alt="Cloudflare R2" src="https://img.shields.io/badge/Cloudflare_R2-F38020?logo=cloudflare&logoColor=black">
+  <img alt="Resend" src="https://img.shields.io/badge/Resend-000000?logo=resend&logoColor=white">
+  <img alt="Upstash" src="https://img.shields.io/badge/Upstash-00E9A1?logo=upstash&logoColor=black">
+  <img alt="Vercel" src="https://img.shields.io/badge/Vercel-000000?logo=vercel&logoColor=white">
+  <img alt="Sentry" src="https://img.shields.io/badge/Sentry-362D59?logo=sentry&logoColor=white">
+</p>
+
+Jobs : `pg_cron` (SQL — score 15 min, produit du jour, purge brouillons, recomptage téléchargements quotidien) · GitHub Actions (CI — digest hebdo, sync revenus horaire, maintenance hebdo : sweep R2/purges/dead man switch). Déploiement Vercel, opéré avec [`docs/` + `STACK.md`](./STACK.md).
 
 ## Démarrage
 
