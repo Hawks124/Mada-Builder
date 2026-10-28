@@ -23,7 +23,7 @@
     "check:types": "tsc --noEmit -p tsconfig.json",
     "check:lint": "eslint app components services lib config scripts",
     "check:format": "prettier --check .",
-    "check:verify": "tsx scripts/verify-security.ts && tsx scripts/verify-apk-extract.ts && tsx scripts/verify-featured.ts && tsx scripts/verify-products-backend.ts",
+    "check:verify": "tsx scripts/verify-security.ts && tsx scripts/verify-apk-extract.ts && tsx scripts/verify-featured.ts && tsx scripts/verify-products-backend.ts && tsx scripts/verify-mobile-direct.ts",
     "check:build": "node scripts/build-isolated.mjs",
     "prepare": "husky",
     "check:encoding": "node scripts/check-encoding.mjs"

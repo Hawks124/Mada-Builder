@@ -372,6 +372,13 @@
       "when": 1793409600000,
       "tag": "0054_jobs_anti_abuse",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1793496000003,
+      "tag": "0055_mobile_direct_writes_bridge",
+      "breakpoints": true
     }
   ]
 }
