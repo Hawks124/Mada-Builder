@@ -351,6 +351,27 @@
       "when": 1792836000000,
       "tag": "0051_featured_priority_rule",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1792922400000,
+      "tag": "0052_fix_featured_rotation",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793400000000,
+      "tag": "0053_sync_mobile_shared_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1793409600000,
+      "tag": "0054_jobs_anti_abuse",
+      "breakpoints": true
     }
   ]
 }

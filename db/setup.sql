@@ -381,10 +381,22 @@ ALTER TABLE public.product_link_clicks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_downloads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.idempotency_keys ENABLE ROW LEVEL SECURITY;
 
--- featured_products : AUCUNE policy = refusé via Data API (le produit
--- du jour ne se fixe que côté service/admin — jamais PostgREST, sinon
--- n'importe qui épinglerait sa fiche). Lectures Drizzle serveur.
+-- featured_products : lecture publique autorisée (client mobile Flutter / web),
+-- écritures service/admin uniquement (aucune policy insert/update/delete PostgREST).
 ALTER TABLE public.featured_products ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "featured_products_read_public" ON public.featured_products;
+CREATE POLICY "featured_products_read_public"
+  ON public.featured_products
+  FOR SELECT
+  TO anon, authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.products p
+      WHERE p.id = featured_products.product_id
+        AND p.status = 'published'
+        AND p.deleted_at IS NULL
+    )
+  );
 
 -- revenue_connections / revenue_snapshots : AUCUNE policy = refusé via
 -- Data API (sinon n'importe qui lirait les clés chiffrées via PostgREST).
@@ -468,55 +480,93 @@ END $$;
 CREATE OR REPLACE FUNCTION public.rotate_featured_daily() RETURNS uuid
 LANGUAGE plpgsql AS $$
 DECLARE
-  today date := (now() AT TIME ZONE 'UTC')::date;
-  day_start timestamptz := date_trunc('day', now() AT TIME ZONE 'UTC');
-  chosen uuid;
-  total integer;
+  today              date    := (now() AT TIME ZONE 'UTC')::date;
+  yesterday          date    := today - 1;
+  chosen             uuid;
+  total              integer;
+  yesterday_product  uuid;
+  attente_cap        integer;
 BEGIN
-  -- Déjà calculé (idempotent, pin respecté) : rien à faire.
+  -- Idempotent : déjà calculé (ou épinglé) -> rien à faire
   SELECT product_id INTO chosen FROM public.featured_products WHERE featured_on = today;
   IF FOUND THEN RETURN chosen; END IF;
-  -- Catalogue ÉLIGIBLE (veille exclue — miroir du publishedCount TS).
-  SELECT COUNT(*)::int INTO total FROM public.products WHERE status = 'published' AND deleted_at IS NULL AND curated = false;
+
+  -- Taille du catalogue éligible (veille exclue)
+  SELECT COUNT(*)::int INTO total
+    FROM public.products
+   WHERE status = 'published' AND deleted_at IS NULL AND curated = false;
   IF total = 0 THEN RETURN NULL; END IF;
-  IF total = 1 THEN
-    SELECT id INTO chosen FROM public.products
-    WHERE status = 'published' AND deleted_at IS NULL AND curated = false ORDER BY published_at DESC LIMIT 1;
-  ELSIF total < 5 THEN
-    -- Rotation : jamais-featuré d'abord, re-feature >= 7 j.
-    SELECT p.id INTO chosen FROM public.products p
-    LEFT JOIN public.featured_products f ON f.product_id = p.id
-    WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.curated = false
-      AND (f.featured_on IS NULL OR f.featured_on < CURRENT_DATE - 7)
-    GROUP BY p.id
-    ORDER BY MAX(f.featured_on) ASC NULLS FIRST, MAX(p.published_at) DESC LIMIT 1;
-  ELSE
-    -- Normal : #1 d'hier (votes pondérés) non-featuré depuis 30 j.
-    SELECT p.id INTO chosen FROM public.products p
-    WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.curated = false
-      AND p.published_at >= day_start - INTERVAL '1 day'
-      AND p.published_at < day_start
-      AND NOT EXISTS (
-        SELECT 1 FROM public.featured_products f
-        WHERE f.product_id = p.id AND f.featured_on >= CURRENT_DATE - 30
-      )
-    ORDER BY (SELECT COALESCE(SUM(v.weight), 0) FROM public.votes v WHERE v.product_id = p.id) DESC,
-      p.published_at ASC
-    LIMIT 1;
-    -- Hier sans publication (week-end) : repli rotation.
-    IF NOT FOUND THEN
-      SELECT p.id INTO chosen FROM public.products p
+
+  -- Plafond d'attente dynamique : min(max(total - 1, 7), 30)
+  attente_cap := LEAST(GREATEST(total - 1, 7), 30);
+
+  -- Produit d'hier (à exclure si N >= 2)
+  SELECT product_id INTO yesterday_product
+    FROM public.featured_products WHERE featured_on = yesterday;
+
+  WITH candidats AS (
+    SELECT p.id,
+           p.updated_at,
+           p.published_at,
+           -- Attente dynamique (jours depuis la dernière mise en avant ou
+           -- la publication), plafonnée à attente_cap
+           GREATEST(0, LEAST(attente_cap, COALESCE(
+             (today - MAX(f.featured_on))::int - 1,
+             (today - p.published_at::date)::int
+           ))) AS attente,
+           -- Signal multi-dimensionnel, log-scale + moyenne bayésienne
+           LEAST(15.0,
+             -- Note bayésienne (C=10, m=3.5) : équitable pour les nouveaux
+             (35.0 + COALESCE(p.ratings_sum, 0)::numeric)
+               / (10.0 + COALESCE(p.ratings_count, 0)::numeric)
+             -- Votes pondérés 7j (log)
+             + ln(1.0 + GREATEST(0, COALESCE((SELECT SUM(v.weight)::numeric FROM public.votes v
+                                 WHERE v.product_id = p.id
+                                   AND v.created_at >= now() - INTERVAL '7 days'), 0)))
+             -- Commentaires 7j (log, poids 1.5)
+             + 1.5 * ln(1.0 + (SELECT COUNT(*)::numeric FROM public.comments c
+                               WHERE c.product_id = p.id
+                                 AND c.created_at >= now() - INTERVAL '7 days'
+                                 AND c.deleted_at IS NULL))
+             -- Avis 7j (log, poids 2.5 — signal le plus fort)
+             + 2.5 * ln(1.0 + (SELECT COUNT(*)::numeric FROM public.reviews r
+                               WHERE r.product_id = p.id
+                                 AND r.created_at >= now() - INTERVAL '7 days'
+                                 AND r.deleted_at IS NULL))
+             -- Vues de fiche 7j (log, poids 0.3)
+             + 0.3 * ln(1.0 + (SELECT COUNT(*)::numeric FROM public.product_page_views pv
+                               WHERE pv.product_id = p.id
+                                 AND pv.created_at >= now() - INTERVAL '7 days'))
+             -- Clics sortants 7j (log, poids 0.5)
+             + 0.5 * ln(1.0 + (SELECT COUNT(*)::numeric FROM public.product_link_clicks lc
+                               WHERE lc.product_id = p.id
+                                 AND lc.created_at >= now() - INTERVAL '7 days'))
+             -- Téléchargements APK 7j (log, poids 0.8)
+             + 0.8 * ln(1.0 + (SELECT COUNT(*)::numeric FROM public.product_downloads pd
+                               WHERE pd.product_id = p.id
+                                 AND pd.created_at >= now() - INTERVAL '7 days'))
+           ) AS signal
+      FROM public.products p
       LEFT JOIN public.featured_products f ON f.product_id = p.id
-      WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.curated = false
-        AND (f.featured_on IS NULL OR f.featured_on < CURRENT_DATE - 7)
-      GROUP BY p.id
-      ORDER BY MAX(f.featured_on) ASC NULLS FIRST, MAX(p.published_at) DESC LIMIT 1;
-    END IF;
-  END IF;
+     WHERE p.status = 'published'
+       AND p.deleted_at IS NULL
+       AND p.curated = false
+       -- Garde-fou anti-consécutif : exclure le produit d'hier si N >= 2
+       AND (total < 2 OR p.id IS DISTINCT FROM yesterday_product)
+     GROUP BY p.id
+  )
+  SELECT c.id INTO chosen
+    FROM candidats c
+   ORDER BY 3 * c.attente + c.signal DESC,
+            c.updated_at DESC,
+            c.published_at DESC,
+            c.id ASC
+   LIMIT 1;
+
   IF chosen IS NULL THEN RETURN NULL; END IF;
   INSERT INTO public.featured_products (id, product_id, featured_on, pinned)
-  VALUES (gen_random_uuid(), chosen, today, false)
-  ON CONFLICT (featured_on) DO NOTHING;
+    VALUES (gen_random_uuid(), chosen, today, false)
+    ON CONFLICT (featured_on) DO NOTHING;
   RETURN chosen;
 END $$;
 

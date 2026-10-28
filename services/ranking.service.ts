@@ -1,13 +1,23 @@
 import { and, desc, eq, gte, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import type { SQL, SQLWrapper } from "drizzle-orm";
 import { db } from "@/db";
-import { comments, featuredProducts, products, reviews, users, votes } from "@/db/schema";
-import { ProfileError } from "@/services/users.service";
+import {
+  comments,
+  featuredProducts,
+  productDownloads,
+  productLinkClicks,
+  productPageViews,
+  products,
+  reviews,
+  users,
+  votes,
+} from "@/db/schema";
 import { PRICING_MODELS } from "@/config/pricing";
 import { getProductTypeById } from "@/config/product-types";
 import { getRatingById } from "@/config/ratings";
 import { appGradientFor, appInitialsFor, ratingsAvgOf } from "@/services/products.service";
 import type { FeaturedProductData } from "@/services/home.service";
+import { ProfileError } from "./users.service";
 
 /**
  * Classement + produit du jour (§11) + jobs.
@@ -835,12 +845,28 @@ type ComputedFeatured = {
  * l'ordre de service passe avant. Le produit du jour est une VITRINE,
  * pas un classement (le classement, c'est le leaderboard).
  */
-const FEATURED_ATTENTE_PLAFOND_JOURS = 7;
-const FEATURED_SIGNAL_PLAFOND = 7;
-const FEATURED_SIGNAL_FENETRE_JOURS = 7;
-const FEATURED_POIDS_ATTENTE = 2;
-const FEATURED_POIDS_COMMENTAIRE = 2;
-const FEATURED_POIDS_AVIS = 3;
+/**
+ * Constantes de l'algorithme produit du jour enterprise-grade.
+ *
+ * Trois principes :
+ *   1. Équité       : moyenne bayésienne (C=10, m=3.5) -> un produit avec 1 avis 5★ ne bat pas 100 avis 4.8★
+ *   2. Non-linéaire : ln(1+x) sur tous les compteurs -> retours décroissants
+ *   3. Scalable     : attente_cap = min(max(N-1, 7), 30) -> s'adapte automatiquement de 3 à 1 000 000
+ *
+ * Signaux : votes pondérés, comments, reviews, page_views, link_clicks, downloads
+ * Garde-fou anti-consécutif : le produit d'hier est exclu si N >= 2
+ */
+export const FEATURED_ATTENTE_PLAFOND_DEFAUT = 7;
+export const FEATURED_SIGNAL_PLAFOND = 15;
+export const FEATURED_SIGNAL_FENETRE_JOURS = 7;
+export const FEATURED_POIDS_ATTENTE = 3;
+export const FEATURED_POIDS_COMMENTAIRE = 1.5;
+export const FEATURED_POIDS_AVIS = 2.5;
+export const FEATURED_POIDS_PAGEVIEW = 0.3;
+export const FEATURED_POIDS_CLIC = 0.5;
+export const FEATURED_POIDS_DOWNLOAD = 0.8;
+export const FEATURED_BAYES_C = 10;
+export const FEATURED_BAYES_M = 3.5;
 
 /**
  * Candidat au produit du jour — les entrees du classement.
@@ -851,7 +877,7 @@ const FEATURED_POIDS_AVIS = 3;
  */
 export type FeaturedCandidate = {
   id: string;
-  /** Signal d'activite (note + votes pondérés + commentaires + avis). */
+  /** Signal d'activite (bayes + log-scale sur compteurs, borne à 15). */
   signal: number;
   /** Jours d'attente (depuis la derniere mise en avant, ou la publication). */
   attente: number;
@@ -861,26 +887,38 @@ export type FeaturedCandidate = {
   publishedAt: Date | null;
 };
 
-/** La priorite : les deux bornes (attente + signal) sont les seuls reglages. */
-export function featuredPriorite(candidat: FeaturedCandidate): number {
+/** La priorite : les deux bornes (attente dynamique + signal) sont les seuls reglages. */
+export function featuredPriorite(
+  candidat: FeaturedCandidate,
+  attenteCap: number = FEATURED_ATTENTE_PLAFOND_DEFAUT,
+): number {
   return (
     Math.min(candidat.signal, FEATURED_SIGNAL_PLAFOND) +
-    FEATURED_POIDS_ATTENTE * Math.min(candidat.attente, FEATURED_ATTENTE_PLAFOND_JOURS)
+    FEATURED_POIDS_ATTENTE * Math.min(candidat.attente, attenteCap)
   );
 }
 
 /**
  * Le classement du slot — deterministe, et PAS l'ordre d'arrivee.
  *
- * 1. la priorite (le service d'abord, le signal ensuite) ;
- * 2. a priorite egale, le plus recemment touche ;
- * 3. puis le plus recent ;
- * 4. puis l'id (stabilite totale : meme etat, meme resultat).
+ * 1. exclusion du produit d'hier (anti-consécutif dur si N >= 2) ;
+ * 2. la priorite (le service d'abord, le signal ensuite) ;
+ * 3. a priorite egale, le plus recemment touche ;
+ * 4. puis le plus recent ;
+ * 5. puis l'id (stabilite totale : meme etat, meme resultat).
  */
-export function classerFeatured<T extends FeaturedCandidate>(candidats: T[]): T[] {
-  return [...candidats].sort((a, b) => {
-    const pa = featuredPriorite(a);
-    const pb = featuredPriorite(b);
+export function classerFeatured<T extends FeaturedCandidate>(
+  candidats: T[],
+  attenteCap?: number,
+  hierProductId?: string,
+): T[] {
+  const N = candidats.length;
+  const cap = attenteCap ?? Math.min(Math.max(N - 1, 7), 30);
+  const eligibles =
+    N >= 2 && hierProductId ? candidats.filter((c) => c.id !== hierProductId) : candidats;
+  return [...eligibles].sort((a, b) => {
+    const pa = featuredPriorite(a, cap);
+    const pb = featuredPriorite(b, cap);
     if (pb !== pa) return pb - pa;
     const aAct = a.updatedAt ? a.updatedAt.getTime() : 0;
     const bAct = b.updatedAt ? b.updatedAt.getTime() : 0;
@@ -916,10 +954,9 @@ async function computeFeatured(now: Date): Promise<ComputedFeatured | null> {
   if (rows.length === 0) return null;
   const ids = rows.map((r) => r.id);
 
-  // 2. Les mises en avant (équité : combien de fois, et quand la
-  //    dernière) + l'activité de la semaine (le signal).
+  // 2. Les mises en avant + l'activité de la semaine (tous les signaux).
   const since = new Date(now.getTime() - FEATURED_SIGNAL_FENETRE_JOURS * 86_400_000);
-  const [feats, votes7, comm7, avis7] = await Promise.all([
+  const [feats, votes7, comm7, avis7, views7, clics7, dl7] = await Promise.all([
     db
       .select({
         productId: featuredProducts.productId,
@@ -940,33 +977,82 @@ async function computeFeatured(now: Date): Promise<ComputedFeatured | null> {
     db
       .select({ productId: comments.productId, n: sql<number>`count(*)::int` })
       .from(comments)
-      .where(and(inArray(comments.productId, ids), gte(comments.createdAt, since)))
+      .where(
+        and(
+          inArray(comments.productId, ids),
+          gte(comments.createdAt, since),
+          isNull(comments.deletedAt),
+        ),
+      )
       .groupBy(comments.productId),
     db
       .select({ productId: reviews.productId, n: sql<number>`count(*)::int` })
       .from(reviews)
-      .where(and(inArray(reviews.productId, ids), gte(reviews.createdAt, since)))
+      .where(
+        and(
+          inArray(reviews.productId, ids),
+          gte(reviews.createdAt, since),
+          isNull(reviews.deletedAt),
+        ),
+      )
       .groupBy(reviews.productId),
+    db
+      .select({ productId: productPageViews.productId, n: sql<number>`count(*)::int` })
+      .from(productPageViews)
+      .where(and(inArray(productPageViews.productId, ids), gte(productPageViews.createdAt, since)))
+      .groupBy(productPageViews.productId),
+    db
+      .select({ productId: productLinkClicks.productId, n: sql<number>`count(*)::int` })
+      .from(productLinkClicks)
+      .where(
+        and(inArray(productLinkClicks.productId, ids), gte(productLinkClicks.createdAt, since)),
+      )
+      .groupBy(productLinkClicks.productId),
+    db
+      .select({ productId: productDownloads.productId, n: sql<number>`count(*)::int` })
+      .from(productDownloads)
+      .where(and(inArray(productDownloads.productId, ids), gte(productDownloads.createdAt, since)))
+      .groupBy(productDownloads.productId),
   ]);
   const featMap = new Map(feats.map((f) => [f.productId, f]));
   const voteMap = new Map(votes7.map((v) => [v.productId, v.poids]));
   const commMap = new Map(comm7.map((c) => [c.productId, c.n]));
   const avisMap = new Map(avis7.map((a) => [a.productId, a.n]));
+  const viewMap = new Map(views7.map((w) => [w.productId, w.n]));
+  const clicMap = new Map(clics7.map((c) => [c.productId, c.n]));
+  const dlMap = new Map(dl7.map((d) => [d.productId, d.n]));
 
-  // 3. La priorité de chaque candidat.
+  // Plafond d'attente dynamique : min(max(N-1, 7), 30)
+  const N = rows.length;
+  const attenteCap = Math.min(Math.max(N - 1, 7), 30);
+
+  // 3. La priorité de chaque candidat (moyenne bayésienne + signaux log-scale).
   const scored: (FeaturedCandidate & { row: (typeof rows)[number] })[] = rows.map((row) => {
     const feat = featMap.get(row.id);
     const apparitions = feat?.apparitions ?? 0;
-    // Jamais mis en avant → l'attente court depuis sa publication (elle
-    // est due depuis qu'il existe).
-    const reference = feat?.dernier ?? (row.publishedAt ? utcDateString(row.publishedAt) : null);
-    const attente = Math.min(joursEntre(reference, now), FEATURED_ATTENTE_PLAFOND_JOURS);
-    const note = row.ratingsCount > 0 ? row.ratingsSum / row.ratingsCount : 0;
-    const signal =
-      note +
-      (voteMap.get(row.id) ?? 0) +
-      FEATURED_POIDS_COMMENTAIRE * (commMap.get(row.id) ?? 0) +
-      FEATURED_POIDS_AVIS * (avisMap.get(row.id) ?? 0);
+    // Attente : jours depuis dernière mise en avant (-1 pour hier = 0), ou depuis publication
+    const attenteBrute = feat?.dernier
+      ? Math.max(0, joursEntre(feat.dernier, now) - 1)
+      : Math.max(0, joursEntre(row.publishedAt ? utcDateString(row.publishedAt) : null, now));
+    const attente = Math.min(attenteBrute, attenteCap);
+
+    // Note bayésienne (C=10, m=3.5)
+    const noteBayes =
+      (FEATURED_BAYES_C * FEATURED_BAYES_M + row.ratingsSum) /
+      (FEATURED_BAYES_C + row.ratingsCount);
+
+    // Signal non-linéaire (retours décroissants avec ln(1+x))
+    const signal = Math.min(
+      FEATURED_SIGNAL_PLAFOND,
+      noteBayes +
+        Math.log(1 + Math.max(0, voteMap.get(row.id) ?? 0)) +
+        FEATURED_POIDS_COMMENTAIRE * Math.log(1 + (commMap.get(row.id) ?? 0)) +
+        FEATURED_POIDS_AVIS * Math.log(1 + (avisMap.get(row.id) ?? 0)) +
+        FEATURED_POIDS_PAGEVIEW * Math.log(1 + (viewMap.get(row.id) ?? 0)) +
+        FEATURED_POIDS_CLIC * Math.log(1 + (clicMap.get(row.id) ?? 0)) +
+        FEATURED_POIDS_DOWNLOAD * Math.log(1 + (dlMap.get(row.id) ?? 0)),
+    );
+
     return {
       id: row.id,
       signal,
@@ -978,8 +1064,17 @@ async function computeFeatured(now: Date): Promise<ComputedFeatured | null> {
     };
   });
 
-  // 4. Le tri (fonction pure : deterministe, et PAS l'ordre d'arrivee).
-  const winner = classerFeatured(scored)[0];
+  // 4. Produit d'hier pour anti-consécutif dur
+  const yesterdayStr = utcDateString(new Date(now.getTime() - 86_400_000));
+  const yesterdayRow = await db
+    .select({ productId: featuredProducts.productId })
+    .from(featuredProducts)
+    .where(eq(featuredProducts.featuredOn, yesterdayStr))
+    .limit(1);
+  const hierProductId = yesterdayRow[0]?.productId;
+
+  // 5. Le tri (fonction pure : déterministe)
+  const winner = classerFeatured(scored, attenteCap, hierProductId)[0];
   if (!winner) return null;
   return { row: winner.row, tier: "rotation", productId: winner.row.id };
 }

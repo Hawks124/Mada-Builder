@@ -138,6 +138,13 @@ export const products = pgTable(
     // par le job (comme le score) — une lecture à O(1) pour le mobile qui
     // lit la table directement, sans passer par une API.
     downloadCount: integer("download_count").notNull().default(0),
+    // Vues produit : compteur dénormalisé tenu par le TRIGGER DB
+    // `handle_product_page_view_inserted` (INSERT `product_page_views` → +1),
+    // posé par l'équipe mobile, miroiré en migration 0053. Le web ne
+    // l'écrit jamais lui-même (`logProductView` journalise l'événement,
+    // sans toucher le compteur). Vérité réconciliable : COUNT des
+    // événements `product_page_views` (recalage de la 0053).
+    viewCount: integer("view_count").notNull().default(0),
     // Curation OSS (lot curation) : produit en veille internationale —
     // exclu du classement voté + featured (catalogue oui), votes et avis
     // désactivés, commentaires ouverts. Posé auto (compte curation) ou

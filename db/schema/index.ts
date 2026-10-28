@@ -10,6 +10,7 @@ export * from "./builds";
 export * from "./revisions";
 export * from "./idempotency";
 export * from "./email_logs";
+export * from "./digests";
 export * from "./reviews";
 export * from "./notifications";
 export * from "./revenue";
