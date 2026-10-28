@@ -48,8 +48,11 @@ incluses, enveloppe stable). Règles directes :
   maker via `GET /makers/[username]` (rend `isCuration` + clause en bio).
 - Produits d'un maker : `id` depuis `GET /makers/[username]` puis
   `products?maker_id=eq.{id}&status=eq.published&order=published_at.desc`.
-- `votes`, compteurs, `users`, écritures : voir §2 et docs data
-  (jamais en direct).
+- Écritures **avis / commentaires / votes de commentaires** : en DIRECT
+  (migration 0055 — `docs/mobile-ecritures-directes.md` : surface par
+  colonne, codes d'erreur, raisons de la garde). Le reste (`votes`
+  produits, compteurs, `users`, fiche) : API v1 et docs data (jamais en
+  direct).
 
 ## 1-ter. Les liens d'un produit (`products.links`)
 

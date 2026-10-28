@@ -126,6 +126,11 @@ jamais l'`unsafe-inline` script. Aperçu fiche non publiée : `/preview/*` → `
   ~60 événements/min/produit, l'événement reste stocké (audit) sans
   incrémenter `view_count` (un flood ne pilote plus le classement).
 - Votes/commentaires : triggers/transactions, jamais de cron.
+- **Pont d'écriture directe (0055)** : avis, commentaires et votes de
+  commentaires sont écrits en direct PostgREST (mobile comme web — le
+  service TS ne pose plus compteurs/score/notifs) ; la base est
+  l'arbitre unique (CHECK, RLS own-row, garde trigger, grants par
+  colonne). Contrat mobile : `docs/mobile-ecritures-directes.md`.
 
 ## Groupes de routes
 
