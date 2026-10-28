@@ -11,7 +11,12 @@ import {
 } from "@/lib/api/response";
 import { requireApiUser } from "@/lib/api/auth";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
-import { deleteAccount, fetchOwnProfile, updateProfile } from "@/services/users.service";
+import {
+  deleteAccount,
+  fetchOwnProfile,
+  purgeAppealEvidence,
+  updateProfile,
+} from "@/services/users.service";
 import { purgeUserProductObjects } from "@/services/products.service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AVATAR_BUCKET } from "@/lib/supabase/storage";
@@ -129,6 +134,14 @@ export async function DELETE(req: Request): Promise<Response> {
     } catch (e) {
       captureError(e instanceof Error ? e : new Error(String(e)), {
         op: "api.me.deleteProductObjects",
+      });
+    }
+    // Preuves d'appel (bucket Supabase `appeals` privé) — même contrat.
+    try {
+      await purgeAppealEvidence(user.id);
+    } catch (e) {
+      captureError(e instanceof Error ? e : new Error(String(e)), {
+        op: "api.me.deleteAppealObjects",
       });
     }
     await deleteAccount(user.id, user.id);

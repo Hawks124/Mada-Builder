@@ -14,6 +14,7 @@ import {
   avatarPublicUrl,
   deleteAvatarObject,
   uploadAvatarObject,
+  APPEALS_BUCKET,
   type SupabaseClientLike,
 } from "@/lib/supabase/storage";
 
@@ -366,6 +367,40 @@ export async function deleteAccount(viewerId: string, targetId: string) {
   //   4. ligne users (hard delete RGPD, pas de soft-delete ici)
   await db.delete(users).where(eq(users.id, targetId));
   return { ok: true as const, username: row.username };
+}
+
+/**
+ * Purge RGPD des preuves d'appel (bucket `appeals` PRIVÉ) : les objets
+ * sous `appeals/{uid}/…` ne partent PAS avec la cascade SQL (Supabase
+ * Storage n'est pas une table) — la promesse légale (§suppression :
+ * « réellement et définitivement effacés ») exigeait leur destruction.
+ * Best-effort : une panne storage est captée (Sentry) mais ne bloque
+ * JAMAIS la suppression du compte (le fichier restant reste partiel de
+ * la preuve privée du staff, jamais exposé). Appelé par le flux web
+ * (deleteMyAccount) ET le flux API mobile (DELETE /api/v1/me) — lot E.
+ */
+export async function purgeAppealEvidence(ownerId: string): Promise<number> {
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    captureError(e instanceof Error ? e : new Error(String(e)), { op: "users.purgeAppeals.admin" });
+    return 0;
+  }
+  if (!admin) return 0;
+  try {
+    const { data } = await admin.storage.from(APPEALS_BUCKET).list(ownerId, { limit: 1000 });
+    const paths = (data ?? []).map((f) => `${ownerId}/${f.name}`);
+    if (paths.length === 0) return 0;
+    const { error } = await admin.storage.from(APPEALS_BUCKET).remove(paths);
+    if (error) throw error;
+    return paths.length;
+  } catch (e) {
+    captureError(e instanceof Error ? e : new Error(String(e)), {
+      op: "users.purgeAppeals.storage",
+    });
+    return 0;
+  }
 }
 
 // ── Auth : sync providers (multi strict) ──────────────────────────────────────

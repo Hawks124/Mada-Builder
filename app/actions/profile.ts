@@ -7,7 +7,13 @@ import { createClient, getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { ProfileError, deleteAccount, updateAvatar, updateProfile } from "@/services/users.service";
+import {
+  ProfileError,
+  deleteAccount,
+  purgeAppealEvidence,
+  updateAvatar,
+  updateProfile,
+} from "@/services/users.service";
 import { purgeUserProductObjects } from "@/services/products.service";
 import { AVATAR_BUCKET } from "@/lib/supabase/storage";
 import { withToast } from "@/lib/toast";
@@ -170,6 +176,14 @@ export async function deleteMyAccount(): Promise<void> {
     await purgeUserProductObjects(user.id);
   } catch (e) {
     captureError(e, { op: "account.deleteProductObjects" });
+  }
+
+  // 2c. Preuves d'appel (bucket Supabase `appeals` privé) — le même
+  // contrat RGPD censé : la ligne DB part, les fichiers aussi (lot E).
+  try {
+    await purgeAppealEvidence(user.id);
+  } catch (e) {
+    captureError(e, { op: "account.deleteAppealObjects" });
   }
 
   // 3. Ligne DB (hard delete RGPD ; garde dernier-admin incluse).
