@@ -9,6 +9,12 @@ le service web n'écrit plus jamais ces effets, donc pas de double-compte
 possible. Un seul arbitre : la base. Aucune architecture nouvelle côté
 mobile : du PostgREST avec l'access token habituel, rien d'autre.
 
+**Périmètre de la demande squad : avis + commentaires.** Les votes de
+commentaires sont un corollaire d'ingénierie du pont (un fil lisible
+mais incastable serait à moitié mort) — jamais demandés par la squad,
+assumés par nous. Les votes-produits (leaderboard) ne sont PAS du pont
+(API v1, shadow weighting).
+
 Migration de référence : `db/migrations/0055_mobile_direct_writes_bridge.sql`
 (miroir environnement neuf : `db/setup.sql` §3d-quinquies). La preuve
 d'exécution : `scripts/verify-mobile-direct.ts` (37 assertions en
