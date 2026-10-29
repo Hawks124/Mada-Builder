@@ -202,9 +202,18 @@ n.commentsCount`, updates `b.commentsCount`, featured
       (le kit ne re-diff pas). Verify `scripts/verify-0057-one-pending-uidx.ts` :
       4 ok / 0 KO (index unique+valide+prédicat ; second pending → 23505
       contrainte nommée ; rejet libère le re-send D6).
-- [ ] **R2 idempotent** : `r2Key` déjà référencé par un build enregistré
-      → retourner le build existant (retry idempotent), ne JAMAIS détruire
-      le binaire d'un build en revue.
+- [x] **R2 idempotent** : `createBuild` renvoie le build existant quand
+      le `r2Key` reçu est déjà référencé (sortie AVANT tout HEAD — la clé
+      est fraîche à chaque presign, donc ligne existante = le MÊME envoi
+      reposté) : retry sur build en revue ne détruit plus l'objet que
+      l'admin ouvre, 23505 ne purge plus la clé d'un build approuvé,
+      aucun doublon de ligne. Tout purgeur en aval ne purge qu'un objet
+      ORPHELIN (aucune ligne ne référence la clé). Verify
+      `scripts/verify-builds-idempotent.ts` : 4 ok / 0 KO (retry en
+      revue = même id ; retry approuvé = même id ; 0 ligne dupliquée ;
+      clé jamais posée refusée). Le refus d'une clé rivale pendant un
+      pending n'est PAS repris ici (exige un APK signé sur R2) — la
+      règle en base est couverte par verify-0057.
 - [ ] **Média de révision** : carry-over du média précédent quand l'édit
       ne le touche pas + compté dans `needsRevision` + l'orientation
       proposée affichée dans le formulaire d'édit.

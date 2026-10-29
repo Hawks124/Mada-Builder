@@ -75,6 +75,25 @@ export async function createBuild(input: {
   if (!input.r2Key.startsWith(prefix) || input.r2Key.includes("..")) {
     throw new ProfileError("VALIDATION", "Clé de build invalide.");
   }
+  // Idempotence du register (CodeRabbit) : le PUT présigné a pu réussir
+  // pendant que le POST du client expirait — le client renvoie le MÊME
+  // r2Key. Or la clé est fraîche à chaque presign (lib/r2 :
+  // `{Date.now()}`-`{rand}`), donc une ligne existante sur cette clé =
+  // CET envoi déjà enregistré (ou une re-citation littérale du même
+  // binaire). On renvoie le build existant SANS TOUCHER À RIEN : on ne
+  // détruit jamais le binaire d'un build déjà en base — en revue (le
+  // binaire que l'admin ouvre), distribué (le fichier que /download
+  // stream), ou rejeté (historique). Avant ce check, un retry tombait
+  // dans le `stillPending` plus bas qui purgeait l'objet en revue, ou
+  // dans le 23505 qui purgeait la clé d'un build déjà enregistré. Ici il
+  // n'arrive pas : tout purgeur en aval ne peut purger qu'un objet
+  // ORPHELIN (aucune ligne ne le référence).
+  const [sameKey] = await db
+    .select({ id: productBuilds.id })
+    .from(productBuilds)
+    .where(and(eq(productBuilds.r2Key, input.r2Key), eq(productBuilds.productId, input.productId)))
+    .limit(1);
+  if (sameKey) return { id: sameKey.id };
   if (!/^[0-9a-f]{64}$/i.test(input.sha256)) {
     throw new ProfileError("VALIDATION", "SHA-256 invalide (64 hex).");
   }
