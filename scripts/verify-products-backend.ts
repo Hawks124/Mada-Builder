@@ -43,6 +43,7 @@ import {
   assertLinkRules,
   fetchProductBySlug,
   fetchProductForPreview,
+  fetchMyProducts,
   logOutboundClick,
   logProductView,
   toDashboardApp,
@@ -74,12 +75,12 @@ import { KNOWN_LINK_IDS } from "@/services/products.service";
 
 let pass = 0;
 let fail = 0;
-function check(name: string, cond: boolean) {
+function check(name: string, cond: boolean, detail?: unknown) {
   if (cond) {
     pass++;
   } else {
     fail++;
-    console.error(`FAIL: ${name}`);
+    console.error(`FAIL: ${name}${detail === undefined ? "" : ` — ${JSON.stringify(detail)}`}`);
   }
 }
 
@@ -2536,6 +2537,106 @@ async function main(): Promise<void> {
   }
   check("règles : monétisé sans privacy refusé", regleRefusee);
   await db.delete(products).where(eq(products.id, regleProduct.id));
+
+  // 15.6 Carry-over du média de révision (CodeRabbit) : un édit qui ne
+  //     touche PAS les médias conserve le média proposé. Avant : l'upsert
+  //     ré-écrivait `media` à null et la purge détruisait les objets que
+  //     l'admin n'avait pas encore arbitrés ; une révision média seule
+  //     (payload vidé) était jetée carrément.
+  const [carryProduct] = await db
+    .insert(products)
+    .values({
+      slug: `verify-carry-${TAG}`,
+      makerId: maker.id,
+      name: "Produit Carry",
+      tagline: "Tagline carry.",
+      description: "Description carry assez longue.",
+      category: "dev-tools",
+      categories: ["dev-tools"],
+      productType: "app_web",
+      platforms: ["web"],
+      pricingModel: "free",
+      galleryOrientation: "landscape",
+      status: "published",
+      publishedAt: new Date(),
+      upvoteCount: 0,
+      links: { website: "https://example.com" },
+    })
+    .returning({ id: products.id });
+  const carryMediaProposes = {
+    logo: `https://img.probe.local/carry-${TAG}/logo.png`,
+    shots: [
+      {
+        url: `https://img.probe.local/carry-${TAG}/shot-1.webp`,
+        orientation: "portrait",
+        width: 400,
+        height: 800,
+      },
+    ],
+  };
+  // Révision média SEULE (payload vide) insérée directement : le chemin
+  // réel d'upload exige R2 (couvert par le service, hors portée ici).
+  await db.insert(productRevisions).values({
+    productId: carryProduct.id,
+    makerId: maker.id,
+    payload: {},
+    media: carryMediaProposes,
+    createdAt: new Date(),
+  });
+  const carryEdit = await updateProduct(maker.id, carryProduct.id, {});
+  const [carryRow1] = await db
+    .select({ payload: productRevisions.payload, media: productRevisions.media })
+    .from(productRevisions)
+    .where(eq(productRevisions.productId, carryProduct.id));
+  const carry1 = (carryRow1?.media ?? null) as { logo?: string } | null;
+  check("carry-over : la révision média seule survit à un édit sans texte", carry1 !== null);
+  check(
+    "carry-over : le média proposé est intact après l'édit",
+    carry1?.logo === carryMediaProposes.logo,
+    carry1,
+  );
+  check(
+    "carry-over : l'édit est signalé en re-revue (média à arbitrer)",
+    carryEdit.rereview === true,
+    carryEdit,
+  );
+  // Édit texte sur la même révision : le média survit À TRAVERS l'upsert
+  // (il ne se perd plus lors de l'écrasement du champ media).
+  await updateProduct(maker.id, carryProduct.id, {
+    tagline: "Tagline carry deux.",
+  } as never);
+  const [carryRow2] = await db
+    .select({ payload: productRevisions.payload, media: productRevisions.media })
+    .from(productRevisions)
+    .where(eq(productRevisions.productId, carryProduct.id));
+  const carry2 = (carryRow2?.media ?? null) as { logo?: string } | null;
+  const carry2Payload = (carryRow2?.payload ?? {}) as Record<string, unknown>;
+  check(
+    "carry-over : média conservé à travers un édit texte (upsert)",
+    carry2?.logo === carryMediaProposes.logo,
+    carry2,
+  );
+  check(
+    "carry-over : le payload gagne le champ édité",
+    carry2Payload.tagline === "Tagline carry deux.",
+    carry2Payload,
+  );
+  // Pré-remplissage : le FORM montre l'orientation proposée (sinon sa
+  // première sauvegarde ré-écrivait le validé et annulait la proposition).
+  // L'édit propose portrait sur la fiche landscape : la révision porte la
+  // décision, le formulaire doit PRÉ-REMPLIR portrait.
+  await updateProduct(maker.id, carryProduct.id, {
+    galleryOrientation: "portrait",
+  } as never);
+  const { items: carryDash } = await fetchMyProducts(maker.id);
+  const dashApp = carryDash.find((r) => r.id === carryProduct.id);
+  const dashOrientation = dashApp ? toDashboardApp(dashApp as never).galleryOrientation : null;
+  check(
+    "carry-over : le formulaire d'édit pré-remplit l'orientation proposée",
+    dashOrientation === "portrait",
+    dashOrientation,
+  );
+  await db.delete(products).where(eq(products.id, carryProduct.id));
 
   // 16. Compteurs de catégories : le compteur doit annoncer ce que la
   //     PAGE de la catégorie montre (les produits dont le tableau

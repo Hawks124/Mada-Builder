@@ -1158,6 +1158,13 @@ export async function fetchProductForPreview(
     installCommand:
       typeof payload.installCommand === "string" ? payload.installCommand : row.installCommand,
     links: (payload.links as typeof row.links | undefined) ?? row.links,
+    // L'orientation PROPOSÉE : l'aperçu montre ce qui SERA publié — sans
+    // ça la galerie montrait des captures de l'orientation proposée dans
+    // une fiche prétendue « paysage » validée.
+    galleryOrientation:
+      payload.galleryOrientation === "portrait" || payload.galleryOrientation === "landscape"
+        ? (payload.galleryOrientation as typeof row.galleryOrientation)
+        : row.galleryOrientation,
     iconUrl: media?.logo ?? row.iconUrl,
   };
   const previewShots =
@@ -1465,6 +1472,16 @@ export function toDashboardApp(
   const pendingInstallCommand =
     typeof pending.installCommand === "string" ? pending.installCommand : row.installCommand;
   const pendingLinks = (pending.links ?? row.links) as ProductLinks;
+  // L'orientation PROPOSÉE (décision média en révision) : le formulaire
+  // d'édit pré-remplit la proposition — sinon sa première sauvegarde
+  // écrivait l'orientation validée et annulait silencieusement la
+  // proposition (le champ « remis à la valeur validée » est retiré de
+  // la révision). Toutes les autres propositions textuelles le sont
+  // déjà (name/tagline/description/…) : l'orientation ferme la série.
+  const pendingOrientation =
+    pending.galleryOrientation === "portrait" || pending.galleryOrientation === "landscape"
+      ? (pending.galleryOrientation as "portrait" | "landscape")
+      : (row.galleryOrientation as "portrait" | "landscape");
   return {
     id: row.id,
     slug: row.slug,
@@ -1505,7 +1522,7 @@ export function toDashboardApp(
     hasThirdParty: row.sharesData,
     targetCountries: row.targetCountries,
     languagesSupported: row.languagesSupported,
-    galleryOrientation: row.galleryOrientation as "portrait" | "landscape",
+    galleryOrientation: pendingOrientation,
     iconGradient: appGradientFor(row.id),
     initials: appInitialsFor(row.name),
     iconUrl: row.iconUrl ?? null,
@@ -1938,7 +1955,17 @@ export async function updateProduct(
     if (linksChanged) sensitive.links = mergedLinks;
   }
   const mediaChanged = isPublished && (Boolean(editLogo) || newShots.length > 0);
-  const needsRevision = Object.keys(sensitive).length > 0 || mediaChanged;
+  // Carry-over du média proposé (CodeRabbit) : un édit qui ne touche PAS
+  // les médias conserve celui de la révision en attente. Compté dans
+  // needsRevision : sans ça, une révision média SEULE (payload vidé par
+  // des retours au validé) était JETÉE par un édit qui ne touche que du
+  // léger, et l'upsert ré-écrivait `media` à null (le maker perdait sa
+  // proposition, l'admin sa décision d'arbitrage sur rien).
+  const carriedMedia: PendingMedia | null =
+    isPublished && !mediaChanged
+      ? ((previousRevision?.media ?? null) as PendingMedia | null)
+      : null;
+  const needsRevision = Object.keys(sensitive).length > 0 || mediaChanged || Boolean(carriedMedia);
 
   // Publication depuis l'édition (draft + intent publish) : mêmes règles
   // que la création publish, puis statut → pending.
@@ -2064,8 +2091,13 @@ export async function updateProduct(
         : [];
     prepared = await uploadProductFiles(productId, editLogo, newShots, effectiveOrientation);
   }
+  // Carry-over : le média de la révision en attente est reconduit que
+  // l'édit n'en propose pas de nouveau — l'upsert ne peut plus écraser
+  // `media` à null et la purge d'aval (oldMedia) garde tous ses objets
+  // (kept contient exactement les captures reconduites).
   const pendingMedia: PendingMedia | null =
-    needsRevision && prepared ? { logo: prepared.logoUrl, shots: prepared.shots } : null;
+    carriedMedia ??
+    (needsRevision && prepared ? { logo: prepared.logoUrl, shots: prepared.shots } : null);
 
   // --- 2. Les ECRITURES en base, en une transaction ----------------
   const [updated] = await db.transaction(async (tx) => {

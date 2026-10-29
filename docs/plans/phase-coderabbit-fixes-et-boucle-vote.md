@@ -214,9 +214,20 @@ n.commentsCount`, updates `b.commentsCount`, featured
       clé jamais posée refusée). Le refus d'une clé rivale pendant un
       pending n'est PAS repris ici (exige un APK signé sur R2) — la
       règle en base est couverte par verify-0057.
-- [ ] **Média de révision** : carry-over du média précédent quand l'édit
-      ne le touche pas + compté dans `needsRevision` + l'orientation
-      proposée affichée dans le formulaire d'édit.
+- [x] **Média de révision** : carry-over du média proposé quand l'édit
+      ne le touche pas (`carriedMedia` = `previousRevision.media` si
+      publiée sans médias fournis, compté dans `needsRevision` — une
+      révision média SEULE survivait plus à un édit léger qui l'écrasait
+      à null) + purge d'aval garde les objets (kept = captures
+      reconduites) + l'orientation PROPOSÉE pré-remplie dans le
+      formulaire d'édit (`toDashboardApp` overlay, le maker ne ré-écrivait
+      plus le validé et annulait sa proposition) et dans l'aperçu
+      (`fetchProductForPreview` — même contrat : « l'aperçu montre ce
+      qui sera publié »). Verify scénario 15.6 du harnais
+      `scripts/verify-products-backend.ts` : 216 OK / 0 KO (révision
+      média seule insérée en base sans R2 ; survie à un édit vide,
+      survie à un édit texte via upsert, pré-remplissage réel de
+      l'orientation proposée).
 - [ ] **Purge RGPD appels (minimum ratifié)** : listage en boucle (fini
       le cap 1000), erreurs `list()` captées (l'erreur vit dans `error`,
       pas en throw), tâche de récupération persistée avec `ownerId` si la
