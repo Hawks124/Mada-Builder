@@ -13,6 +13,21 @@ import {
 import { ApkParseError, extractApkCerts } from "@/lib/apk";
 
 /**
+ * Nom de la contrainte violée (23505) : Drizzle enveloppe l'erreur driver
+ * dans `cause`, postgres-js expose le champ `constraint_name`. Le nom dit
+ * QUELLE règle d'unicité a flippé — l'unicité n'est pas une seule règle
+ * sur cette table (un-pending 0057, (produit, version_code) 0047).
+ * Même mécanique qu'isUniqueViolation (lib/api/idempotency.ts).
+ */
+function violationConstraint(e: unknown): string | null {
+  const read = (x: unknown): string | null =>
+    typeof (x as { constraint_name?: unknown } | null)?.constraint_name === "string"
+      ? (x as { constraint_name: string }).constraint_name
+      : null;
+  return read(e) ?? read((e as { cause?: unknown } | null)?.cause);
+}
+
+/**
  * Builds APK (D1) : enregistrement post-upload. Le binaire est déjà sur R2
  * (PUT présigné direct, jamais via Vercel) — ici on VÉRIFIE (HEAD : objet
  * présent, taille exacte, quota) puis on insère en `pending` (revue
@@ -222,12 +237,21 @@ export async function createBuild(input: {
     void notifyAdminsReview({ productId: input.productId, buildId: row.id });
     return { id: row.id };
   } catch (e) {
-    // Doublon (produit, version) : l'objet orphelin est purgé (jamais de
-    // binaire sans ligne).
+    if (e instanceof ProfileError) throw e;
+    // Unicité violée (23505) : la course éventuelle du pré-check est
+    // fermée par l'index 0057 — la base répond à sa place. Le nom de la
+    // contrainte dit QUELLE règle a flippé : un-pending (0057) → message
+    // « déjà en revue » identique au pré-check ; (produit, version_code)
+    // (0047) → message de version. Dans les deux cas l'objet orphelin
+    // est purgé (jamais de binaire sans ligne).
     await deleteR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key).catch(() => {});
-    throw e instanceof ProfileError
-      ? e
-      : new ProfileError("VALIDATION", "Build déjà enregistré (produit, version).");
+    const constraint = violationConstraint(e);
+    throw new ProfileError(
+      "VALIDATION",
+      constraint === "product_builds_one_pending_uidx"
+        ? "Un binaire est déjà en revue — attendez le verdict avant d'envoyer une nouvelle version."
+        : "Build déjà enregistré (produit, version).",
+    );
   }
 }
 

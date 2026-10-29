@@ -190,10 +190,18 @@ n.commentsCount`, updates `b.commentsCount`, featured
 
 ## 7. Lot F — heavy lifts (un commit chacun)
 
-- [ ] **Builds** : index partiel `product_builds_one_pending_uidx ON
-(product_id) WHERE status='pending'` (migration) + PRÉ-CHECK des
-      doublons en base avant application (l'index échoue sinon) + conflit
-      unique géré → `ProfileError` propre.
+- [x] **Builds** : index partiel `product_builds_one_pending_uidx ON
+(product_id) WHERE status='pending'` (migration 0057, journal idx 54,
+      pré-check 2026-10-29 : 0 doublon pending / 0 pending / 12 builds —
+      l'index s'applique sans nettoyage, doc dans l'en-tête SQL) + le
+      catch de createBuild lit `constraint_name` (direct OU via cause
+      Drizzle, même mécanique qu'isUniqueViolation) : contrainte un-pending →
+      message « déjà en revue » identique au pré-check, contrainte
+      (produit, version_code) → message de version ; objet orphelin purgé
+      dans les deux cas. Drizzle schema (db/schema/builds.ts) synchronisé
+      (le kit ne re-diff pas). Verify `scripts/verify-0057-one-pending-uidx.ts` :
+      4 ok / 0 KO (index unique+valide+prédicat ; second pending → 23505
+      contrainte nommée ; rejet libère le re-send D6).
 - [ ] **R2 idempotent** : `r2Key` déjà référencé par un build enregistré
       → retourner le build existant (retry idempotent), ne JAMAIS détruire
       le binaire d'un build en revue.
