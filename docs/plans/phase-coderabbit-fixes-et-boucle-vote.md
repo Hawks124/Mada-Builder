@@ -117,20 +117,76 @@ IS NULL OR user_id = auth.uid())` (WITH CHECK inchangé) — le hijack
 
 ## 5. Lot D — déconnexion sans pending (repro live requise)
 
-- [ ] Reproduire nav + dashboard, instrumentation `setIsPending` +
-      panneau réseau (l'aller-retour MG→UE dure 300–800 ms : la phase
-      spinner ne peint jamais ?).
-- [ ] Fix attendu si confirmé : `flushSync(() => setIsPending(true))`
-      avant l'appel — mais le diagnostic live tranche avant de coder.
-- [ ] Commit `fix(ui)`.
+- [x] **Repro live fait** (2026-10-29, opérateur connecté sur le dev
+      server) : le spinner **est peint** — l'hypothèse « la phase
+      pending ne peint jamais / fix flushSync » est réfutée. Ce que dit
+      l'opérateur : spinner visible, puis Next rendering pendant lequel
+      le spinner s'arrête, et le dialog ferme à la fin de la
+      navigation. Les logs serveur confirment la mécanique : `signOut()
+in 695ms` (l'action), puis revalidation du layout — le layout se
+      re-rend AVEC LA SESSION MORTE (la déconnexion est déjà réalisée),
+      ce qui remplace le composant : le spinner s'arrête exactement
+      quand le serveur a confirmé le signOut, et le dialog ferme quand
+      l'accueil public peint. L'amplitude observée en dev est la
+      compilation Turbopack (recompile du module instrumenté + premier
+      hit de la page publique : 18–20 s), imperceptible en prod.
+- [x] **Diagnostic : rien à coder** — le câblage statique était bon
+      (`isPending` posé au clic, spinner peint, dialog maintenu
+      pendant la mutation, `revalidatePath` + redirect). Le holder
+      d'attendu « fix flushSync » est abandonné, réfuté par le live.
+- [x] Instrumentation temporaire retirée (`git checkout` des deux
+      fichiers — jamais committée).
 
 ## 6. Lot E — realtime home
 
-- [ ] Vérifier en live ce que voit le **votant** (featured/new/updates
-      après son vote) — probablement couvert par le fix du lot C.
-- [ ] Cross-user Realtime (le vote d'un autre visiteur apparaît sans
+- [x] **Repro live fait** (2026-10-29, opérateur vote réel sur la home) :
+      « tout est cohérent » — aucun doublon de compteur observé entre
+      slots. Le fix du lot C (réponse autoritaire + compteur gelé)
+      couvre ce que voit le votant. **Docs only — rien à coder.**
+- [x] Cross-user Realtime (le vote d'un autre visiteur apparaît sans
       refresh) : **décision V1.5 recommandée — on ne construit pas**.
-- [ ] Docs + commit.
+      Reste documenté ici ; le payload RSC revalidé par le vote fait
+      déjà arriver l'état frais aux états suivants (navigation,
+      re-render).
+- **Constats de l'opérateur pendant le repro** (traités au lot G, §6b) :
+  comments count à 0 + label « comment » (anglais) sur home /
+  leaderboard / featured ; fenêtre « cette semaine » vide alors qu'un
+  vote a été posé hier.
+
+## 6b. Lot G — constats opérateur (2026-10-29) : labels/counters des cartes
+
+- [x] **G1 — leaderboard-list** : compteur discussions HARDCODÉ `0` →
+      count réel branché (dénorm `comments_count`, fidèle — sonde :
+      opengym 2/2, atmox 1/1, le reste 0 RÉEL) : `LeaderboardItem.commentsCount` + SELECT dans les branches weighted ET window + `toLeaderboardItem`.
+      Vérifié live sur `/leaderboard?w=week` : aria « N avis » = 0,1,0,0
+      (atmox=1 réel dans le HTML).
+- [x] **G2 — libellé des chips discussions** : le vrai problème n'était
+      pas un label anglais (aucun « comment » visible dans l'UI) mais
+      SÉMANTIQUE : les chips de DISCUSSIONS (`commentsCount`) portaient
+      le libellé « avis », réservé aux ratings (V1.5 — cf. discover-row-card
+      qui libelle « Commentaires »). Unifié : featured-product (2 branches),
+      leaderboard-list (title/aria/sr-only), product-card (+aria_label
+      manquante sur la pill). « avis » ne subsiste QUE sur les ratings
+      (product-reviews, tooltips `ratingsCount`, admin, dashboard « avis
+      en V1.5 »). Counts home vérifiés réels : newest `comments:
+n.commentsCount`, updates `b.commentsCount`, featured
+      `toFeaturedCard.slot.commentsCount`.
+- [x] **G3 — fenêtre « cette semaine » vide : AUCUN BUG, état honnête.**
+      Sonde SQL (2026-10-29) : le SEUL produit publié dans les 7 jours
+      est `exifcleaner` (1j21h) et il est `curated=true` → exclu du JEU
+      (« Curation exclue du jeu »). La fenêtre filtre par
+      `published_at >= now-7j` (PRD §11 : « publiés dans la fenêtre ») —
+      voulu. Le vote d'hier (atmox/gallery-suite, publiés il y a 9–11 j)
+      compte dans le taxo all-time et les fiches, pas dans la fenêtre.
+      L'onglet rend l'empty state de 1ère classe §15 : « Semaine calme —
+      pour l'instant » + CTA « Soyez le premier à publier » ; les 3
+      produits visibles sur la page viennent du classement pondéré
+      (all-time) et du hero featured, pas de la fenêtre. Candidat V1.5
+      noté (décision opérateur, pas construit) : bascule sémantique
+      « votes posés dans la fenêtre, tous produits » si l'onglet vide
+      répété déprime la boucle.
+- [x] Verify + gates verts ; sonde `scripts/tmp-debug.ts` supprimée avant
+      commit ; commit `fix(ui)`.
 
 ## 7. Lot F — heavy lifts (un commit chacun)
 

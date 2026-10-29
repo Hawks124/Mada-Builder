@@ -193,6 +193,8 @@ export type LeaderboardItem = {
   votes: number;
   weightedVotes: number;
   dailyVotes: number;
+  /** Discussions (dénorm comments_count, tenu par les triggers du pont) — réel. */
+  commentsCount: number;
   /** Votes reçus DANS la fenêtre courante (aujourd'hui / semaine / mois).
    *  C'est ce nombre qui classe la carte, et c'est celui qu'elle affiche. */
   windowVotes?: number;
@@ -264,6 +266,7 @@ export async function getLeaderboard(input: {
         makerDisplayName: users.displayName,
         makerAvatarUrl: users.avatarUrl,
         upvoteCount: products.upvoteCount,
+        commentsCount: products.commentsCount,
         weighted: sql<number>`coalesce(sum(${votes.weight}), 0)::int`,
         daily: sql<number>`count(${votes.id}) FILTER (WHERE ${votes.createdAt} >= ${startOfTodayUTC(now).toISOString()}::timestamptz)::int`,
         iconUrl: products.iconUrl,
@@ -317,6 +320,7 @@ export async function getLeaderboard(input: {
         makerDisplayName: users.displayName,
         makerAvatarUrl: users.avatarUrl,
         upvoteCount: products.upvoteCount,
+        commentsCount: products.commentsCount,
         weighted: sql<number>`coalesce(sum(${votes.weight}), 0)::int`,
         daily: sql<number>`count(${votes.id}) FILTER (WHERE ${votes.createdAt} >= ${startOfTodayUTC(now).toISOString()}::timestamptz)::int`,
         windowVotes: votesFenetre,
@@ -454,6 +458,7 @@ function toLeaderboardItem(
     makerDisplayName: string;
     makerAvatarUrl: string | null;
     upvoteCount: number;
+    commentsCount: number;
     weighted: number;
     daily: number;
     iconUrl: string | null;
@@ -477,6 +482,7 @@ function toLeaderboardItem(
     votes: r.upvoteCount,
     weightedVotes: r.weighted,
     dailyVotes,
+    commentsCount: r.commentsCount,
     ...(windowVotes === undefined ? {} : { windowVotes }),
     iconUrl: r.iconUrl,
     iconGradient: appGradientFor(r.id),
