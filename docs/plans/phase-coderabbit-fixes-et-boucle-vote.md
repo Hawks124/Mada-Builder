@@ -246,7 +246,10 @@ n.commentsCount`, updates `b.commentsCount`, featured
       « permission denied » — phase A en rollback volontaire (pattern
       0057), sonde comitée par drizzle pour la reprise.
       Coordination uploads en vol = lot suivi dédié.
-- [ ] Verify + build + commits.
+- [x] Verify + build + commits : F1 `b26bb56` (0057) · F2 `76302b0`
+      (idempotent) · F3 `54d8e2d` (carry-over) · F4 `03321cd` (purge
+      GDPR). Gates chaque lot : tsc + eslint + prettier (node direct) +
+      verify + `npm run build`.
 
 ## 8. Fin de série
 
