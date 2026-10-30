@@ -400,6 +400,13 @@
       "when": 1796112000003,
       "tag": "0058_gdpr_purge_retries",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1796198400003,
+      "tag": "0059_notifications_read_at_pont",
+      "breakpoints": true
     }
   ]
 }

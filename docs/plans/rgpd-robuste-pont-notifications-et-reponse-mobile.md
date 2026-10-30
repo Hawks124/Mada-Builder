@@ -38,14 +38,29 @@ Tickets/contexte : `mada-made/app/docs/ticket-web-squad-notifications-read-at.md
 
 ## Lot B — pont mobile `notifications.read_at` (PostgREST, pattern 0055)
 
-- [ ] migration `db/migrations/0059_notifications_read_at_pont.sql` : policy
-      UPDATE own (RLS) + GRANT UPDATE restreint à la SEULE colonne `read_at`s
+- [x] migration `db/migrations/0059_notifications_read_at_pont.sql` : policy
+      UPDATE own (RLS) + GRANT UPDATE restreint à la SEULE colonne `read_at`
       (aucun GRANT INSERT/DELETE — table notifications en écriture serveur)
-- [ ] journal drizzle : entrée idx 56 (`meta/_journal.json`)
-- [ ] verify 0059 réel : UPDATE own OK / UPDATE autrui refusé / UPDATE d'une
-      autre colonne refusé / INSERT + DELETE → 42501
-- [ ] docs : `docs/notifications.md` + `docs/mobile-ecritures-directes.md`
-- [ ] gates + commit
+- [x] **sécurité bonus** : la policy SELECT own ne vivait que dans
+      `db/setup.sql` (reconstruction neuf) — une base n'appliquant QUE les
+      migrations restait sans RLS sur `notifications` avec le GRANT SELECT
+      de 0055 : toutes les lignes lisibles par tout authenticated (fuite
+      inter-makers). 0059 est autoportant (RLS enable + les deux policies)
+      et déterministe (REVOKE ALL + re-grants, style 0055)
+- [x] journal drizzle : entrée idx 56 (`meta/_journal.json`, tag
+      `0059_notifications_read_at_pont`) ; appliquée via `db:migrate:local`
+      (journal réinitialisé une fois pour re-poser la version corrigée —
+      le premier draft oubliait le re-GRANT SELECT : attrapé par le verify
+      avant le commit)
+- [x] `db/setup.sql` §3d-quater : miroir 0059 (update_own + UPDATE read_at)
+- [x] verify `scripts/verify-0059-notifications-read-at-pont.ts` : 24 checks,
+      0 KO réel — état RLS/grants au catalog, isolation SELECT mutuelle,
+      marque-lu own = 1 ligne exactement, cross-user = 0 ligne silencieux,
+      INSERT/DELETE/title/user_id/created_at → 42501, anon fermé
+- [x] docs : `docs/data/notifications.md` (RLS 0059 + usage mobile direct),
+      `docs/mobile-ecritures-directes.md` (4e domaine du pont), commentaire
+      `db/schema/notifications.ts`
+- [x] gates : tsc / eslint / prettier / verify 24-0 / build
 
 ## Lot C — réponse aux mobiles (squad)
 

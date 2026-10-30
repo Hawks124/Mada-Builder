@@ -204,19 +204,30 @@ CREATE POLICY "comment_votes_select_own"
 -- ── 3d-quater. RLS + Realtime notifications ───────────────────────────────
 -- Select own-row uniquement (authenticated, user_id = auth.uid()) : le
 -- Realtime ne délivre que SES lignes, comme en REST. Écritures service
--- seules (fail-soft : une notif ne bloque jamais l'action métier).
+-- seules (fail-soft : une notif ne bloque jamais l'action métier)…
+-- … SAUF le mark-lu mobile (pont 0059, intégral ici) : policy UPDATE own
+-- + grant UPDATE (read_at) SEULE — colonne strictement restreinte,
+-- INSERT/DELETE fermés.
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "notifications_select_own" ON public.notifications;
 CREATE POLICY "notifications_select_own"
   ON public.notifications FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
--- Grants (0055) : SELECT own-row only. Le REVOKE ferme le « ALL » par
--- défaut du Data API — l'écriture ne passe plus QUE par les triggers du
--- pont (SECURITY DEFINER, §3d-quinquies), jamais par un client.
+DROP POLICY IF EXISTS "notifications_update_own" ON public.notifications;
+CREATE POLICY "notifications_update_own"
+  ON public.notifications FOR UPDATE
+  TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+-- Grants (0055 + 0059) : SELECT own-row only + UPDATE read_at only. Le
+-- REVOKE ferme le « ALL » par défaut du Data API — l'écriture ne passe
+-- plus QUE par les triggers du pont (SECURITY DEFINER, §3d-quinquies)
+-- et par le mark-lu du maker (colonne read_at seule).
 REVOKE ALL ON public.notifications FROM anon;
 REVOKE ALL ON public.notifications FROM authenticated;
 GRANT SELECT ON public.notifications TO authenticated;
+GRANT UPDATE (read_at) ON public.notifications TO authenticated;
 
 -- ── 3d-quinquies. Pont d'écriture directe avis/commentaires (migration
 --    0055 — la migration fait foi ; ce bloc n'existe que pour reconstruire

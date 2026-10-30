@@ -1,7 +1,7 @@
-# Écritures directes — avis, commentaires, votes (migration 0055)
+# Écritures directes — avis, commentaires, votes, marque-lu (0055 + 0059)
 
 **Doctrine du pont :** la base devient le point d'application des règles.
-Pour ces trois domaines, l'app mobile écrit **en direct PostgREST** (sa clé
+Pour ces domaines, l'app mobile écrit **en direct PostgREST** (sa clé
 utilisateur, sans passer par l'API v1) ; le web continue par son service TS.
 QUEL que soit l'écrivain, les effets de bord (compteurs, score,
 notifications) sont posés **par la base** (triggers `SECURITY DEFINER`) —
@@ -20,6 +20,10 @@ Migration de référence : `db/migrations/0055_mobile_direct_writes_bridge.sql`
 d'exécution : `scripts/verify-mobile-direct.ts` (37 assertions en
 transaction annulée — `VERIFY_ALLOW_PROD=1 npx tsx scripts/verify-mobile-direct.ts`).
 
+Suite (marque-lu des notifications) : `db/migrations/0059_notifications_read_at_pont.sql`,
+preuve : `scripts/verify-0059-notifications-read-at-pont.ts` (24 assertions
+réelles, transaction annulée).
+
 ## 1. La surface exacte (grants par colonne)
 
 L'`id` est **obligatoire** (uuid v7 généré côté client — la table n'a pas
@@ -30,6 +34,7 @@ de défaut SQL, même convention que le web) :
 | `reviews`       | `id, user_id, product_id, rating, body`    | `rating, body, deleted_at, updated_at` | **jamais**            |
 | `comments`      | `id, user_id, product_id, parent_id, body` | `body, deleted_at, updated_at`         | **jamais**            |
 | `comment_votes` | `id, user_id, comment_id, value`           | `value`                                | oui (retrait du vote) |
+| `notifications` | **jamais** (`23505`/`42501`)               | `read_at` (marquage « lu », 0059)      | **jamais**            |
 
 - `user_id` = toujours **soi** (RLS `user_id = auth.uid()`) ; ne jamais
   l'usurper — l'INSERT d'autrui est refusé (42501), l'UPDATE d'autrui est
@@ -76,7 +81,11 @@ PostgREST renvoie ces exceptions avec `message` (texte FR) et `details`
   l'édition), `comment_received` (maker), `comment_replied` (auteur du
   parent — jamais soi-même, jamais le maker en double). Titres FR
   pré-rendus identiques à ceux du web.
-- **Écrire `notifications` ou `products` en direct est fermé** (REVOKE — 42501) : notifs par triggers, fiches par le service web seulement.
+- **Écrire `products` en direct est fermé** (REVOKE — 42501) : fiches par
+  le service web seulement. Côté `notifications`, la surface mobile reste
+  active au millimètre (0059) : `UPDATE (read_at)` sur ses propres lignes
+  — toute autre colonne, tout `INSERT`, tout `DELETE` → 42501 (notifs par
+  triggers, textes par le service).
 
 ## 4. Note d'ingénierie (si vous ajoutez un jour une table au pont)
 

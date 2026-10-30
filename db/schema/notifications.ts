@@ -11,8 +11,10 @@ import { products } from "./products";
  * échec n'empêche jamais la notif, et inversement).
  * Textes FR PRÉ-RENDUS (stables si le produit est supprimé ensuite).
  * `read_at` = pastille non-lu (V1 : cloche + page, pas de push).
- * RLS : select own (authenticated, `user_id = auth.uid()` — le Realtime
- * ne délivre que ses lignes) ; AUCUNE écriture directe (service seul).
+ * RLS (0059, autoportant) : select own + update own — la SEULE écriture
+ * directe permise au client est `read_at` sur ses propres lignes (marque
+ * lu, grant de colonnes) ; tout le reste (contenu, INSERT, DELETE) reste
+ * service + triggers 0055, le Realtime ne délivre que ses lignes.
  */
 export const notificationKindEnum = pgEnum("notification_kind", [
   "product_approved",
