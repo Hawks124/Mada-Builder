@@ -8,6 +8,7 @@ import { sweepR2Orphans } from "@/services/products.service";
 import { purgeNotifications } from "@/services/notifications.service";
 import { cleanupExpiredOtps } from "@/services/otp.service";
 import { recountDownloadCounts } from "@/services/builds.service";
+import { retryFailedPurges } from "@/services/users.service";
 
 export const dynamic = "force-dynamic";
 
@@ -129,6 +130,19 @@ export async function POST(req: Request): Promise<Response> {
       failures.push("revenueDeadman");
       captureError(e instanceof Error ? e : new Error(String(e)), {
         op: "jobs.maintenance.revenueDeadman",
+      });
+    }
+
+    // 6. Filet RGPD (F4) : preuves d'appel restées en place à la
+    //    suppression du compte (purge Storage échouée) — reprise hebdo
+    //    du backlog `gdpr_purge_retries` (ownerId isolé, compte déjà
+    //    détruit, sans FK pour cette raison).
+    try {
+      summary.gdprPurgeRetries = await retryFailedPurges();
+    } catch (e) {
+      failures.push("gdprPurgeRetries");
+      captureError(e instanceof Error ? e : new Error(String(e)), {
+        op: "jobs.maintenance.gdprPurgeRetries",
       });
     }
 

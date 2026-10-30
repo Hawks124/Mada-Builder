@@ -2,7 +2,7 @@ import { z } from "zod";
 import { and, count, desc, eq, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { gdprPurgeRetries, users } from "@/db/schema";
 import { OCCUPATIONS } from "@/config/occupations";
 import { slugifyName } from "@/lib/utils";
 import { ImageRejectedError, processImage } from "@/lib/images";
@@ -378,6 +378,15 @@ export async function deleteAccount(viewerId: string, targetId: string) {
  * JAMAIS la suppression du compte (le fichier restant reste partiel de
  * la preuve privée du staff, jamais exposé). Appelé par le flux web
  * (deleteMyAccount) ET le flux API mobile (DELETE /api/v1/me) — lot E.
+ *
+ * Filet F4 : cet appel ne peut plus SILENCIEUSEMENT échouer. Toute panne
+ * (list, remove, réseau) persiste au backlog `gdpr_purge_retries` avec
+ * l'ownerId ; le cron maintenance hebdo re-essaie (`retryFailedPurges`)
+ * et une purge aboutie retire la ligne. Aussi :
+ * - listage en BOUCLE (Supabase capte 1 000 objets max par appel) ;
+ * - les erreurs de `list()` sont LUES (`{ error }`, pas un throw) et
+ *   compte comme un échec de purge (avant : jetées, la purge croyait
+ *   un bucket vide).
  */
 export async function purgeAppealEvidence(ownerId: string): Promise<number> {
   let admin: ReturnType<typeof createAdminClient>;
@@ -389,18 +398,99 @@ export async function purgeAppealEvidence(ownerId: string): Promise<number> {
   }
   if (!admin) return 0;
   try {
-    const { data } = await admin.storage.from(APPEALS_BUCKET).list(ownerId, { limit: 1000 });
-    const paths = (data ?? []).map((f) => `${ownerId}/${f.name}`);
-    if (paths.length === 0) return 0;
-    const { error } = await admin.storage.from(APPEALS_BUCKET).remove(paths);
-    if (error) throw error;
+    // Listage en boucle : Supabase plafonne chaque `list()` à 1 000
+    // entrées. Un cap unique échappait tous les objets au-delà (purge
+    // partielle, preuve légale intacte). On itère par pages de 100
+    // jusqu'à une page incomplète.
+    const PAGE = 100;
+    const paths: string[] = [];
+    let offset = 0;
+    for (;;) {
+      const { data, error } = await admin.storage
+        .from(APPEALS_BUCKET)
+        .list(ownerId, { limit: PAGE, offset });
+      // L'erreur vit dans `error`, jamais en throw : sans ce read, une
+      // panne list se déguisait en « bucket vide » (purge ratée d'un
+      // compte supprimé, sans trace).
+      if (error) throw error;
+      const batch = data ?? [];
+      for (const f of batch) {
+        // Une entrée « dossier » (préfixe créé par la hiérarchie) a
+        // un id null : `remove()` ne la touche pas, on ne la compte
+        // pas — le listing exclusif resta les objets.
+        if (f.id === null) continue;
+        paths.push(`${ownerId}/${f.name}`);
+      }
+      offset += batch.length;
+      if (batch.length < PAGE) break;
+    }
+    // Removes par lots (l'API accepte un tableau : on borne à 100 par
+    // appel pour un volume raisonnable).
+    const REMOVE_BATCH = 100;
+    for (let i = 0; i < paths.length; i += REMOVE_BATCH) {
+      const { error } = await admin.storage
+        .from(APPEALS_BUCKET)
+        .remove(paths.slice(i, i + REMOVE_BATCH));
+      if (error) throw error;
+    }
+    // Cycle sain (list + removes passés, même sur un bucket déjà vide) :
+    // l'échec précédent était transitoire — la tâche de récupération
+    // sort du backlog. (Delete sans condition de volume : une purge
+    // réussie d'un bucket réellement vide libère la ligne aussi.)
+    await db.delete(gdprPurgeRetries).where(eq(gdprPurgeRetries.ownerId, ownerId));
     return paths.length;
   } catch (e) {
     captureError(e instanceof Error ? e : new Error(String(e)), {
       op: "users.purgeAppeals.storage",
     });
+    await enqueueGdprPurgeRetry(ownerId, e);
     return 0;
   }
+}
+
+/**
+ * Backlog F4 : persiste (UPSERT sur owner_id) l'épisode de purge raté.
+ * C'est la mémoire qui rend le filet réel — le cron hebdo le re-essaie,
+ * l'objet laissé derrière ne l'est PLUS « pour toujours ». Aucune
+ * exception ne remonte : un backlog indisponible est un incident Sentry
+ * (comme la purge elle-même), jamais un crash du flux de suppression.
+ */
+async function enqueueGdprPurgeRetry(ownerId: string, cause: unknown): Promise<void> {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  try {
+    await db
+      .insert(gdprPurgeRetries)
+      .values({ ownerId, attempts: 1, lastError: message.slice(0, 500) })
+      .onConflictDoUpdate({
+        target: gdprPurgeRetries.ownerId,
+        set: {
+          attempts: sql`${gdprPurgeRetries.attempts} + 1`,
+          lastError: message.slice(0, 500),
+          updatedAt: new Date(),
+        },
+      });
+  } catch (e) {
+    captureError(e instanceof Error ? e : new Error(String(e)), {
+      op: "users.purgeAppeals.backlog",
+    });
+  }
+}
+
+/**
+ * Reprise hebdo du backlog RGPD (chron maintenance, F4) : chaque entrée
+ * en attente est re-purgée. Une reprise aboutie supprime la ligne (dans
+ * `purgeAppealEvidence`) ; une reprise ratée ré-alimente le backlog
+ * (attempts croît) — même filet, la ligne ne peut pas tourner en vain.
+ * Renvoie le nombre d'objets purgés à cette passe (incidemment 0 : le
+ * bucket était déjà vide, la ligne est sortie du backlog).
+ */
+export async function retryFailedPurges(): Promise<number> {
+  const rows = await db.select({ ownerId: gdprPurgeRetries.ownerId }).from(gdprPurgeRetries);
+  let purged = 0;
+  for (const { ownerId } of rows) {
+    purged += await purgeAppealEvidence(ownerId);
+  }
+  return purged;
 }
 
 // ── Auth : sync providers (multi strict) ──────────────────────────────────────

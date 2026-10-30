@@ -228,11 +228,24 @@ n.commentsCount`, updates `b.commentsCount`, featured
       média seule insérée en base sans R2 ; survie à un édit vide,
       survie à un édit texte via upsert, pré-remplissage réel de
       l'orientation proposée).
-- [ ] **Purge RGPD appels (minimum ratifié)** : listage en boucle (fini
-      le cap 1000), erreurs `list()` captées (l'erreur vit dans `error`,
-      pas en throw), tâche de récupération persistée avec `ownerId` si la
-      purge échoue (plus jamais irécupérable). Coordination avec les
-      uploads en vol = lot suivi dédié.
+- [x] **Purge RGPD appels** : `purgeAppealEvidence` liste en BOUCLE
+      (pages de 100 — fini le cap 1000), lit l'`error` de `list()`
+      (avant : jetée — une panne se déguisait en « bucket vide ») et
+      purge par lots de 100 ; tout échec persiste au backlog
+      `gdpr_purge_retries` (owner_id SANS FK : le compte est déjà
+      détruit ; migration 0058, table deny-all) et la reprise hebdo du
+      cron maintenance (`retryFailedPurges`) la re-traite : purge
+      aboutie → ligne retirée du backlog ; nouvelle panne → attempts
+      croît, Sentry en parallèle. Une purge saine d'un bucket vide
+      libère la ligne aussi (l'échec précédent était transitoire).
+      Verify `scripts/verify-0058-gdpr-purge-retries.ts` : 5 ok / 0 KO
+      (index unique valide ; lecture `authenticated` refusée ; second
+      épisode même owner → 23505 ; reprise exécutée sans crash ;
+      cycle sain observé). Crédit du verify : le COMMIT avec
+      savepoints + SET ROLE sur la transaction directe répondait
+      « permission denied » — phase A en rollback volontaire (pattern
+      0057), sonde comitée par drizzle pour la reprise.
+      Coordination uploads en vol = lot suivi dédié.
 - [ ] Verify + build + commits.
 
 ## 8. Fin de série
