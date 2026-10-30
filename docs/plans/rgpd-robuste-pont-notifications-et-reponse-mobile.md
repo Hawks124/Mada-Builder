@@ -64,17 +64,24 @@ Tickets/contexte : `mada-made/app/docs/ticket-web-squad-notifications-read-at.md
 
 ## Lot C — réponse aux mobiles (squad)
 
-- [ ] texte de réponse : marker `read_at` via pont 0059 activé + fallback
-      PATCH /api/v1/me/notifications à DÉBRANCHER côté Dart quand le pont est
-      déployé ; download toujours via `/api/v1/products/[id]/download`
-      (presign serveur, `expiresIn: 300`) — refus du presign côté client
-      (clés S3 R2 jamais en Dart)
+- [x] texte de réponse livré :
+      `mada-made/app/docs/ticket-web-squad-notifications-read-at-reponse.md`
+      (untracked côté repo mobile — leur working tree est sale, aucun commit
+      là-bas) : pont 0059 activé pour le marque-lu (côté Dart, RIEN à
+      changer), fallback `PATCH /api/v1/me/notifications` CONSERVÉ (filet,
+      retrait à leur rythme — non bloquant) ; download UNIQUEMENT via
+      `GET /api/v1/products/{id|slug}/download` (presign serveur,
+      `expiresIn: 300`, sha256 à vérifier après téléchargement) — presign
+      côté client REFUSÉ (clés S3/R2 jamais en Dart)
+- [x] miroirs docs mobile synchronisés (Lot B appliqué aux copies de
+      `app/docs/` : `notifications.md`, `mobile-ecritures-directes.md`)
 
 ## Push
 
 - [ ] push unique sur go explicite :
       `git push origin refs/heads/feat/lots-bce-quota8:refs/heads/Feat/lots-bce-quota8`
-      (le push par nom court échoue — capitalisation de la branche PR #11)
+      (le push par nom court échoue — capitalisation de la branche PR #11 ;
+      branche distante confirmée)
 
 ## Règles de cette série (leçons consignées)
 
