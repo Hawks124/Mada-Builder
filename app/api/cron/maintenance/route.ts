@@ -133,10 +133,12 @@ export async function POST(req: Request): Promise<Response> {
       });
     }
 
-    // 6. Filet RGPD (F4) : preuves d'appel restées en place à la
-    //    suppression du compte (purge Storage échouée) — reprise hebdo
-    //    du backlog `gdpr_purge_retries` (ownerId isolé, compte déjà
-    //    détruit, sans FK pour cette raison).
+    // 6. Filet RGPD « coordination uploads en vol » : à la suppression du
+    //    compte, la ligne backlog `gdpr_purge_retries` est insérée
+    //    SYSTÉMATIQUEMENT (un upload en vol peut atterrir APRÈS la purge
+    //    ; panne storage = même filet). Reprise hebdo : deux passes VIDES
+    //    consécutives avant retrait de la ligne, purge refusée sur un
+    //    compte encore vivant (ownerId isolé, sans FK pour cette raison).
     try {
       summary.gdprPurgeRetries = await retryFailedPurges();
     } catch (e) {

@@ -2,20 +2,24 @@ import { v7 as uuidv7 } from "uuid";
 import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
- * Filet de reprise RGPD (F4) : preuves d'appel dont la purge Storage a
- * ÉCHOUÉ à la suppression du compte (`appeals/{uid}/…` — Supabase
- * Storage n'est pas une table, la cascade SQL ne les touche pas). La
- * promesse légale (« réellement et définitivement effacés ») n'autorise
- * pas un objet laissé derrière pour une panne transitoire.
+ * Filet RGPD « coordination uploads en vol » : à la suppression du
+ * compte, la purge Storage des objets maison (avatars publics,
+ * preuves d'appel privées — `appeals/{uid}/…` ne partent PAS avec la
+ * cascade SQL, Supabase Storage n'est pas une table) ne peut JAMAIS
+ * voir un upload démarré avant et atterri après. La ligne est donc
+ * insérée SYSTÉMATIQUEMENT par `deleteAccount` (APRÈS la destruction de
+ * la ligne user — jamais de re-purge d'un vivant, double barrière :
+ * `runGdprBacklogPass` refuse aussi tout owner encore vivant), et le
+ * cron maintenance hebdo re-passe : deux passes VIDES consécutives
+ * avant retrait (~2 semaines de garde — le volume couvert est du
+ * staff-side / privé, la fenêtre est tenable). Une purge aboutie
+ * ou une panne storage relancent le compteur d'observation.
  *
  * AUCUN FK sur `owner_id` : le compte est DÉJÀ détruit quand la ligne
  * se crée — elle doit survivre à la cascade, c'est tout son intérêt.
- * Le cron maintenance hebdo re-essaie chaque entrée ; une purge aboutie
- * (listage + removes sans erreur, même sur un bucket déjà vide) la
- * retire du backlog.
  *
  * RLS deny-all : Drizzle serveur uniquement. Volume faible : une ligne
- * = un épisode de suppression raté (UNIQUE sur owner_id).
+ * = un owner (UNIQUE sur owner_id, UPSERT du service).
  */
 export const gdprPurgeRetries = pgTable("gdpr_purge_retries", {
   id: uuid("id")

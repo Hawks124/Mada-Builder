@@ -7,15 +7,8 @@ import { createClient, getSessionUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import {
-  ProfileError,
-  deleteAccount,
-  purgeAppealEvidence,
-  updateAvatar,
-  updateProfile,
-} from "@/services/users.service";
+import { ProfileError, deleteAccount, updateAvatar, updateProfile } from "@/services/users.service";
 import { purgeUserProductObjects } from "@/services/products.service";
-import { AVATAR_BUCKET } from "@/lib/supabase/storage";
 import { withToast } from "@/lib/toast";
 import { captureError } from "@/lib/monitoring";
 
@@ -139,10 +132,12 @@ export async function uploadMyAvatar(
 
 /**
  * Suppression réelle du compte (§6F) — irréversible.
- * Ordre : auth.users d'abord (coupe l'accès), storage, ligne DB (garde
- * dernier-admin dans le service), signOut, redirect. DangerZone exige déjà
- * la saisie de l'email côté client (friction proportionnée).
- * Atterrissage confirmé par toast (l'irréversible mérite une preuve).
+ * Ordre : auth.users d'abord (coupe l'accès), objets R2 produits, puis
+ * `deleteAccount` (storage maison avatars + preuves d'appel, backlog
+ * RGPD systématique, ligne DB — garde dernier-admin dans le service).
+ * DangerZone exige déjà la saisie de l'email côté client (friction
+ * proportionnée). Atterrissage confirmé par toast (l'irréversible
+ * mérite une preuve).
  */
 export async function deleteMyAccount(): Promise<void> {
   const user = await getSessionUser();
@@ -158,19 +153,7 @@ export async function deleteMyAccount(): Promise<void> {
     throw new Error("Suppression impossible pour le moment (auth).");
   }
 
-  // 2. Objets storage du préfixe {uid}/ (best-effort, jamais bloquant).
-  try {
-    const admin = createAdminClient();
-    const { data } = await admin.storage.from(AVATAR_BUCKET).list(user.id);
-    const paths = (data ?? []).map((f) => `${user.id}/${f.name}`);
-    if (paths.length > 0) {
-      await admin.storage.from(AVATAR_BUCKET).remove(paths);
-    }
-  } catch (e) {
-    captureError(e, { op: "account.deleteStorage" });
-  }
-
-  // 2b. Objets R2 des produits (logos, captures, APKs) — sans ça, la
+  // 2. Objets R2 des produits (logos, captures, APKs) — sans ça, la
   // cascade SQL laisserait des orphelins (promesse légale §suppression).
   try {
     await purgeUserProductObjects(user.id);
@@ -178,15 +161,9 @@ export async function deleteMyAccount(): Promise<void> {
     captureError(e, { op: "account.deleteProductObjects" });
   }
 
-  // 2c. Preuves d'appel (bucket Supabase `appeals` privé) — le même
-  // contrat RGPD censé : la ligne DB part, les fichiers aussi (lot E).
-  try {
-    await purgeAppealEvidence(user.id);
-  } catch (e) {
-    captureError(e, { op: "account.deleteAppealObjects" });
-  }
-
-  // 3. Ligne DB (hard delete RGPD ; garde dernier-admin incluse).
+  // 3. Storage maison (avatars publics, preuves d'appel privées,
+  // backlog RGPD systématique — coordination uploads en vol) + ligne DB
+  // (hard delete RGPD ; garde dernier-admin incluse) — dans le service.
   try {
     await deleteAccount(user.id, user.id);
   } catch (e) {

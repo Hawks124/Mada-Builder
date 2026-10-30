@@ -11,15 +11,9 @@ import {
 } from "@/lib/api/response";
 import { requireApiUser } from "@/lib/api/auth";
 import { API_WINDOWS, apiLimit } from "@/lib/api/ratelimit";
-import {
-  deleteAccount,
-  fetchOwnProfile,
-  purgeAppealEvidence,
-  updateProfile,
-} from "@/services/users.service";
+import { deleteAccount, fetchOwnProfile, updateProfile } from "@/services/users.service";
 import { purgeUserProductObjects } from "@/services/products.service";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { AVATAR_BUCKET } from "@/lib/supabase/storage";
 import { captureError } from "@/lib/monitoring";
 
 export const OPTIONS = async () => corsPreflight();
@@ -93,11 +87,13 @@ export async function PATCH(req: Request): Promise<Response> {
 }
 
 /**
- * Suppression réelle RGPD — mêmes 3 temps que le web (auth → storage
- * best-effort → ligne, garde dernier-admin). Autorisée même bannie
- * (droit inaliénable). `{"confirm":true}` explicite exigé (friction
- * API équivalente à la saisie du username côté web). Le client purge
- * ses tokens après ce 200 (session coupée côté serveur au temps 1).
+ * Suppression réelle RGPD — mêmes temps que le web : auth d'abord (coupe
+ * l'accès), objets R2 produits, puis `deleteAccount` (storage maison
+ * avatars + preuves d'appel, backlog RGPD systématique, ligne DB, garde
+ * dernier-admin). Autorisée même bannie (droit inaliénable).
+ * `{"confirm":true}` explicite exigé (friction API équivalente à la
+ * saisie du username côté web). Le client purge ses tokens après ce 200
+ * (session coupée côté serveur au temps 1).
  */
 export async function DELETE(req: Request): Promise<Response> {
   try {
@@ -117,17 +113,6 @@ export async function DELETE(req: Request): Promise<Response> {
       });
       throw new ApiError("INTERNAL", 500, "Suppression impossible pour le moment (auth).");
     }
-    try {
-      const { data } = await admin.storage.from(AVATAR_BUCKET).list(user.id);
-      const paths = (data ?? []).map((f) => `${user.id}/${f.name}`);
-      if (paths.length > 0) {
-        await admin.storage.from(AVATAR_BUCKET).remove(paths);
-      }
-    } catch (e) {
-      captureError(e instanceof Error ? e : new Error(String(e)), {
-        op: "api.me.deleteStorage",
-      });
-    }
     // Objets R2 des produits (même contrat que le web — pas d'orphelins).
     try {
       await purgeUserProductObjects(user.id);
@@ -136,14 +121,8 @@ export async function DELETE(req: Request): Promise<Response> {
         op: "api.me.deleteProductObjects",
       });
     }
-    // Preuves d'appel (bucket Supabase `appeals` privé) — même contrat.
-    try {
-      await purgeAppealEvidence(user.id);
-    } catch (e) {
-      captureError(e instanceof Error ? e : new Error(String(e)), {
-        op: "api.me.deleteAppealObjects",
-      });
-    }
+    // Storage maison + backlog RGPD + ligne DB — dans le service (même
+    // cascade documentée que le web, web et mobile ne divergent jamais).
     await deleteAccount(user.id, user.id);
     return withCache(apiOk({ deleted: true }), CACHE_PRIVATE);
   } catch (e) {
