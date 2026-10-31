@@ -1866,6 +1866,21 @@ export async function updateProduct(
   // préservé : aucune UI ne l'édite ni ne l'efface - seul changelogUrl
   // l'écrit (B3). Sans ça, toute édition effaçait links.changelog.
   const { changelogUrl: editChangelog, ...restData } = data;
+  // CodeRabbit : `isPublished` + la révision en cours sont lus AVANT le
+  // merge des liens — en mode merge, la base doit être les liens
+  // PROPOSÉS de la révision ; sinon un second PATCH partiel (changelog
+  // seul) écraserait la proposition de site du premier PATCH avec les
+  // liens validés.
+  const isPublished = row.status === "published";
+  const previousRevision = isPublished
+    ? (
+        await db
+          .select({ payload: productRevisions.payload, media: productRevisions.media })
+          .from(productRevisions)
+          .where(eq(productRevisions.productId, productId))
+          .limit(1)
+      )[0]
+    : undefined;
   let mergedLinks: Record<string, string> | undefined;
   if (data.links !== undefined || editChangelog) {
     // Deux modes, un seul résultat final :
@@ -1878,8 +1893,17 @@ export async function updateProduct(
     //   effacés (`clearedLinks`). Sans ce mode, chaque édition mobile
     //   effaçait tous les liens non renvoyés de la fiche.
     const mode = data.linksMode ?? (data.clearedLinks !== undefined ? "merge" : "replace");
+    // CodeRabbit : la base du merge est la révision EN COURS (les liens
+    // proposés), repli sur les liens validés — un second PATCH partiel
+    // continue d'accumuler sur la première proposition au lieu de la
+    // raser.
+    const proposedLinks = (previousRevision?.payload ?? null) as {
+      links?: Record<string, string>;
+    } | null;
     const base: Record<string, string> =
-      mode === "merge" ? { ...((row.links ?? {}) as Record<string, string>) } : {};
+      mode === "merge"
+        ? { ...(proposedLinks?.links ?? ((row.links ?? {}) as Record<string, string>)) }
+        : {};
     if (mode === "merge") {
       for (const id of data.clearedLinks ?? []) delete base[id];
     }
@@ -1911,7 +1935,6 @@ export async function updateProduct(
 
   const linksChanged =
     mergedLinks !== undefined && canonicalLinks(mergedLinks) !== canonicalLinks(row.links);
-  const isPublished = row.status === "published";
 
   // ── Tier 1 : champs SENSIBLES + médias ───────────────────────────
   // Sur une fiche PUBLIÉE, ils ne sont PAS appliqués : ils vont dans
@@ -1922,19 +1945,10 @@ export async function updateProduct(
   // Sur un brouillon/pending, rien de tout ça : le travail en cours
   // s'applique, la revue tranche au moment de la publication.
   //
-  // La révision en cours (table `product_revisions`) est reprise : un
-  // champ que le maker NE RE-TOUCHE PAS garde sa valeur proposée ; un
-  // champ remis à sa valeur VALIDÉE disparaît de la révision (il a
-  // annulé son changement).
-  const previousRevision = isPublished
-    ? (
-        await db
-          .select({ payload: productRevisions.payload, media: productRevisions.media })
-          .from(productRevisions)
-          .where(eq(productRevisions.productId, productId))
-          .limit(1)
-      )[0]
-    : undefined;
+  // La révision en cours a été lue PLUS HAUT — avant le merge des liens
+  // (CodeRabbit : en mode merge, la base du merge est la proposition ;
+  // un champ non re-touché garde sa valeur proposée, un champ remis à
+  // sa valeur VALIDÉE disparaît de la révision).
   const sensitive: Record<string, unknown> = isPublished
     ? { ...((previousRevision?.payload ?? {}) as Record<string, unknown>) }
     : {};
@@ -1951,8 +1965,14 @@ export async function updateProduct(
       }
     }
     // Les liens (et le changelog, qui vit dans les liens) : comparés
-    // canoniquement (l'ordre des clés ne doit pas compter).
-    if (linksChanged) sensitive.links = mergedLinks;
+    // canoniquement (l'ordre des clés ne doit pas compter). CodeRabbit :
+    // le revert s'applique AUSSI — des liens remis aux valeurs validées
+    // sortent la proposition de la révision (le maker peut annuler son
+    // changement de liens), au lieu d'y rester collé.
+    if (mergedLinks !== undefined) {
+      if (linksChanged) sensitive.links = mergedLinks;
+      else delete sensitive.links;
+    }
   }
   const mediaChanged = isPublished && (Boolean(editLogo) || newShots.length > 0);
   // Carry-over du média proposé (CodeRabbit) : un édit qui ne touche PAS
@@ -2095,9 +2115,19 @@ export async function updateProduct(
   // l'édit n'en propose pas de nouveau — l'upsert ne peut plus écraser
   // `media` à null et la purge d'aval (oldMedia) garde tous ses objets
   // (kept contient exactement les captures reconduites).
+  // CodeRabbit : le carry-over est PAR SLOT — un édit qui n'envoie QUE
+  // le logo ne jette pas les captures proposées (la purge oldMedia/kept
+  // protège les objets reconduits), et réciproque ; chaque slot absent
+  // de l'édit reprend la proposition en attente.
+  const previousMedia = (previousRevision?.media ?? null) as PendingMedia | null;
   const pendingMedia: PendingMedia | null =
     carriedMedia ??
-    (needsRevision && prepared ? { logo: prepared.logoUrl, shots: prepared.shots } : null);
+    (needsRevision && prepared
+      ? {
+          logo: prepared.logoUrl ?? previousMedia?.logo ?? null,
+          shots: prepared.shots.length > 0 ? prepared.shots : (previousMedia?.shots ?? []),
+        }
+      : null);
 
   // --- 2. Les ECRITURES en base, en une transaction ----------------
   const [updated] = await db.transaction(async (tx) => {
