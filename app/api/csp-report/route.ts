@@ -34,6 +34,13 @@ export async function POST(req: Request): Promise<Response> {
       violatedDirective =
         str(report["violated-directive"]) ?? str(report["effective-directive"]) ?? "?";
       documentUri = str(report["document-uri"]) ?? "?";
+      if (documentUri !== "?") {
+        // CodeRabbit : la query string voyage avec l'URI document — sur
+        // /discover?q=…, c'est la recherche de l'utilisateur (PII) qui
+        // filerait à Sentry. On ne garde que l'origine + le chemin :
+        // ni query ni fragment, absolue ou relative, sans crash.
+        documentUri = documentUri.split(/[?#]/)[0];
+      }
     } catch {
       // Corps non JSON : signal de spam — 204 sans log (au fond, ne casse
       // jamais la page qui a déclenché).
