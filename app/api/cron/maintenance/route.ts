@@ -140,7 +140,11 @@ export async function POST(req: Request): Promise<Response> {
     //    consécutives avant retrait de la ligne, purge refusée sur un
     //    compte encore vivant (ownerId isolé, sans FK pour cette raison).
     try {
-      summary.gdprPurgeRetries = await retryFailedPurges();
+      const gdpr = await retryFailedPurges();
+      summary.gdprPurgeRetries = gdpr;
+      // CodeRabbit : une passe en échec storage (objets toujours en
+      // place) n'est pas un 200 menteur — même règle que le sweep : 503.
+      if (gdpr.failed > 0) failures.push("gdprPurgeRetries");
     } catch (e) {
       failures.push("gdprPurgeRetries");
       captureError(e instanceof Error ? e : new Error(String(e)), {

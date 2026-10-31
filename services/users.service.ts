@@ -603,20 +603,25 @@ export async function runGdprBacklogPass(row: {
 
 /**
  * Reprise hebdo du backlog RGPD (cron maintenance) : chaque ligne reçoit
- * une passe (`runGdprBacklogPass`). Retourne le nombre d'objets purgés à
- * cette passe — incidemment 0 : passes vides (marque/observation) ou
- * skipped (owner encore vivant), les deux sont des issues NORMALES.
+ * une passe (`runGdprBacklogPass`). Retourne `{ purged, failed }` —
+ * CodeRabbit : une passe en échec storage n'est pas un 200 ; `failed`
+ * compte les lignes dont la purge a encore échoué, le cron les déclare
+ * en `failures` (503) pendant que les objets restent en place. Passes
+ * vides (marque/observation) et skipped (owner vivant) sont des issues
+ * NORMALES, jamais comptées.
  */
-export async function retryFailedPurges(): Promise<number> {
+export async function retryFailedPurges(): Promise<{ purged: number; failed: number }> {
   const rows = await db
     .select({ ownerId: gdprPurgeRetries.ownerId, attempts: gdprPurgeRetries.attempts })
     .from(gdprPurgeRetries);
   let purged = 0;
+  let failed = 0;
   for (const row of rows) {
     const out = await runGdprBacklogPass(row);
     purged += out.purged;
+    if (out.failed) failed += 1;
   }
-  return purged;
+  return { purged, failed };
 }
 
 // ── Auth : sync providers (multi strict) ──────────────────────────────────────

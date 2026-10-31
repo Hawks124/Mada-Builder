@@ -36,8 +36,8 @@ async function main(): Promise<void> {
       const r = await sweepR2Orphans();
       console.log(`jobs: R2 scannǸs ${r.scanned}, orphelins purgǸs ${r.deleted}`);
       const { abortStaleMultipartUploads } = await import("@/lib/r2");
-      const m = await abortStaleMultipartUploads().catch(() => ({ aborted: 0 }));
-      console.log(`jobs: multipart abandonnés (> 24 h) : ${m.aborted}`);
+      const m = await abortStaleMultipartUploads().catch(() => ({ aborted: 0, failed: 0 }));
+      console.log(`jobs: multipart abandonnés (> 24 h) : ${m.aborted} (échecs ${m.failed})`);
     }
   }
   if (which === "all" || which === "notifs") {
