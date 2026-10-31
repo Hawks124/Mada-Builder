@@ -8,10 +8,9 @@
  * Chaque scénario de REFUS s'exécute dans un SAVEPOINT isolé (une erreur
  * Postgres aborte sinon toute la transaction).
  *
- * Ce que ça prouve :
+ * Ce que ça prouve (doctrine sondée sur la base réelle — probes) :
  * - la policy `user_devices_update_policy` corrigée (0056, USING
- *   invités-ou-soi-même) : hijack cross-user = 0 ligne, UPDATE blanket
- *   = 0 ligne sur les lignes possédées, vol = 0 ligne ;
+ *   invités-ou-soi-même) : hijack cross-user = 0 ligne, vol = 0 ligne ;
  * - le flux INVITÉ SURVIT : anon inscrit son appareil (INSERT sans
  *   RETURNING — anon n'a ni SELECT accordé ni token lisible) ; aucun
  *   caller ne touche une ligne possédée ;
@@ -19,16 +18,29 @@
  *   SELECT masque les NULL à tout authenticated depuis 0053 — l'upsert
  *   client le paie pareil) : la voie = API web avec service_role, qui
  *   bypass la RLS ; 0056 ne change RIEN ici.
+ * - la claim CIBLÉE d'un invité par authenticated = 0 ligne : l'EXPLAIN
+ *   réel montre qu'un UPDATE qui LIT des colonnes (WHERE ou RETURNING)
+ *   se voit ajouter un conjoint `user_id = auth.uid()` (l'équivalent
+ *   select-policy) — l'invité n'y passe pas ; l'équivalent anon est
+ *   mort avant le RLS : GRANT SELECT révoqué (hint Postgres lisible) ;
+ * - le blanket AVEC RETURNING ne retient que les lignes possédées
+ *   (le RETURNING lit les colonnes retournées → même conjoint) ;
  * - `product_revisions_insert_own` en AND : révision sur la fiche
  *   d'AUTRUI = refus 42501 ; la révision du propriétaire passe.
  *
- * Risque résiduel PROUVÉ (assumé, CodeRabbit) : une ligne INVITÉ reste
- * gérable par n'importe quel anon — un UPDATE ciblé échoue au GRANT
- * (SELECT révoqué, voulu), mais un UPDATE SANS WHERE ne lit aucune
- * colonne, passe le grant, et la policy USING n'y retient que les
- * lignes invitées : l'is_active de tous les invités est flippable.
- * La fermer demandera un RPC SECURITY DEFINER vérifiant le token,
- * côté squad mobile.
+ * Trou RÉSIDUEL PROUVÉ (assumé, CodeRabbit — finding 6) : un UPDATE
+ * AVEUGLE (SANS WHERE, SANS RETURNING) ne lit AUCUNE colonne : son plan
+ * ne porte PAS le conjoint (EXPLAIN réel) — quiconque tient UPDATE
+ * vise en masse sans lecture :
+ *   - authenticated : `SET user_id = self` (sans WHERE) rapproche
+ *     TOUS les invités du caller (claim de masse — le trou 0056,
+ *     corrigé aux ciblés, survit à l'aveugle) ;
+ *   - anon : `SET is_active = false` (sans WHERE) éteint tous les
+ *     invités ; le ciblé anon, lui, est mort au GRANT (SELECT
+ *     révoqué, voulu).
+ * Le verify encode le RÉEL : ciblés / avec-RETURNING = 0 ligne,
+ * aveugle = >= 1 (flow CodeRabbit). Fermer l'aveugle demandera un RPC
+ * SECURITY DEFINER vérifiant le token, côté squad mobile, hors V1.
  *
  * Relance : `VERIFY_ALLOW_PROD=1 npx tsx scripts/verify-0056-rls.ts`
  */
@@ -120,16 +132,21 @@ async function main(): Promise<void> {
         UPDATE public.user_devices SET user_id = ${m2} WHERE id = ${dev1} RETURNING id`;
       check("hijack de la ligne d'autrui = 0 ligne", hijack.length === 0, hijack);
 
-      // 3. UPDATE blanket (sans WHERE) : seules les lignes VISIBLES sont
-      //    ciblées — les invités ne passent pas la SELECT policy, les
-      //    possédées pas le USING corrigé → 0 ligne.
+      // 3. UPDATE blanket AVEC RETURNING : 0 ligne. Le RETURNING lit les
+      //    colonnes retournées → le plan porte le conjoint
+      //    `user_id = auth.uid()` (EXPLAIN réel) : seules les lignes
+      //    POSSEDÉES survivraient — la fixture n'en a aucune pour m2 →
+      //    rien d'attaquable par la forme lisible. (La forme AVEUGLE,
+      //    sans RETURNING, est le trou prouvé au 4b.)
       const blanket = await tx`
         UPDATE public.user_devices SET user_id = ${m2} RETURNING id`;
-      check("UPDATE blanket = 0 ligne (rien d'attaquable)", blanket.length === 0, blanket);
+      check("UPDATE blanket avec RETURNING = 0 ligne", blanket.length === 0, blanket);
 
-      // 4. Un authenticated ne voit/gère PAS les lignes invitées
-      //    (policy SELECT — c'est le comportement depuis 0053, voulu) :
-      //    le claim invité→utilisateur est une affaire SERVICE.
+      // 4. La claim CIBLÉE d'une ligne invité par un authenticated = 0
+      //    ligne : le WHERE lit `id` → le plan ajoute le conjoint
+      //    select-like au-dessus du USING (EXPLAIN réel) — l'invité
+      //    (user_id NULL) n'y passe pas ; la réclamation reste une
+      //    affaire SERVICE (policy SELECT masque les NULL, 0053).
       const claimByAuth = await tx`
         UPDATE public.user_devices SET user_id = ${m2} WHERE id = ${guest}`;
       check(
@@ -138,9 +155,32 @@ async function main(): Promise<void> {
         claimByAuth,
       );
 
+      // 4b. TROU RÉSIDUEL PROUVÉ (CodeRabbit, finding 6) : l'attaque
+      //     AVEUGLE — `SET user_id = self` sans WHERE ni RETURNING — ne
+      //     lit AUCUNE colonne : son plan ne porte PAS le conjoint
+      //     (EXPLAIN réel), l'USING seul gouverne, et l'invité y passe
+      //     (`user_id IS NULL`) → la claim de MASSE flippE la sonde
+      //     (>= 1). Le blanket avec RETURNING au 3 ci-dessus ne couvre
+      //     PAS cette variante — d'où l'assertion en adéquation avec le
+      //     réel. Le flip est annulé : le check 5b a besoin d'un invité
+      //     toujours `user_id NULL`.
+      await tx.unsafe("SAVEPOINT sp_claimwide");
+      const claimWide = (await tx`
+        UPDATE public.user_devices SET user_id = ${m2}`) as unknown as Countable;
+      await tx.unsafe("ROLLBACK TO SAVEPOINT sp_claimwide");
+      check(
+        "trou résiduel prouvé : claim AVEUGLE des invités (>= 1, variante sans-RETURNING)",
+        (claimWide.count ?? 0) >= 1,
+        claimWide,
+      );
+
       // 5. Anon : écrire sans lire — il inscrit un invité (SANS
       //    RETURNING : anon n'a ni SELECT accordé ni token lisible).
+      //    Claims fidèles à PostgREST : {"role":"anon"} SANS sub —
+      //    auth.uid() devient NULL (un sub vide provoquerait un
+      //    `''::uuid` = 22P02, artefact de sonde, pas le réel).
       await tx.unsafe("SET LOCAL ROLE anon");
+      await tx.unsafe("SELECT set_config('request.jwt.claims', $1, true)", [`{"role": "anon"}`]);
       await tx.unsafe("SAVEPOINT sp_anon");
       let anonInsertOk = false;
       try {
@@ -155,16 +195,19 @@ async function main(): Promise<void> {
       else await tx.unsafe("ROLLBACK TO SAVEPOINT sp_anon");
       check("anon inscrit toujours un appareil invité", anonInsertOk);
       if (anonInsertOk) {
-        // 5b. RISQUE RÉSIDUEL PROUVÉ : un UPDATE ciblé échoue au GRANT
-        //     (SELECT révoqué — lire fcm_token/id est interdit), mais un
-        //     UPDATE SANS WHERE ne lit AUCUNE colonne, passe le grant,
-        //     et la policy USING n'y retient que les lignes invitées →
-        //     l'is_active de TOUS les invités est flippable (au moins
-        //     les deux de cette sonde : la fixture + celle d'à côté).
+        // 5b. TROU RÉSIDUEL PROUVÉ — variante anon : un UPDATE ciblé
+        //     échoue au GRANT (SELECT révoqué — lire fcm_token/id est
+        //     interdit), mais l'AVEUGLE (sans WHERE ni RETURNING) ne lit
+        //     AUCUNE colonne et son plan ne porte pas le conjoint
+        //     select-like → la policy USING n'y retient que la branche
+        //     `user_id IS NULL` : l'is_active de TOUS les invités est
+        //     flippable (les deux de la sonde : la fixture + celle
+        //     insérée au 5), comme la claim de masse authenticated au
+        //     4b (variante sans-RETURNING, CodeRabbit).
         const anonWide = await tx`
           UPDATE public.user_devices SET is_active = false`;
         check(
-          "risque résiduel prouvé : anon flipp les invités sans les cibler (>= 2)",
+          "risque résiduel prouvé : anon flippE les invités sans les cibler (>= 2)",
           ((anonWide as unknown as Countable).count ?? 0) >= 2,
           anonWide,
         );

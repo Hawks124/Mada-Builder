@@ -374,6 +374,17 @@ async function main(): Promise<void> {
         "parent_not_found",
         "comment : parent supprimé refusé",
       );
+      // 0061 : un parent qui n'existe PAS DU TOUT (id aléatoire, sous la
+      // main du caller) est refusé — la garde positive couvre l'état
+      // historique : les deux IF EXISTS négatifs (supprimé/autre produit)
+      // laissaient passer cette orpheline directe.
+      await hasDetail(
+        () =>
+          tx`INSERT INTO public.comments (id, user_id, product_id, parent_id, body)
+             VALUES (${uuidv7()}, ${tester}, ${productA}, ${uuidv7()}, 'Réponse orpheline directe.')`,
+        "parent_not_found",
+        "comment : parent inexistant refusé (orpheline directe, 0061)",
+      );
 
       // ── 11. votes commentaires (score par RECOMPTE) ────────────────────
       const myComment = String(

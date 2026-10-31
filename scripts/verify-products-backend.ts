@@ -2460,6 +2460,153 @@ async function main(): Promise<void> {
     "liens (mode merge) : les liens de la fiche survivent a une PATCH sans champ lien",
     liensApres.website !== undefined && liensApres.changelog === "https://example.com/CHANGELOG-v2",
   );
+  // CodeRabbit : la BASE du merge est la révision EN COURS — un second
+  // PATCH partiel consolide sur la PROPOSITION (website = platformes, du
+  // 15.1) ; de la base VALIDÉE il aurait écrasé site=example.com et rasé
+  // la première proposition au lieu de continuer de l'accumuler.
+  check(
+    "liens (mode merge) : la base du merge est la proposition en attente",
+    liensApres.website === "https://example.com/platformes",
+    liensApres,
+  );
+
+  // 15.1c Le REVERT des liens (CodeRabbit) : des liens remis aux valeurs
+  //      VALIDÉES sortent la proposition de `links` de la révision (le
+  //      maker peut annuler son changement), SANS jeter les édits légers
+  //      proposés par ailleurs (name/tagline restent en attente).
+  await updateProduct(maker.id, pubProduct.id, {
+    links: { website: "https://example.com" },
+  } as never);
+  const [afterRevert] = await db
+    .select({ payload: productRevisions.payload })
+    .from(productRevisions)
+    .where(eq(productRevisions.productId, pubProduct.id));
+  const liensApresRevert = (
+    (afterRevert?.payload ?? {}) as {
+      links?: Record<string, string>;
+    }
+  ).links;
+  check(
+    "liens (revert) : remise aux valeurs validées → plus de liens proposés",
+    liensApresRevert === undefined,
+    liensApresRevert,
+  );
+  const payloadApresRevert = (afterRevert?.payload ?? {}) as Record<string, unknown>;
+  check(
+    "liens (revert) : les autres édits en attente survivent au revert",
+    payloadApresRevert.name === "Produit Revision — nouveau nom",
+  );
+
+  // 15.1d Carry-over média PAR SLOT (CodeRabbit) : un édit qui ne propose
+  //      QUE le logo conserve les captures de la révision en attente,
+  //      et l'inverse. Sauté sans R2, comme le 13 (upload réel requis).
+  if (!r2Configured()) {
+    console.log("SKIP: carry-over médias sans R2 (15.1d)");
+  } else {
+    const slotPng = await sharp({
+      create: { width: 800, height: 400, channels: 3, background: { r: 200, g: 120, b: 40 } },
+    })
+      .png()
+      .toBuffer();
+    const slotShot = (n: string) => new File([slotPng], `${n}.png`, { type: "image/png" });
+    const keyOf = (url: string): string | null => {
+      try {
+        const k = new URL(url).pathname.replace(/^\/+/, "");
+        return k !== "" ? k : null;
+      } catch {
+        return null;
+      }
+    };
+    const [pubMedia] = await db
+      .insert(products)
+      .values({
+        slug: `verify-media-${TAG}`,
+        makerId: maker.id,
+        name: "Produit Media",
+        tagline: "Tagline media.",
+        description: "Description media assez longue.",
+        category: "dev-tools",
+        categories: ["dev-tools"],
+        productType: "app_web",
+        platforms: ["web"],
+        pricingModel: "free",
+        galleryOrientation: "landscape",
+        status: "published",
+        publishedAt: new Date(),
+        upvoteCount: 0,
+        links: { website: "https://example.com/media" },
+      })
+      .returning({ id: products.id });
+    type SlotMedia = { logo: string | null; shots?: { url: string }[] } | null;
+    const readMedia = async (pid: string): Promise<SlotMedia> => {
+      const [rev] = await db
+        .select({ media: productRevisions.media })
+        .from(productRevisions)
+        .where(eq(productRevisions.productId, pid));
+      return (rev?.media ?? null) as SlotMedia;
+    };
+    // Proposition 1 : logo A + capture s1 (les deux slots proposés).
+    await updateProduct(
+      maker.id,
+      pubMedia.id,
+      {},
+      {
+        logo: new File([logoPng], "logo-slot-a.png", { type: "image/png" }),
+        screenshots: [slotShot("slot-a1")],
+      },
+    );
+    const media1 = await readMedia(pubMedia.id);
+    check(
+      "média : proposition initiale (logo + capture) pose les deux slots",
+      Boolean(media1?.logo) && (media1?.shots?.length ?? 0) === 1,
+      media1,
+    );
+    // Proposition 2 : logo SEUL — les captures doivent être reconduites
+    // (le fix par slot ; l'ancien code écrivait shots: []).
+    await updateProduct(
+      maker.id,
+      pubMedia.id,
+      {},
+      { logo: new File([logoPng], "logo-slot-b.png", { type: "image/png" }) },
+    );
+    const media2 = await readMedia(pubMedia.id);
+    check(
+      "média (slot logo) : un logo seul conserve les captures proposées",
+      Boolean(media2?.logo) && (media2?.shots?.length ?? 0) === 1,
+      media2,
+    );
+    check(
+      "média (slot logo) : la capture reconduite est la MÊME",
+      media2?.shots?.[0].url !== undefined && media2.shots[0].url === media1?.shots?.[0].url,
+      { m1: media1, m2: media2 },
+    );
+    // Proposition 3 : capture SEULE — le logo proposé (B) est reconduit.
+    await updateProduct(maker.id, pubMedia.id, {}, { screenshots: [slotShot("slot-b1")] });
+    const media3 = await readMedia(pubMedia.id);
+    check(
+      "média (slot captures) : des captures seules conservent le logo proposé",
+      media3?.logo === media2?.logo && (media3?.shots?.length ?? 0) === 1,
+      media3,
+    );
+    // Nettoyage : objets RESTANTS de la révision (le flux a déjà purgé du
+    // sien à chaque carry-over), révision jetée au refus, fiche. Zéro
+    // résidu R2 (les clés sont sous le préfixe id de la fiche).
+    const mediaLast = await readMedia(pubMedia.id);
+    const restLogo = mediaLast?.logo ? keyOf(mediaLast.logo) : null;
+    if (restLogo) await deleteR2Object(PRODUCT_LOGOS_BUCKET, restLogo).catch(() => {});
+    for (const s of mediaLast?.shots ?? []) {
+      const k = keyOf(s.url);
+      if (k) await deleteR2Object(PRODUCT_SHOTS_BUCKET, k).catch(() => {});
+    }
+    await reviewRevision({
+      isStaff: true,
+      productId: pubMedia.id,
+      decision: "rejected",
+      reason: "Cleanup 15.1d",
+      staffId: maker.id,
+    });
+    await db.delete(products).where(eq(products.id, pubMedia.id));
+  }
 
   // 15.2 Le compteur de la file admin.
   const enAttente = await countPendingRevisions();
