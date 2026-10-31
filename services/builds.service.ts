@@ -87,7 +87,9 @@ export async function createBuild(input: {
   // dans le `stillPending` plus bas qui purgeait l'objet en revue, ou
   // dans le 23505 qui purgeait la clé d'un build déjà enregistré. Ici il
   // n'arrive pas : tout purgeur en aval ne peut purger qu'un objet
-  // ORPHELIN (aucune ligne ne le référence).
+  // ORPHELIN (aucune ligne ne le référence) — et la course entre ce
+  // check et l'INSERT est fermée par le re-query du gagnant dans
+  // `stillPending` et le 23505 (le gagnant est retourné, jamais purgé).
   const [sameKey] = await db
     .select({ id: productBuilds.id })
     .from(productBuilds)
@@ -219,6 +221,17 @@ export async function createBuild(input: {
     .where(and(eq(productBuilds.productId, input.productId), eq(productBuilds.status, "pending")))
     .limit(1);
   if (stillPending) {
+    // CodeRabbit : le pending découvert peut être CETTE course (le 1er
+    // envoi même-clé a commité entre sameKey et ici) — re-query avant
+    // purge, le gagnant est retourné, jamais son objet détruit.
+    const [winner] = await db
+      .select({ id: productBuilds.id })
+      .from(productBuilds)
+      .where(
+        and(eq(productBuilds.r2Key, input.r2Key), eq(productBuilds.productId, input.productId)),
+      )
+      .limit(1);
+    if (winner) return { id: winner.id };
     await deleteR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key).catch(() => {});
     throw new ProfileError(
       "VALIDATION",
@@ -257,12 +270,26 @@ export async function createBuild(input: {
     return { id: row.id };
   } catch (e) {
     if (e instanceof ProfileError) throw e;
+    // CodeRabbit : course même-clé — les deux envois passent sameKey, le
+    // 1er insert+commit, le 2e tombe en 23505. On re-trouve le gagnant
+    // AVANT toute purge : s'il détient CETTE clé, on le renvoie (idem-
+    // potence honnête) et son objet ne peut plus être détruit.
+    const [winner] = await db
+      .select({ id: productBuilds.id })
+      .from(productBuilds)
+      .where(
+        and(eq(productBuilds.r2Key, input.r2Key), eq(productBuilds.productId, input.productId)),
+      )
+      .limit(1);
+    if (winner) return { id: winner.id };
     // Unicité violée (23505) : la course éventuelle du pré-check est
     // fermée par l'index 0057 — la base répond à sa place. Le nom de la
     // contrainte dit QUELLE règle a flippé : un-pending (0057) → message
     // « déjà en revue » identique au pré-check ; (produit, version_code)
-    // (0047) → message de version. Dans les deux cas l'objet orphelin
-    // est purgé (jamais de binaire sans ligne).
+    // (0047) → message de version. Dans les deux cas le gagnant réel sur
+    // la même clé a déjà été retourné ci-dessus : l'objet purgé ici est
+    // ORPHELIN (aucune ligne ne le référence — jamais de binaire sans
+    // ligne).
     await deleteR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key).catch(() => {});
     const constraint = violationConstraint(e);
     throw new ProfileError(
