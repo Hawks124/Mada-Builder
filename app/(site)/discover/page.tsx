@@ -6,6 +6,7 @@ import { searchProducts } from "@/services/discover.service";
 import { itemListLd } from "@/lib/seo";
 import { siteUrl } from "@/lib/site-url";
 import type { Metadata } from "next";
+import { safeJsonLd } from "@/lib/safe-json-ld";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -79,7 +80,7 @@ export default async function DiscoverPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(itemListLd(result.items, "Découvrir les produits tech malgaches")),
+          __html: safeJsonLd(itemListLd(result.items, "Découvrir les produits tech malgaches")),
         }}
       />
       <DiscoverClient

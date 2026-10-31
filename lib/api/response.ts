@@ -69,8 +69,8 @@ export function assertContentLength(req: Request, maxBytes: number): void {
   }
 }
 
-/** Budget multipart : logo 10 Mo + 6 captures 10 Mo + marge formulaire. */
-export const MAX_PRODUCT_UPLOAD_BYTES = 72 * 1024 * 1024;
+/** Budget multipart : logo 10 Mo + 8 captures 10 Mo + marge formulaire. */
+export const MAX_PRODUCT_UPLOAD_BYTES = 92 * 1024 * 1024;
 /** Avatar : 10 Mo + marge. */
 export const MAX_AVATAR_UPLOAD_BYTES = 12 * 1024 * 1024;
 

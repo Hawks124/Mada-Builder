@@ -488,12 +488,17 @@ export async function abortMultipartUpload(input: {
 
 /**
  * Abandon des sessions multipart de plus de 24 h (D6) : sans ça, les
- * parts d'uploads interrompus restent facturées. Appelé par run-jobs.
+ * parts d'uploads interrompus restent facturées. Appelé par run-jobs et
+ * le cron maintenance — retourne `{ aborted, failed }` : CodeRabbit, un
+ * abort raté ne compte PAS comme réussi (la part reste facturée), le
+ * cron déclare l'échec au lieu d'un 200 menteur. Un échec de LISTAGE
+ * remonte à l'appelant (throw) — le sweep fait partie du lot.
  */
 export async function abortStaleMultipartUploads(
   olderThanHours = 24,
-): Promise<{ aborted: number }> {
+): Promise<{ aborted: number; failed: number }> {
   let aborted = 0;
+  let failed = 0;
   const cutoff = Date.now() - olderThanHours * 3_600_000;
   let keyMarker: string | undefined;
   let uploadMarker: string | undefined;
@@ -509,24 +514,26 @@ export async function abortStaleMultipartUploads(
       if (!u.Key || !u.UploadId || !u.Initiated) continue;
       if (u.Initiated.getTime() > cutoff) continue;
       if (!u.Key.startsWith("builds/") || !u.Key.endsWith(".apk")) continue;
-      await r2()
-        .send(
+      try {
+        await r2().send(
           new AbortMultipartUploadCommand({
             Bucket: PRODUCT_BUILDS_BUCKET,
             Key: u.Key,
             UploadId: u.UploadId,
           }),
-        )
-        .catch(() => {});
-      aborted++;
-      if (aborted >= 500) return { aborted };
+        );
+        aborted++;
+      } catch {
+        failed++;
+      }
+      if (aborted + failed >= 500) return { aborted, failed };
     }
     if (!res.IsTruncated) break;
     keyMarker = res.NextKeyMarker;
     uploadMarker = res.NextUploadIdMarker;
     if (keyMarker === undefined) break;
   }
-  return { aborted };
+  return { aborted, failed };
 }
 
 /**

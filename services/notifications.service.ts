@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { notifications, type NotificationKind } from "@/db/schema";
+import { digestsSent } from "@/db/schema";
 import { productBuilds, productPageViews, products } from "@/db/schema";
 import { users } from "@/db/schema";
 import { captureError } from "@/lib/monitoring";
@@ -270,82 +271,162 @@ export async function checkMilestones(productId: string): Promise<void> {
 }
 
 /**
- * Digest hebdo (`run-jobs digest`, manuel / scheduler externe) : users
- * éligibles (ni supprimés, ni bannis, ni opt-out, email réel) avec ≥1
- * non-lue (7 j) → email récap. Ne marque RIEN comme lu (rappel seul).
- * `dryRun` = comptes sans envoyer (verify + prod check).
+ * Semaine ISO (YYYY-Www) — clé du verrou anti-doublon du digest.
+ */
+function isoWeekKey(d: Date): string {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const dow = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - dow);
+  const year = t.getUTCFullYear();
+  const first = new Date(Date.UTC(year, 0, 1));
+  const week = Math.ceil(((t.getTime() - first.getTime()) / 86_400_000 + 1) / 7);
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
+/**
+ * Digest hebdo (`run-jobs digest`, cron GH Actions lundi 7 h Tana) :
+ * users éligibles (ni supprimés, ni bannis, ni opt-out, email réel) avec
+ * ≥1 non-lue (7 j) → email récap. Ne marque RIEN comme lu (rappel seul).
+ *
+ * Lot B — verrou anti-doublon (`digests_sent`, migration 0054) : la
+ * même semaine ISO ne s'envoie qu'UNE fois — un re-run (workflow_dispatch,
+ * double schedule) devient un no-op `alreadySent` au lieu de la
+ * ré-envoyer à tous. `dryRun` ne pose JAMAIS le verrou (répétable) —
+ * et ne touchera jamais non plus le verrou d'un run réel (ni force,
+ * ni crash). `force` efface le verrou courant (rattrapage manuel vers
+ * un envoi avorté, neutre en dryRun) ; un crash brutal du run réel
+ * retire le verrou QU'IL A POSÉ (best-effort) pour laisser un retry
+ * complet la même semaine. Un run réel où des éligibles existent mais
+ * AUCUN email n'est parti (`eligible > 0 && sent === 0`) throw : le
+ * verrou est retiré par le catch et la route répond en erreur — un
+ * échec ne s'enregistre jamais comme un succès.
  */
 export async function sendWeeklyDigest(input?: {
   dryRun?: boolean;
-}): Promise<{ eligible: number; sent: number }> {
-  const weekAgo = new Date(Date.now() - 7 * 24 * 3_600_000);
-  const candidates = await db
-    .select({
-      id: users.id,
-      email: users.email,
-      displayName: users.displayName,
-      timeZone: users.timeZone,
-    })
-    .from(users)
-    .where(and(isNull(users.deletedAt), isNull(users.bannedAt), eq(users.digestOptOut, false)));
-  const origin = siteUrl();
-  let eligible = 0;
-  let sent = 0;
-  for (const u of candidates) {
-    if (u.email.trim().toLowerCase().endsWith("@placeholder.local")) continue;
-    const unread = await db
-      .select({
-        id: notifications.id,
-        title: notifications.title,
-        createdAt: notifications.createdAt,
-      })
-      .from(notifications)
-      .where(
-        and(
-          eq(notifications.userId, u.id),
-          isNull(notifications.readAt),
-          sql`${notifications.createdAt} >= ${weekAgo.toISOString()}::timestamptz`,
-        ),
-      )
-      .orderBy(desc(notifications.createdAt))
-      .limit(6);
-    if (unread.length === 0) continue;
-    eligible++;
-    if (input?.dryRun) continue;
-    const [{ value: total }] = await db
-      .select({ value: sql<number>`count(*)::int` })
-      .from(notifications)
-      .where(and(eq(notifications.userId, u.id), isNull(notifications.readAt)));
-    const lines = unread.slice(0, 5).map((n) => n.title);
-    try {
-      await sendEmail({
-        to: u.email,
-        subject: digestWeeklySubject(total),
-        template: "digest-weekly",
-        userId: u.id,
-        html: digestWeeklyHtml({
-          displayName: u.displayName,
-          unread: total,
-          lines,
-          dashboardUrl: `${origin}/dashboard`,
-          origin,
-          timeZone: u.timeZone,
-        }),
-        text: digestWeeklyText({
-          displayName: u.displayName,
-          unread: total,
-          lines,
-          dashboardUrl: `${origin}/dashboard`,
-          origin,
-          timeZone: u.timeZone,
-        }),
-      });
-      sent++;
-    } catch {
-      // Un digest en échec n'empêche pas les autres.
-    }
+  force?: boolean;
+}): Promise<{ eligible: number; sent: number; alreadySent?: boolean }> {
+  const dry = input?.dryRun === true;
+  const weekKey = `digest:${isoWeekKey(new Date())}`;
+  // `force` = rattrapage d'un envoi avorté — NEUTRE en dryRun :
+  // déverrouiller sans envoyer laisserait la semaine ouverte (un run
+  // suivant ré-enverrait → doubles).
+  if (input?.force && !dry) {
+    await db.delete(digestsSent).where(eq(digestsSent.week, weekKey));
   }
-  return { eligible, sent };
+  // Propriétaire du verrou durant CETTE exécution : seul un run réel
+  // qui a résolu le verrou peut le retirer en cas de crash.
+  let locked = false;
+  if (!dry) {
+    const lock = await db
+      .insert(digestsSent)
+      .values({ week: weekKey })
+      .onConflictDoNothing()
+      .returning({ id: digestsSent.id });
+    if (lock.length === 0) {
+      return { eligible: 0, sent: 0, alreadySent: true };
+    }
+    locked = true;
+  }
+
+  try {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 3_600_000);
+    const candidates = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        displayName: users.displayName,
+        timeZone: users.timeZone,
+      })
+      .from(users)
+      .where(and(isNull(users.deletedAt), isNull(users.bannedAt), eq(users.digestOptOut, false)));
+    const origin = siteUrl();
+    let eligible = 0;
+    let sent = 0;
+    for (const u of candidates) {
+      if (u.email.trim().toLowerCase().endsWith("@placeholder.local")) continue;
+      const unread = await db
+        .select({
+          id: notifications.id,
+          title: notifications.title,
+          createdAt: notifications.createdAt,
+        })
+        .from(notifications)
+        .where(
+          and(
+            eq(notifications.userId, u.id),
+            isNull(notifications.readAt),
+            sql`${notifications.createdAt} >= ${weekAgo.toISOString()}::timestamptz`,
+          ),
+        )
+        .orderBy(desc(notifications.createdAt))
+        .limit(6);
+      if (unread.length === 0) continue;
+      eligible++;
+      if (input?.dryRun) continue;
+      const [{ value: total }] = await db
+        .select({ value: sql<number>`count(*)::int` })
+        .from(notifications)
+        .where(and(eq(notifications.userId, u.id), isNull(notifications.readAt)));
+      const lines = unread.slice(0, 5).map((n) => n.title);
+      try {
+        await sendEmail({
+          to: u.email,
+          subject: digestWeeklySubject(total),
+          template: "digest-weekly",
+          userId: u.id,
+          html: digestWeeklyHtml({
+            displayName: u.displayName,
+            unread: total,
+            lines,
+            dashboardUrl: `${origin}/dashboard`,
+            origin,
+            timeZone: u.timeZone,
+          }),
+          text: digestWeeklyText({
+            displayName: u.displayName,
+            unread: total,
+            lines,
+            dashboardUrl: `${origin}/dashboard`,
+            origin,
+            timeZone: u.timeZone,
+          }),
+        });
+        sent++;
+      } catch {
+        // Un digest en échec n'empêche pas les autres.
+      }
+    }
+    // Un run réel avec des éligibles mais AUCUN email parti est un
+    // échec déguisé en 200 (chaque sendEmail avalé par le catch
+    // par-user). On throw : le catch ci-dessous retire le verrou
+    // QU'ON A POSÉ (le retry re-part complet la même semaine) et la
+    // route répond en erreur → le workflow rougit. L'audit ne
+    // s'exécute pas — un échec n'est pas un historique de succès.
+    if (!dry && eligible > 0 && sent === 0) {
+      throw new Error(`Digest : ${eligible} éligible(s), 0 email envoyé.`);
+    }
+    if (!dry) {
+      // Audit de la semaine (best-effort — jamais bloquant).
+      await db
+        .update(digestsSent)
+        .set({ eligible, sent })
+        .where(eq(digestsSent.week, weekKey))
+        .catch(() => {});
+    }
+    return { eligible, sent };
+  } catch (e) {
+    // Crash brutal (non isolé par le try/catch par-user) : on retire le
+    // verrou QU'ON A POSÉ (best-effort) — le retry re-part sans fantôme,
+    // jamais bloqué toute la semaine par un verrou orphelin. Un dryRun
+    // en échec ne déverrouille JAMAIS le run réel.
+    if (locked) {
+      await db
+        .delete(digestsSent)
+        .where(eq(digestsSent.week, weekKey))
+        .catch(() => {});
+    }
+    throw e;
+  }
 }
 
 /**

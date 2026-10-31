@@ -96,9 +96,12 @@ export function ProductCard({ product }: { product: ProductCardProps }) {
             </Link>
           ) : (
             <>
-              {/* Comment Count Pill */}
+              {/* Comment Count Pill — count réel (comments_count dénorm).
+                  aria-label : le chip n'a pas de texte visible (icône +
+                  chiffre), le lecteur d'écran doit dire quoi c'est. */}
               <Link
                 href={`/products/${product.slug}#comments`}
+                aria-label={`${product.comments ?? 0} commentaires`}
                 className="flex items-center gap-1.5  text-muted-foreground transition-colors z-10"
                 onClick={(e) => e.stopPropagation()}
               >

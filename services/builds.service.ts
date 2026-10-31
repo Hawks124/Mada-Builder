@@ -13,6 +13,21 @@ import {
 import { ApkParseError, extractApkCerts } from "@/lib/apk";
 
 /**
+ * Nom de la contrainte violée (23505) : Drizzle enveloppe l'erreur driver
+ * dans `cause`, postgres-js expose le champ `constraint_name`. Le nom dit
+ * QUELLE règle d'unicité a flippé — l'unicité n'est pas une seule règle
+ * sur cette table (un-pending 0057, (produit, version_code) 0047).
+ * Même mécanique qu'isUniqueViolation (lib/api/idempotency.ts).
+ */
+function violationConstraint(e: unknown): string | null {
+  const read = (x: unknown): string | null =>
+    typeof (x as { constraint_name?: unknown } | null)?.constraint_name === "string"
+      ? (x as { constraint_name: string }).constraint_name
+      : null;
+  return read(e) ?? read((e as { cause?: unknown } | null)?.cause);
+}
+
+/**
  * Builds APK (D1) : enregistrement post-upload. Le binaire est déjà sur R2
  * (PUT présigné direct, jamais via Vercel) — ici on VÉRIFIE (HEAD : objet
  * présent, taille exacte, quota) puis on insère en `pending` (revue
@@ -60,6 +75,27 @@ export async function createBuild(input: {
   if (!input.r2Key.startsWith(prefix) || input.r2Key.includes("..")) {
     throw new ProfileError("VALIDATION", "Clé de build invalide.");
   }
+  // Idempotence du register (CodeRabbit) : le PUT présigné a pu réussir
+  // pendant que le POST du client expirait — le client renvoie le MÊME
+  // r2Key. Or la clé est fraîche à chaque presign (lib/r2 :
+  // `{Date.now()}`-`{rand}`), donc une ligne existante sur cette clé =
+  // CET envoi déjà enregistré (ou une re-citation littérale du même
+  // binaire). On renvoie le build existant SANS TOUCHER À RIEN : on ne
+  // détruit jamais le binaire d'un build déjà en base — en revue (le
+  // binaire que l'admin ouvre), distribué (le fichier que /download
+  // stream), ou rejeté (historique). Avant ce check, un retry tombait
+  // dans le `stillPending` plus bas qui purgeait l'objet en revue, ou
+  // dans le 23505 qui purgeait la clé d'un build déjà enregistré. Ici il
+  // n'arrive pas : tout purgeur en aval ne peut purger qu'un objet
+  // ORPHELIN (aucune ligne ne le référence) — et la course entre ce
+  // check et l'INSERT est fermée par le re-query du gagnant dans
+  // `stillPending` et le 23505 (le gagnant est retourné, jamais purgé).
+  const [sameKey] = await db
+    .select({ id: productBuilds.id })
+    .from(productBuilds)
+    .where(and(eq(productBuilds.r2Key, input.r2Key), eq(productBuilds.productId, input.productId)))
+    .limit(1);
+  if (sameKey) return { id: sameKey.id };
   if (!/^[0-9a-f]{64}$/i.test(input.sha256)) {
     throw new ProfileError("VALIDATION", "SHA-256 invalide (64 hex).");
   }
@@ -166,32 +202,41 @@ export async function createBuild(input: {
   if (declaredCert !== null && declaredCert !== serverCertSha!) {
     await purgeAndReject("Divergence signature — renvoyez le fichier d'origine.");
   }
-  // Un build en revue peut être REMPLACÉ par un envoi plus récent.
+  // Un seul build en revue à la fois (garde anti-spam ET intégrité de
+  // la revue).
   //
-  // Avant, un envoi était refusé tant qu'un build était en revue : le
-  // maker était bloqué jusqu'au verdict de l'admin (à l'échelle d'une
-  // communauté, une revue à 3 jours = 3 jours d'arrêt sur la version
-  // suivante). Le remplacement garde la trace (l'ancien passe «
-  // rejeté / remplacé ») et le nouveau part en revue à sa place : la
-  // file reste à UN build pending par produit, mais le maker n'est plus
-  // bloqué.
+  // Pourquoi on refuse : si un nouvel envoi REMPLAÇAIT le build en
+  // revue, l'admin approuverait un binaire qui n'est plus celui qu'il a
+  // regardé (le sien a été remplacé sous ses yeux) — et le maker
+  // pourrait ré-envoyer en boucle, chaque envoi remplaçant le
+  // précédent. La garde « un seul pending » existe pour ça.
+  //
+  // La sortie de secours est le VERDICT : si l'admin refuse le build,
+  // le maker peut renvoyer (et le MÊME versionCode : l'index unique
+  // est partiel, un build rejeté ne verrouille plus le numéro —
+  // migration 0047).
   const [stillPending] = await db
-    .select({ id: productBuilds.id, r2Key: productBuilds.r2Key })
+    .select({ id: productBuilds.id })
     .from(productBuilds)
     .where(and(eq(productBuilds.productId, input.productId), eq(productBuilds.status, "pending")))
     .limit(1);
   if (stillPending) {
-    await db
-      .update(productBuilds)
-      .set({
-        status: "rejected",
-        rejectionReason: "Remplacé par un envoi plus récent.",
-        reviewedAt: new Date(),
-      })
-      .where(eq(productBuilds.id, stillPending.id));
-    // Le binaire du build remplacé n'est plus downloadable (seul le
-    // build approuvé l'est) : on ne garde pas d'orphelin R2.
-    await deleteR2Object(PRODUCT_BUILDS_BUCKET, stillPending.r2Key).catch(() => {});
+    // CodeRabbit : le pending découvert peut être CETTE course (le 1er
+    // envoi même-clé a commité entre sameKey et ici) — re-query avant
+    // purge, le gagnant est retourné, jamais son objet détruit.
+    const [winner] = await db
+      .select({ id: productBuilds.id })
+      .from(productBuilds)
+      .where(
+        and(eq(productBuilds.r2Key, input.r2Key), eq(productBuilds.productId, input.productId)),
+      )
+      .limit(1);
+    if (winner) return { id: winner.id };
+    await deleteR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key).catch(() => {});
+    throw new ProfileError(
+      "VALIDATION",
+      "Un binaire est déjà en revue — attendez le verdict avant d'envoyer une nouvelle version.",
+    );
   }
   try {
     const [row] = await db
@@ -224,12 +269,35 @@ export async function createBuild(input: {
     void notifyAdminsReview({ productId: input.productId, buildId: row.id });
     return { id: row.id };
   } catch (e) {
-    // Doublon (produit, version) : l'objet orphelin est purgé (jamais de
-    // binaire sans ligne).
+    if (e instanceof ProfileError) throw e;
+    // CodeRabbit : course même-clé — les deux envois passent sameKey, le
+    // 1er insert+commit, le 2e tombe en 23505. On re-trouve le gagnant
+    // AVANT toute purge : s'il détient CETTE clé, on le renvoie (idem-
+    // potence honnête) et son objet ne peut plus être détruit.
+    const [winner] = await db
+      .select({ id: productBuilds.id })
+      .from(productBuilds)
+      .where(
+        and(eq(productBuilds.r2Key, input.r2Key), eq(productBuilds.productId, input.productId)),
+      )
+      .limit(1);
+    if (winner) return { id: winner.id };
+    // Unicité violée (23505) : la course éventuelle du pré-check est
+    // fermée par l'index 0057 — la base répond à sa place. Le nom de la
+    // contrainte dit QUELLE règle a flippé : un-pending (0057) → message
+    // « déjà en revue » identique au pré-check ; (produit, version_code)
+    // (0047) → message de version. Dans les deux cas le gagnant réel sur
+    // la même clé a déjà été retourné ci-dessus : l'objet purgé ici est
+    // ORPHELIN (aucune ligne ne le référence — jamais de binaire sans
+    // ligne).
     await deleteR2Object(PRODUCT_BUILDS_BUCKET, input.r2Key).catch(() => {});
-    throw e instanceof ProfileError
-      ? e
-      : new ProfileError("VALIDATION", "Build déjà enregistré (produit, version).");
+    const constraint = violationConstraint(e);
+    throw new ProfileError(
+      "VALIDATION",
+      constraint === "product_builds_one_pending_uidx"
+        ? "Un binaire est déjà en revue — attendez le verdict avant d'envoyer une nouvelle version."
+        : "Build déjà enregistré (produit, version).",
+    );
   }
 }
 

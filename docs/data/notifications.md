@@ -17,18 +17,31 @@ produit est supprimé ensuite).
 | `actor_id`   | `uuid` NULL → `users.id` SET NULL    | Déclencheur (survit : « ancien admin »)                                                                                                                                                  |
 | `title`      | `text` NOT NULL                      | Ex. « Tarsi a dépassé 100 votes »                                                                                                                                                        |
 | `body`       | `text` NULL                          | Détail (motif de rejet…)                                                                                                                                                                 |
-| `read_at`    | `timestamptz` NULL                   | NULL = non lue (pastille)                                                                                                                                                                |
+| `read_at`    | `timestamptz` NULL                   | NULL = non lue (pastille) ; marquable PAR LE PROPRIÉTAIRE via le pont 0059 (UPDATE `read_at` seule)                                                                                      |
 | `created_at` | `timestamptz` NOT NULL               | Keyset + purge 90 j (lues uniquement)                                                                                                                                                    |
 
 Index : `(user_id, created_at)` keyset, `(user_id, read_at)` non-lues,
 unique PARTIEL `(user_id, product_id, title)` sur milestones
 (idempotence : un seuil = une notif).
 
-## RLS (`setup.sql`)
+## RLS (migration 0059, autoportante — miroir `setup.sql` §3d-quater)
 
-- `notifications_select_own` : `authenticated`, `auth.uid() = user_id`.
-- **AUCUNE écriture directe** : `notify()` service (fail-soft, jamais
-  de throw — une notif ne bloque jamais l'action métier).
+- `notifications_select_own` : `authenticated`, `user_id = auth.uid()`
+  (le Realtime ne délivre que SES lignes, le REST aussi). Réside dans la
+  migration depuis 0059 : une base qui n'applique QUE les migrations a
+  un état RLS complet (avant 0059, la policy ne vivait que dans
+  `setup.sql` — une base sans setup restait sans RLS : fuite inter-makers
+  colmatée par 0059).
+- `notifications_update_own` (0059, pont mobile) : UPDATE own —
+  `USING`/`WITH CHECK` `user_id = auth.uid()`.
+- **Grants (`REVOKE ALL` + re-grants deterministes)** : `SELECT` pour
+  `authenticated` ; `UPDATE (read_at)` SEULE pour `authenticated` (le
+  marquage « lu ») — `id/user_id/kind/product_id/actor_id/title/body/
+created_at` restent hors d'atteinte, `INSERT`/`DELETE` fermés, `anon`
+  ne lit rien.
+- **Écritures restantes côté serveur** : `notify()` service (fail-soft,
+  jamais de throw — une notif ne bloque jamais l'action métier) et les
+  triggers du pont 0055.
 
 ## Règles métier miroir (serveur, jamais client)
 
@@ -47,5 +60,9 @@ unique PARTIEL `(user_id, product_id, title)` sur milestones
 ## Usage mobile
 
 - **Lecture directe OK** (liste keyset + `unreadCount`) **et** Realtime
-  (même channel) ; écritures via `GET/PATCH /me/notifications`
-  (tout-lu / par ids).
+  (même channel).
+- **Marquage lu en direct** (0059) : `update({'read_at': nowIso}).eq('id', …).eq('user_id', moi)`
+  — batch inclus (`in('id', ids)`), error 42501 seulement si on tente
+  autre chose que `read_at` sur ses propres lignes. Le fallback
+  `PATCH /api/v1/me/notifications` (tout-lu / par ids) reste disponible
+  pour les clients qui le préfèrent.

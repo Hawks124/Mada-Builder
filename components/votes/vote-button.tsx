@@ -40,11 +40,21 @@ export function VoteButton({
   disabledReason?: string;
 }) {
   const [confirmed, setConfirmed] = useState({ voted: initialVoted, count: votes });
+  // Lot C — flicker 4→5→4 : le reducer `useOptimistic` est re-invoqué à
+  // CHAQUE render intermédiaire de la transition (payload RSC revalidé
+  // qui arrive, réponse qui met `confirmed` à jour pendant le vol) —
+  // dériver le compteur depuis `state.count` re-décalait l'affichage
+  // (+1 de trop à la réconciliation, ou retour à l'ancien au jet). Le
+  // compteur optimiste est désormais GELÉ AU CLIC : pendant le vol,
+  // l'affichage ne dépend ni d'une prop fraîche ni de l'état confirmé ;
+  // la réponse serveur reste autoritaire (setConfirmed) et prend le
+  // relais quand l'optimiste est jeté en fin de transition.
+  const frozenCountRef = React.useRef(votes);
   const [optimistic, setOptimistic] = useOptimistic(
     confirmed,
     (state: { voted: boolean; count: number }, nextVoted: boolean) => ({
       voted: nextVoted,
-      count: state.count + (nextVoted ? 1 : -1),
+      count: frozenCountRef.current + (nextVoted ? 1 : -1),
     }),
   );
   const [pending, setPending] = useState(false);
@@ -59,6 +69,9 @@ export function VoteButton({
     // l'UI est donc mise à jour immédiatement, sans attendre la
     // vérification de session (aller-retour réseau).
     const nextVoted = !optimistic.voted;
+    // Gel du compteur : la valeur affichée AU CLIC (l'optimiste est
+    // stable hors vol — le clic est bloqué par `pending` sinon).
+    frozenCountRef.current = optimistic.count;
     setPending(true);
     startTransition(async () => {
       setOptimistic(nextVoted);

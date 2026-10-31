@@ -174,9 +174,22 @@ export function LeaderboardList({
 
             {/* ACTIONS */}
             <div className="flex items-center gap-4 md:gap-6 shrink-0">
-              <div className="hidden md:flex flex-col items-center gap-0.5 text-muted-foreground">
+              {/* Discussions : count réel (dénorm comments_count, tenu par
+                  les triggers du pont 0055 — le hardcodé 0 mentait dès
+                  qu'un produit avait ≥ 1 discussion). Flex-col aligné sur
+                  le bloc voisin du featured ; libellé « commentaires »
+                  (la fiche porte ce nom — « avis » est réservé aux ratings
+                  V1.5). */}
+              <div
+                className="hidden md:flex flex-col items-center gap-0.5 text-muted-foreground"
+                title={`${product.commentsCount} commentaires`}
+                aria-label={`${product.commentsCount} commentaires`}
+              >
                 <ChatCircleTextIcon weight="fill" className="w-5 h-5" />
-                <span className="text-[11px] font-bold leading-none tabular-nums">0</span>
+                <span className="text-[11px] font-bold leading-none tabular-nums">
+                  {product.commentsCount}
+                </span>
+                <span className="sr-only">commentaires</span>
               </div>
 
               <div className="flex items-center gap-3 shrink-0">

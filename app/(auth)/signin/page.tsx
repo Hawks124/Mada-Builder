@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SigninForm } from "@/components/auth/signin-form";
 import { LogoMark } from "@/components/ui/logo";
+import { Wordmark } from "@/components/ui/wordmark";
 import { getSessionUser } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -16,21 +17,19 @@ export const metadata: Metadata = {
  * `/signin` — coque de page uniquement.
  *
  * La colonne de droite est la photo seule : Tsingy de Bemaraha, le ghost logo
- * en grand étant déjà partie intégrante de sa composition. Aucun texte par
- *-dessus, et c'est délibéré :
+ * en grand étant déjà partie intégrante de sa composition. Aucun texte
+ * par-dessus, et c'est délibéré :
  *
  * - le slogan « Ce que tu construis ici, on le voit ici. » est **déjà** le
  *   `<h1>` du hero (`components/home/hero.tsx`) — le reproduire ici serait
- *   Redondant ;
- * - un mot en contour (l'ancien traitement) n'existe que sur fond plat, il se
- *   désintègre sur la texture de la roche ;
+ *   redondant ;
  * - tout texte posé sur l'image devrait être voilé pour rester lisible, et le
- *   voile mange la texture — donc on sacrifie la photo à ce que la photo dit
- *   déjà très bien.
+ *   voile mange la texture.
  *
- * Conséquence : la colonne de formulaire et le panneau partagent la même
- * police (Geist), et il n'y a qu'un seul logo à l'écran — celui de la colonne
- * de gauche, à tous les breakpoints.
+ * La marque porte la navigation seule (haut-gauche, lien accueil), la
+ * signature signe la photo (bas-droite) — les deux représentations du logo,
+ * sans un mot de plus. La couture avec le formulaire reste une bordure : le
+ * fondu testé mangeait la texture de la roche.
  */
 export default async function SigninPage({
   searchParams,
@@ -83,26 +82,29 @@ export default async function SigninPage({
           className="object-cover"
         />
 
-        {/* Logo sur la photo. `variant="bare"` : la tuile de l'asset par défaut
-            (#1d1d1b) ressort en pastille visible sur une photo à #050505 —
-            un favicon collé sur l'image. La marque seule, sans tuile, laisse
-            respirer la photo.
+        {/* Navigation — la marque seule porte le lien accueil sur desktop ;
             `tone="on-dark"` force la version blanche : le panneau est toujours
-            sombre alors que le thème peut être clair, sans quoi la marque noire
-            serait invisible. L'asset ne contient aucun mot, donc le nom à côté
-            ne fait pas doublon. */}
+            sombre alors que le thème peut être clair. Pas de texte : le nom
+            vit dans la signature en bas-droite, pas sur la photo. */}
         <Link
           href="/"
           aria-label="Mada-Made — retour à l'accueil"
-          className="group absolute left-8 top-8 z-10 flex items-center gap-2.5 xl:left-10 xl:top-10"
+          className="group absolute left-8 top-8 z-10 xl:left-10 xl:top-10"
         >
           <LogoMark
             variant="bare"
             tone="on-dark"
             className="h-7 w-auto transition-transform duration-500 group-hover:scale-110"
           />
-          <span className="text-[15px] font-bold tracking-tight text-white">Mada-Made</span>
         </Link>
+
+        {/* Cachet — la signature, en bas-droite : les deux représentations du
+            logo coexistent (tuile sur les surfaces compactes, signature ici).
+            Décorative : la navigation reste sur la marque haut-gauche, deux
+            liens identiques seraient du bruit clavier. */}
+        <div aria-hidden="true" className="absolute bottom-8 right-8 z-10 xl:bottom-10 xl:right-10">
+          <Wordmark tone="on-dark" />
+        </div>
       </div>
     </div>
   );

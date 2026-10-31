@@ -10,9 +10,11 @@ doute, le schéma fait foi, pas ce doc.
 
 - **Lectures** : direct Supabase (PostgREST + Realtime) partout où une
   policy le permet (voir chaque fiche).
-- **Écritures** : **uniquement API** (`/api/v1/*`), sauf mention
-  explicite. Là où vivent l'anti-abus, la validation, les compteurs
-  et les secrets — jamais dupliqués côté client.
+- **Écritures** : **uniquement API** (`/api/v1/*`), SAUF le pont 0055
+  (avis, commentaires, votes de commentaires — écrits en direct
+  PostgREST, la base arbitre : `docs/mobile-ecritures-directes.md`).
+  Là où vivent l'anti-abus, la validation, les compteurs et les
+  secrets — jamais dupliqués côté client.
 - **Conventions globales** : ids UUIDv7 (`text` UUID, triables,
   non énumérables) ; dates `timestamptz` → ISO-8601 ; slug public
   (`username`, produit `slug`), jamais l'id dans les URLs ; soft-delete
@@ -24,14 +26,15 @@ doute, le schéma fait foi, pas ce doc.
 | --------------------------------------------- | --------------------- | ------------------ | ------------- |
 | [users](users.md)                             | `users`               | own uniquement     | API           |
 | [products](products.md)                       | `products`            | public/own/staff   | API           |
+| [product_revisions](products.md)              | `product_revisions`   | non (deny-all)     | service       |
 | [product_screenshots](product_screenshots.md) | `product_screenshots` | public (published) | API (upload)  |
 | [votes](votes.md)                             | `votes`               | non (compteurs)    | API           |
 | [product_page_views](product_page_views.md)   | `product_page_views`  | non (agrégats)     | API (beacon)  |
 | [product_link_clicks](product_link_clicks.md) | `product_link_clicks` | non (agrégats)     | API (beacon)  |
 | [featured_products](featured_products.md)     | `featured_products`   | non                | service/admin |
-| [reviews](reviews.md)                         | `reviews`             | public (published) | API           |
-| [comments](comments.md)                       | `comments`            | public (published) | API           |
-| [comment_votes](comment_votes.md)             | `comment_votes`       | own                | API           |
+| [reviews](reviews.md)                         | `reviews`             | public (published) | direct (0055) |
+| [comments](comments.md)                       | `comments`            | public (published) | direct (0055) |
+| [comment_votes](comment_votes.md)             | `comment_votes`       | own                | direct (0055) |
 | [notifications](notifications.md)             | `notifications`       | own (+Realtime)    | service       |
 | [appeals](appeals.md)                         | `appeals`             | staff              | API           |
 | [auth_otp](auth_otp.md)                       | `auth_otp`            | non                | service       |

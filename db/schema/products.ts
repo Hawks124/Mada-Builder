@@ -138,28 +138,23 @@ export const products = pgTable(
     // par le job (comme le score) — une lecture à O(1) pour le mobile qui
     // lit la table directement, sans passer par une API.
     downloadCount: integer("download_count").notNull().default(0),
+    // Vues produit : compteur dénormalisé tenu par le TRIGGER DB
+    // `handle_product_page_view_inserted` (INSERT `product_page_views` → +1),
+    // posé par l'équipe mobile, miroiré en migration 0053. Le web ne
+    // l'écrit jamais lui-même (`logProductView` journalise l'événement,
+    // sans toucher le compteur). Vérité réconciliable : COUNT des
+    // événements `product_page_views` (recalage de la 0053).
+    viewCount: integer("view_count").notNull().default(0),
     // Curation OSS (lot curation) : produit en veille internationale —
     // exclu du classement voté + featured (catalogue oui), votes et avis
     // désactivés, commentaires ouverts. Posé auto (compte curation) ou
     // toggle admin.
     curated: boolean("curated").notNull().default(false),
     publishedAt: timestamp("published_at", { withTimezone: true }),
-    /**
-     * RÉVISION EN ATTENTE (migration 0048) : les champs sensibles
-     * (contenu libre) et les médias modifiés sur une fiche PUBLIÉE ne
-     * sont pas appliqués tout de suite — ils attendent un regard admin
-     * dans la file des révisions. La fiche reste en ligne avec son
-     * contenu approuvé : c'est la règle des stores, et les changements
-     * ne filent pas.
-     *
-     * `pending_payload` = les champs sensibles modifiés (jsonb).
-     * `pending_media`   = les nouveaux médias (logo/captures) déjà
-     * uploadés dans R2 mais pas encore attachés à la fiche.
-     */
-    pendingPayload: jsonb("pending_payload"),
-    pendingMedia: jsonb("pending_media"),
-    pendingAt: timestamp("pending_at", { withTimezone: true }),
-    pendingBy: uuid("pending_by").references(() => users.id, { onDelete: "set null" }),
+    // La révision en attente vit dans SA PROPRE table
+    // (`product_revisions`, deny-all) : le contenu non validé d'une
+    // fiche publiée ne doit pas être lisible par la clé anonyme
+    // publique (migration 0050).
     // Soumission en file (draft → pending, re-soumission incluse) : base
     // du SLA 24 h (D0). `createdAt` = naissance du brouillon (jamais le
     // SLA — un brouillon de 3 jours ne doit pas naître "dépassé").

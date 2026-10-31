@@ -30,6 +30,7 @@ import {
 import { siteUrl } from "@/lib/site-url";
 import { itemListLd } from "@/lib/seo";
 import { getMakerRevenueTotals, getRevenueViewsForProducts } from "@/services/revenue/views";
+import { safeJsonLd } from "@/lib/safe-json-ld";
 
 // Profil public maker (PRD §6D, 4C) : avatar, nom, bio, liens, produits
 // publiés, total votes reçus. Vues = privées (dashboard). MRR : phase
@@ -157,12 +158,12 @@ export default async function MakerPage({ params }: { params: Promise<Params> })
     <main className="min-h-screen bg-background">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(personLd) }}
       />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(itemListLd(products, `Produits de ${profile.displayName}`)),
+          __html: safeJsonLd(itemListLd(products, `Produits de ${profile.displayName}`)),
         }}
       />
       <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-20 pb-24 flex flex-col gap-12">

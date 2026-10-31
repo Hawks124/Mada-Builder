@@ -1,22 +1,9 @@
 import { z } from "zod";
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  ilike,
-  inArray,
-  isNotNull,
-  isNull,
-  lt,
-  ne,
-  or,
-  sql,
-} from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   products,
+  productRevisions,
   productScreenshots,
   productPageViews,
   productLinkClicks,
@@ -340,6 +327,21 @@ export const submitProductSchema = z.object({
     .max(40)
     .refine((ids) => ids.every((id) => KNOWN_LINK_IDS.has(id)), "Lien inconnu")
     .optional(),
+  /**
+   * Mode d'écriture des liens — décidé par l'APPELANT, jamais déduit de
+   * la forme de la payload.
+   *
+   * - "replace" (formulaire web) : le formulaire envoie TOUS les champs
+   *   liens, un champ vide = « efface » → le résultat est le formulaire.
+   * - "merge" (API mobile) : le mobile n'envoie que les champs qu'il
+   *   modifie ; les absents sont CONSERVÉS, les champs vides effacés.
+   *
+   * Le déduire de la payload (« y a-t-il un `clearedLinks` ? ») était le
+   * bug : une PATCH mobile avec seulement `changelogUrl` (aucun champ
+   * lien) tombait en « replace » → les liens de la fiche partaient avec,
+   * et la révision devenait inapprovable (plus de point d'accès).
+   */
+  linksMode: z.enum(["replace", "merge"]).optional(),
 });
 
 /**
@@ -548,7 +550,12 @@ const SHOT_OPTS = {
   maxLongEdge: 1600,
   allowGif: true,
 } as const;
-const MAX_SHOTS = 6;
+/**
+ * Quota captures : 8 = parité stores (Google Play plafonne à 8, App Store
+ * à 10 — on ne dépasse JAMAIS le plus restrictif). Couvre les fiches
+ * riches, médiums et pauvres en fonctionnalités sans déborder un store.
+ */
+const MAX_SHOTS = 8;
 
 export type PreparedShot = {
   url: string;
@@ -1127,7 +1134,51 @@ export async function fetchProductForPreview(
     .from(productScreenshots)
     .where(eq(productScreenshots.productId, row.id))
     .orderBy(productScreenshots.position);
-  return { product: row, shots };
+  // Révision en attente : l'aperçu doit montrer CE QUI SERA PUBLIÉ
+  // (le texte et les médias proposés), pas le contenu validé. Sans ça,
+  // le maker voit son ancien texte dans l'aperçu et croit que sa
+  // modification a disparu (alors qu'elle est en file de revue).
+  const [revision] = await db
+    .select({ payload: productRevisions.payload, media: productRevisions.media })
+    .from(productRevisions)
+    .where(eq(productRevisions.productId, row.id))
+    .limit(1);
+  if (!revision) return { product: row, shots };
+  const payload = (revision.payload ?? {}) as Record<string, unknown>;
+  const media = (revision.media ?? null) as PendingMedia | null;
+  const product = {
+    ...row,
+    name: typeof payload.name === "string" ? payload.name : row.name,
+    tagline: typeof payload.tagline === "string" ? payload.tagline : row.tagline,
+    description: typeof payload.description === "string" ? payload.description : row.description,
+    tags: Array.isArray(payload.tags) ? (payload.tags as string[]) : row.tags,
+    requirements: Array.isArray(payload.requirements)
+      ? (payload.requirements as string[])
+      : row.requirements,
+    installCommand:
+      typeof payload.installCommand === "string" ? payload.installCommand : row.installCommand,
+    links: (payload.links as typeof row.links | undefined) ?? row.links,
+    // L'orientation PROPOSÉE : l'aperçu montre ce qui SERA publié — sans
+    // ça la galerie montrait des captures de l'orientation proposée dans
+    // une fiche prétendue « paysage » validée.
+    galleryOrientation:
+      payload.galleryOrientation === "portrait" || payload.galleryOrientation === "landscape"
+        ? (payload.galleryOrientation as typeof row.galleryOrientation)
+        : row.galleryOrientation,
+    iconUrl: media?.logo ?? row.iconUrl,
+  };
+  const previewShots =
+    media && media.shots.length > 0
+      ? media.shots.map((s, i) => ({
+          url: s.url,
+          caption: null,
+          orientation: s.orientation,
+          width: s.width,
+          height: s.height,
+          position: i + 1,
+        }))
+      : shots;
+  return { product, shots: previewShots };
 }
 
 /** Dashboard maker : tout ses produits (draft/pending/rejected inclus).
@@ -1151,13 +1202,13 @@ export async function fetchMyProducts(
       status: products.status,
       rejectionReason: products.rejectionReason,
       updatedAt: products.updatedAt,
-      // Revision en attente (la fiche publiee garde son contenu approuve
-      // en ligne ; ces colonnes portent la modification qui attend un
-      // regard admin).
-      pendingPayload: products.pendingPayload,
-      pendingAt: products.pendingAt,
+      // Révision en attente (table dédiée, deny-all) : le maker doit
+      // voir CE QU'IL A PROPOSÉ, pas le contenu validé.
+      revisionPayload: productRevisions.payload,
+      revisionAt: productRevisions.createdAt,
     })
     .from(products)
+    .leftJoin(productRevisions, eq(productRevisions.productId, products.id))
     .where(and(...conditions))
     .orderBy(desc(products.updatedAt), desc(products.id))
     .$dynamic();
@@ -1409,7 +1460,7 @@ export function toDashboardApp(
   // Révision en attente : le maker doit voir CE QU'IL A ÉCRIT (la
   // fiche publique, elle, garde le contenu validé). Sans ça, il
   // reverrait son texte validé et croirait que son edit a été perdu.
-  const pending = (row.pendingPayload ?? {}) as Record<string, unknown>;
+  const pending = (row.revisionPayload ?? {}) as Record<string, unknown>;
   const pendingName = typeof pending.name === "string" ? pending.name : row.name;
   const pendingTagline = typeof pending.tagline === "string" ? pending.tagline : row.tagline;
   const pendingDescription =
@@ -1421,6 +1472,16 @@ export function toDashboardApp(
   const pendingInstallCommand =
     typeof pending.installCommand === "string" ? pending.installCommand : row.installCommand;
   const pendingLinks = (pending.links ?? row.links) as ProductLinks;
+  // L'orientation PROPOSÉE (décision média en révision) : le formulaire
+  // d'édit pré-remplit la proposition — sinon sa première sauvegarde
+  // écrivait l'orientation validée et annulait silencieusement la
+  // proposition (le champ « remis à la valeur validée » est retiré de
+  // la révision). Toutes les autres propositions textuelles le sont
+  // déjà (name/tagline/description/…) : l'orientation ferme la série.
+  const pendingOrientation =
+    pending.galleryOrientation === "portrait" || pending.galleryOrientation === "landscape"
+      ? (pending.galleryOrientation as "portrait" | "landscape")
+      : (row.galleryOrientation as "portrait" | "landscape");
   return {
     id: row.id,
     slug: row.slug,
@@ -1461,7 +1522,7 @@ export function toDashboardApp(
     hasThirdParty: row.sharesData,
     targetCountries: row.targetCountries,
     languagesSupported: row.languagesSupported,
-    galleryOrientation: row.galleryOrientation as "portrait" | "landscape",
+    galleryOrientation: pendingOrientation,
     iconGradient: appGradientFor(row.id),
     initials: appInitialsFor(row.name),
     iconUrl: row.iconUrl ?? null,
@@ -1746,6 +1807,9 @@ export const SENSITIVE_EDIT_FIELDS = [
   "tags",
   "requirements",
   "installCommand",
+  // L'orientation de la galerie est une décision MÉDIA : la purger hors
+  // revue viderait la galerie publiée avant validation.
+  "galleryOrientation",
 ] as const;
 
 /** Médias en attente (uploadés dans R2, pas encore attachés). */
@@ -1802,6 +1866,21 @@ export async function updateProduct(
   // préservé : aucune UI ne l'édite ni ne l'efface - seul changelogUrl
   // l'écrit (B3). Sans ça, toute édition effaçait links.changelog.
   const { changelogUrl: editChangelog, ...restData } = data;
+  // CodeRabbit : `isPublished` + la révision en cours sont lus AVANT le
+  // merge des liens — en mode merge, la base doit être les liens
+  // PROPOSÉS de la révision ; sinon un second PATCH partiel (changelog
+  // seul) écraserait la proposition de site du premier PATCH avec les
+  // liens validés.
+  const isPublished = row.status === "published";
+  const previousRevision = isPublished
+    ? (
+        await db
+          .select({ payload: productRevisions.payload, media: productRevisions.media })
+          .from(productRevisions)
+          .where(eq(productRevisions.productId, productId))
+          .limit(1)
+      )[0]
+    : undefined;
   let mergedLinks: Record<string, string> | undefined;
   if (data.links !== undefined || editChangelog) {
     // Deux modes, un seul résultat final :
@@ -1813,9 +1892,18 @@ export async function updateProduct(
     //   modifie ; les absents sont CONSERVÉS, les champs vidés sont
     //   effacés (`clearedLinks`). Sans ce mode, chaque édition mobile
     //   effaçait tous les liens non renvoyés de la fiche.
-    const mode = data.clearedLinks !== undefined ? "merge" : "replace";
+    const mode = data.linksMode ?? (data.clearedLinks !== undefined ? "merge" : "replace");
+    // CodeRabbit : la base du merge est la révision EN COURS (les liens
+    // proposés), repli sur les liens validés — un second PATCH partiel
+    // continue d'accumuler sur la première proposition au lieu de la
+    // raser.
+    const proposedLinks = (previousRevision?.payload ?? null) as {
+      links?: Record<string, string>;
+    } | null;
     const base: Record<string, string> =
-      mode === "merge" ? { ...((row.links ?? {}) as Record<string, string>) } : {};
+      mode === "merge"
+        ? { ...(proposedLinks?.links ?? ((row.links ?? {}) as Record<string, string>)) }
+        : {};
     if (mode === "merge") {
       for (const id of data.clearedLinks ?? []) delete base[id];
     }
@@ -1847,7 +1935,6 @@ export async function updateProduct(
 
   const linksChanged =
     mergedLinks !== undefined && canonicalLinks(mergedLinks) !== canonicalLinks(row.links);
-  const isPublished = row.status === "published";
 
   // ── Tier 1 : champs SENSIBLES + médias ───────────────────────────
   // Sur une fiche PUBLIÉE, ils ne sont PAS appliqués : ils vont dans
@@ -1857,22 +1944,48 @@ export async function updateProduct(
   //
   // Sur un brouillon/pending, rien de tout ça : le travail en cours
   // s'applique, la revue tranche au moment de la publication.
-  const sensitive: Record<string, unknown> = {};
+  //
+  // La révision en cours a été lue PLUS HAUT — avant le merge des liens
+  // (CodeRabbit : en mode merge, la base du merge est la proposition ;
+  // un champ non re-touché garde sa valeur proposée, un champ remis à
+  // sa valeur VALIDÉE disparaît de la révision).
+  const sensitive: Record<string, unknown> = isPublished
+    ? { ...((previousRevision?.payload ?? {}) as Record<string, unknown>) }
+    : {};
   if (isPublished) {
     for (const field of SENSITIVE_EDIT_FIELDS) {
       const next = (data as Record<string, unknown>)[field];
       if (next === undefined) continue;
       const prev = (row as Record<string, unknown>)[field];
-      if (JSON.stringify(next ?? null) !== JSON.stringify(prev ?? null)) {
+      if (JSON.stringify(next ?? null) === JSON.stringify(prev ?? null)) {
+        // Remis à la valeur validée → plus de changement proposé.
+        delete sensitive[field];
+      } else {
         sensitive[field] = next;
       }
     }
     // Les liens (et le changelog, qui vit dans les liens) : comparés
-    // canoniquement (l'ordre des clés ne doit pas compter).
-    if (linksChanged) sensitive.links = mergedLinks;
+    // canoniquement (l'ordre des clés ne doit pas compter). CodeRabbit :
+    // le revert s'applique AUSSI — des liens remis aux valeurs validées
+    // sortent la proposition de la révision (le maker peut annuler son
+    // changement de liens), au lieu d'y rester collé.
+    if (mergedLinks !== undefined) {
+      if (linksChanged) sensitive.links = mergedLinks;
+      else delete sensitive.links;
+    }
   }
   const mediaChanged = isPublished && (Boolean(editLogo) || newShots.length > 0);
-  const needsRevision = Object.keys(sensitive).length > 0 || mediaChanged;
+  // Carry-over du média proposé (CodeRabbit) : un édit qui ne touche PAS
+  // les médias conserve celui de la révision en attente. Compté dans
+  // needsRevision : sans ça, une révision média SEULE (payload vidé par
+  // des retours au validé) était JETÉE par un édit qui ne touche que du
+  // léger, et l'upsert ré-écrivait `media` à null (le maker perdait sa
+  // proposition, l'admin sa décision d'arbitrage sur rien).
+  const carriedMedia: PendingMedia | null =
+    isPublished && !mediaChanged
+      ? ((previousRevision?.media ?? null) as PendingMedia | null)
+      : null;
+  const needsRevision = Object.keys(sensitive).length > 0 || mediaChanged || Boolean(carriedMedia);
 
   // Publication depuis l'édition (draft + intent publish) : mêmes règles
   // que la création publish, puis statut → pending.
@@ -1949,80 +2062,92 @@ export async function updateProduct(
     }
   }
 
-  // Le patch applique les champs NON sensibles (structurés, cosmétique) ;
-  // les champs sensibles et les médias vont dans la révision.
+  // Le patch applique les champs NON sensibles (structures, cosmetique) ;
+  // les champs sensibles et les medias vont dans la revision.
   const patch: Partial<typeof products.$inferInsert> = { updatedAt: new Date() };
   for (const [key, value] of Object.entries(restData)) {
     if (key === "links" || value === undefined) continue;
     if (isPublished && (SENSITIVE_EDIT_FIELDS as readonly string[]).includes(key)) continue;
     (patch as Record<string, unknown>)[key] = value;
   }
-  // Les liens vont dans la révision quand ils ont changé sur une fiche
-  // en ligne ; sinon ils s'appliquent (brouillon, ou liens inchangés).
+  // Les liens vont dans la revision quand ils ont change sur une fiche
+  // en ligne ; sinon ils s'appliquent (brouillon, ou liens inchanges).
   const linksInRevision = isPublished && linksChanged;
   if (mergedLinks !== undefined && !linksInRevision) patch.links = mergedLinks;
   if (toQueue) {
     patch.status = "pending";
     patch.rejectionReason = null;
   }
-  // La révision en attente (contenu sensible + médias) : rangée sur la
-  // fiche, JAMAIS appliquée. Tant que l'admin n'a pas validé, le
-  // public voit le contenu approuvé.
-  let pendingMedia: PendingMedia | null = null;
-  if (needsRevision) {
-    patch.pendingPayload = sensitive as never;
-    patch.pendingAt = new Date();
-    patch.pendingBy = viewerId;
-  }
+  // L'orientation de la galerie est une decision MEDIA : elle va dans la
+  // revision quand la fiche est en ligne (sinon la purge des captures
+  // incompatibles viderait la galerie PUBLIEE avant validation).
+  const orientationChanged = effectiveOrientation !== row.galleryOrientation;
+  const orientationInRevision = isPublished && orientationChanged;
   // Retour en file (publication, re-soumission) : nouveau cycle
-  // SLA (D0) — la date de (re-)soumission, jamais la naissance du brouillon.
+  // SLA (D0) - la date de (re-)soumission, jamais la naissance du brouillon.
   if (patch.status === "pending") patch.submittedAt = new Date();
-  const [updated] = await db
-    .update(products)
-    .set(patch)
-    .where(eq(products.id, productId))
-    .returning({ slug: products.slug, status: products.status });
 
-  // Nouveaux médias : remplacement total (logo + galerie), anciens objets
-  // R2 purgés best-effort. Absents = conservés (jamais d'effacement vide).
-  // (newShots + effectiveOrientation calculés avant tout commit, voir plus haut.)
+  // --- 1. Les MEDIAS : upload d'abord ------------------------------
+  // L'upload R2 passe AVANT toute ecriture en base : un upload qui
+  // echoue (R2 indisponible, quota, format) ne doit pas laisser la
+  // fiche a moitie ecrite (texte a jour + revision en file alors que le
+  // maker a vu une erreur).
+  let prepared: { logoUrl: string | null; shots: PreparedShot[] } | null = null;
+  let oldShots: { url: string }[] = [];
   if (editLogo || newShots.length > 0) {
     if (!r2Configured()) {
-      throw new ProfileError("VALIDATION", "Upload indisponible (stockage non configuré).");
+      throw new ProfileError("VALIDATION", "Upload indisponible (stockage non configure).");
     }
     if (newShots.length > MAX_SHOTS) {
       throw new ProfileError("VALIDATION", `${MAX_SHOTS} captures maximum.`);
     }
-    // iconUrl déjà lu sur `row` (pas de re-select) ; R2 purgé best-effort.
-    const oldShots =
+    // iconUrl deja lu sur `row` (pas de re-select).
+    oldShots =
       newShots.length > 0
         ? await db
             .select({ url: productScreenshots.url })
             .from(productScreenshots)
             .where(eq(productScreenshots.productId, productId))
         : [];
-    const prepared = await uploadProductFiles(productId, editLogo, newShots, effectiveOrientation);
-    if (needsRevision) {
-      // Les médias attendent la validation : on NE touche pas à la
-      // fiche (le public garde les images approuvées), on range les
-      // URLs dans la révision. L'admin les validera avec le texte.
-      pendingMedia = { logo: prepared.logoUrl, shots: prepared.shots };
-      await db
-        .update(products)
-        .set({ pendingMedia: pendingMedia as never })
-        .where(eq(products.id, productId));
-    } else {
+    prepared = await uploadProductFiles(productId, editLogo, newShots, effectiveOrientation);
+  }
+  // Carry-over : le média de la révision en attente est reconduit que
+  // l'édit n'en propose pas de nouveau — l'upsert ne peut plus écraser
+  // `media` à null et la purge d'aval (oldMedia) garde tous ses objets
+  // (kept contient exactement les captures reconduites).
+  // CodeRabbit : le carry-over est PAR SLOT — un édit qui n'envoie QUE
+  // le logo ne jette pas les captures proposées (la purge oldMedia/kept
+  // protège les objets reconduits), et réciproque ; chaque slot absent
+  // de l'édit reprend la proposition en attente.
+  const previousMedia = (previousRevision?.media ?? null) as PendingMedia | null;
+  const pendingMedia: PendingMedia | null =
+    carriedMedia ??
+    (needsRevision && prepared
+      ? {
+          logo: prepared.logoUrl ?? previousMedia?.logo ?? null,
+          shots: prepared.shots.length > 0 ? prepared.shots : (previousMedia?.shots ?? []),
+        }
+      : null);
+
+  // --- 2. Les ECRITURES en base, en une transaction ----------------
+  const [updated] = await db.transaction(async (tx) => {
+    const [row2] = await tx
+      .update(products)
+      .set(patch)
+      .where(eq(products.id, productId))
+      .returning({ slug: products.slug, status: products.status });
+
+    // Les medias : appliques (hors revision) ou ranges dans la revision.
+    if (prepared && !needsRevision) {
       if (prepared.logoUrl) {
-        const oldKey = r2KeyFromUrl(row.iconUrl);
-        if (oldKey) await deleteR2Object(PRODUCT_LOGOS_BUCKET, oldKey).catch(() => {});
-        await db
+        await tx
           .update(products)
           .set({ iconUrl: prepared.logoUrl })
           .where(eq(products.id, productId));
       }
       if (prepared.shots.length > 0) {
-        await db.delete(productScreenshots).where(eq(productScreenshots.productId, productId));
-        await db.insert(productScreenshots).values(
+        await tx.delete(productScreenshots).where(eq(productScreenshots.productId, productId));
+        await tx.insert(productScreenshots).values(
           prepared.shots.map((s, i) => ({
             productId,
             url: s.url,
@@ -2032,20 +2157,79 @@ export async function updateProduct(
             height: s.height,
           })),
         );
-        for (const s of oldShots) {
-          const key = r2KeyFromUrl(s.url);
-          if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
-        }
+      }
+    }
+
+    // --- 3. La revision en attente (table `product_revisions`, deny-all) ---
+    if (needsRevision) {
+      await tx
+        .insert(productRevisions)
+        .values({
+          productId,
+          makerId: viewerId,
+          payload: sensitive as never,
+          media: pendingMedia as never,
+          createdAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: productRevisions.productId,
+          set: {
+            payload: sensitive as never,
+            media: pendingMedia as never,
+            createdAt: new Date(),
+            reviewedAt: null,
+            reviewedBy: null,
+            rejectionReason: null,
+          },
+        });
+    } else if (previousRevision) {
+      // Plus rien de propose (le maker a tout remis a sa valeur validee) :
+      // la revision ne sert plus a rien -> on la jette.
+      await tx.delete(productRevisions).where(eq(productRevisions.productId, productId));
+    }
+    return [row2] as const;
+  });
+
+  // --- 4. Les purges R2 (apres la transaction : on ne supprime pas
+  // l'ancien media avant que le nouveau soit en place) ----------------
+  if (prepared) {
+    if (!needsRevision) {
+      // Remplacement total (logo + galerie) : les anciens objets
+      // partent, best-effort.
+      if (prepared.logoUrl) {
+        const oldKey = r2KeyFromUrl(row.iconUrl);
+        if (oldKey) await deleteR2Object(PRODUCT_LOGOS_BUCKET, oldKey).catch(() => {});
+      }
+      for (const s of oldShots) {
+        const key = r2KeyFromUrl(s.url);
+        if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
       }
     }
     await cleanupStaged(staged.stagedKeys);
   }
-  // Bascule d'orientation = purge des captures de l'autre orientation
-  // (après le bloc média : les nouvelles captures sont déjà en base, on
-  // écarte donc aussi celles qu'un re-upload aurait conservées).
-  if (effectiveOrientation !== row.galleryOrientation) {
+  // Les medias de la revision precedente qui ne sont pas reconduits sont
+  // purges (R2) : pas d'orphelin, pas de melange v1/v2.
+  const oldMedia = (previousRevision?.media ?? null) as PendingMedia | null;
+  if (oldMedia) {
+    const kept = new Set((pendingMedia?.shots ?? []).map((s) => s.url));
+    if (oldMedia.logo && oldMedia.logo !== pendingMedia?.logo) {
+      const key = r2KeyFromUrl(oldMedia.logo);
+      if (key) await deleteR2Object(PRODUCT_LOGOS_BUCKET, key).catch(() => {});
+    }
+    for (const s of oldMedia.shots ?? []) {
+      if (kept.has(s.url)) continue;
+      const key = r2KeyFromUrl(s.url);
+      if (key) await deleteR2Object(PRODUCT_SHOTS_BUCKET, key).catch(() => {});
+    }
+  }
+  // Bascule d'orientation = purge des captures de l'autre orientation.
+  // Sur une fiche EN LIGNE, la bascule attend la validation (sinon la
+  // galerie publiee se vide avant que l'admin ne regarde) : la purge
+  // part avec l'approbation de la revision.
+  if (orientationChanged && !orientationInRevision) {
     await purgeScreenshotsOffOrientation(productId, effectiveOrientation);
   }
+
   // Staff : entrée en file uniquement (un edit qui reste pending ne
   // re-notifie pas — pas de spam à chaque sauvegarde).
   if (updated.status === "pending" && row.status !== "pending") {
@@ -2062,8 +2246,9 @@ export async function updateProduct(
 export async function countPendingRevisions(): Promise<number> {
   const [row] = await db
     .select({ n: count() })
-    .from(products)
-    .where(and(isNull(products.deletedAt), isNotNull(products.pendingAt)));
+    .from(productRevisions)
+    .innerJoin(products, eq(products.id, productRevisions.productId))
+    .where(isNull(products.deletedAt));
   return row?.n ?? 0;
 }
 
@@ -2095,14 +2280,15 @@ export async function listPendingRevisions(input: { isStaff: boolean; limit?: nu
       name: products.name,
       makerUsername: users.username,
       makerDisplayName: users.displayName,
-      payload: products.pendingPayload,
-      media: products.pendingMedia,
-      pendingAt: products.pendingAt,
+      payload: productRevisions.payload,
+      media: productRevisions.media,
+      pendingAt: productRevisions.createdAt,
     })
-    .from(products)
+    .from(productRevisions)
+    .innerJoin(products, eq(products.id, productRevisions.productId))
     .innerJoin(users, eq(products.makerId, users.id))
-    .where(and(isNull(products.deletedAt), isNotNull(products.pendingAt)))
-    .orderBy(asc(products.pendingAt))
+    .where(isNull(products.deletedAt))
+    .orderBy(asc(productRevisions.createdAt))
     .limit(Math.min(Math.max(input.limit ?? 50, 1), 100));
   return rows.map((r) => ({
     id: r.id,
@@ -2149,21 +2335,21 @@ export async function reviewRevision(input: {
   if (!input.isStaff) throw new ProfileError("FORBIDDEN", "Réservé à l'équipe.");
   const [row] = await db.select().from(products).where(eq(products.id, input.productId)).limit(1);
   if (!row || row.deletedAt) throw new ProfileError("NOT_FOUND", "Produit introuvable.");
-  if (!row.pendingAt) throw new ProfileError("NOT_FOUND", "Aucune révision en attente.");
-  const payload = (row.pendingPayload ?? {}) as Record<string, unknown>;
-  const media = (row.pendingMedia ?? null) as PendingMedia | null;
+  const [revision] = await db
+    .select({ payload: productRevisions.payload, media: productRevisions.media })
+    .from(productRevisions)
+    .where(eq(productRevisions.productId, input.productId))
+    .limit(1);
+  if (!revision) throw new ProfileError("NOT_FOUND", "Aucune révision en attente.");
+  const payload = (revision.payload ?? {}) as Record<string, unknown>;
+  const media = (revision.media ?? null) as PendingMedia | null;
 
   if (input.decision === "rejected") {
     await purgePendingMedia(media);
+    await db.delete(productRevisions).where(eq(productRevisions.productId, input.productId));
     await db
       .update(products)
-      .set({
-        pendingPayload: null,
-        pendingMedia: null,
-        pendingAt: null,
-        pendingBy: null,
-        updatedAt: new Date(),
-      })
+      .set({ updatedAt: new Date() })
       .where(eq(products.id, input.productId));
     return { applied: false };
   }
@@ -2188,6 +2374,14 @@ export async function reviewRevision(input: {
     }
     patch[key] = value;
   }
+  // L'orientation approuvée : la galerie bascule ET les captures de
+  // l'autre orientation sont purgées (maintenant, pas à l'enregistrement
+  // — sinon la galerie publiée se vidait pendant que la révision
+  // attendait).
+  const orientationApprouvee =
+    payload.galleryOrientation === "portrait" || payload.galleryOrientation === "landscape"
+      ? (payload.galleryOrientation as "portrait" | "landscape")
+      : null;
 
   // Médias : on remplace (l'ancien logo et les anciennes captures
   // partent à la poubelle, comme à l'édition directe).
@@ -2220,14 +2414,14 @@ export async function reviewRevision(input: {
 
   await db
     .update(products)
-    .set({
-      ...(patch as Record<string, never>),
-      pendingPayload: null,
-      pendingMedia: null,
-      pendingAt: null,
-      pendingBy: null,
-    })
+    .set(patch as Record<string, never>)
     .where(eq(products.id, input.productId));
+  await db.delete(productRevisions).where(eq(productRevisions.productId, input.productId));
+  // La galerie bascule avec l'approbation : les captures de l'autre
+  // orientation partent (elles ne peuvent pas cohabiter).
+  if (orientationApprouvee && orientationApprouvee !== row.galleryOrientation) {
+    await purgeScreenshotsOffOrientation(input.productId, orientationApprouvee);
+  }
   return { applied: true };
 }
 

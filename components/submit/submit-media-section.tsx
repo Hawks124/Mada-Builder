@@ -9,8 +9,14 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useSubmitForm } from "@/components/submit/submit-form-context";
 import { getProductTypeById, type GalleryOrientation } from "@/config/product-types";
 import { LOGO_MIN_PX, isShotTooSmall, shotTooSmallMessage } from "@/lib/media-limits";
+import { measureImage } from "@/components/submit/compress-image";
 
-const MAX_SHOTS = 6;
+/**
+ * Quota captures : 8 = parité stores (Play plafonne à 8, App Store à 10).
+ * Miroir affichage du `MAX_SHOTS` service (source de vérité serveur) —
+ * si l'un change, l'autre suit (aucun fichier de config partagé ici).
+ */
+const MAX_SHOTS = 8;
 
 type ShotPreview = {
   file: File;
@@ -21,23 +27,6 @@ type ShotPreview = {
   /** Bucket mesuré (carré → orientation du moment, jamais rejeté). */
   bucket: GalleryOrientation;
 };
-
-/** Dimensions d'un fichier image côté navigateur (le serveur tranche). */
-function loadDims(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("illisible"));
-    };
-    img.src = url;
-  });
-}
 
 function bucketOf(width: number, height: number, declared: GalleryOrientation): GalleryOrientation {
   const ratio = width / height;
@@ -154,7 +143,7 @@ export function SubmitMediaSection() {
       return;
     }
     try {
-      const { width, height } = await loadDims(f);
+      const { width, height } = await measureImage(f);
       if (Math.min(width, height) < LOGO_MIN_PX) {
         setLogoError(`Logo trop petit — ${LOGO_MIN_PX} px minimum.`);
         e.target.value = "";
@@ -186,7 +175,7 @@ export function SubmitMediaSection() {
         }
         let dims: { width: number; height: number } | null = null;
         try {
-          dims = await loadDims(f);
+          dims = await measureImage(f);
         } catch {
           // Illisible côté client : accepté sous réserve, serveur tranche.
         }
@@ -442,9 +431,7 @@ export function SubmitMediaSection() {
                 className="w-7 h-7 opacity-70 group-hover:opacity-100 transition-opacity"
               />
               <span className="text-[14px] font-bold opacity-80 group-hover:opacity-100 transition-opacity">
-                {checking
-                  ? "Vérification…"
-                  : `Ajouter (${visibleShots.length > 0 ? visibleShots.length : (existingMedia?.shots.length ?? 0)}/${MAX_SHOTS})`}
+                {checking ? "Vérification…" : `Ajouter (${visibleShots.length}/${MAX_SHOTS})`}
               </span>
             </button>
           )}
@@ -504,10 +491,16 @@ export function SubmitMediaSection() {
                 </span>
               </div>
             ))}
-          {visibleShots.length === 0 && (existingMedia?.shots.length ?? 0) > 0 && (
-            <p className="text-[12px] font-medium text-muted-foreground col-span-full">
-              {existingMedia!.shots.length} capture(s) actuelle(s) conservée(s) — en ajouter
-              remplace toute la galerie.
+          {/* Avertissement AVANT planification (toujours visible en
+              édition tant que des captures existent) : le serveur
+              REMPLACE la galerie en bloc — « (0/6) » est arithmétiquement
+              juste mais silencieux sur la perte, donc on le dit en
+              permanence, même après la première capture ajoutée. */}
+          {(existingMedia?.shots.length ?? 0) > 0 && (
+            <p className="text-[12px] font-bold text-amber-600 dark:text-amber-400 col-span-full leading-relaxed">
+              {visibleShots.length === 0
+                ? `${existingMedia!.shots.length} capture(s) actuelle(s) — en ajouter remplace toute la galerie.`
+                : `Les ${existingMedia!.shots.length} capture(s) actuelle(s) ne seront pas conservées : la galerie sera remplacée par les ${visibleShots.length} nouvelle(s) à l'enregistrement.`}
             </p>
           )}
           {(shotsError !== null || hiddenCount > 0 || errors["screenshots"]) && (

@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { ApiError, apiCatch, methodNotAllowed } from "@/lib/api/response";
+import { apiLimit } from "@/lib/api/ratelimit";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { products } from "@/db/schema";
@@ -19,10 +20,19 @@ export const DELETE = async () => methodNotAllowed(["GET"]);
  * (`sha256_file`) après téléchargement (contrat install D4).
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   context: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
+    // Rate-limit IP (lot B) : cette route historique servait et comptait
+    // sans aucune garde — même fenêtre que la v1 (burst légitime large,
+    // flood stoppé). Sans fiable x-forwarded-for : sans limite (fail-open
+    // coherente avec la façade Upstash).
+    const forwarded = req.headers.get("x-forwarded-for");
+    const ip = forwarded?.split(",")[0]?.trim();
+    if (ip) {
+      await apiLimit("api:products:download", ip, { window: "60 s", max: 300 });
+    }
     const { id } = await context.params;
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
       throw new ApiError("NOT_FOUND", 404, "Produit introuvable.");

@@ -6,19 +6,20 @@ import { ProfileError } from "@/services/users.service";
 import { checkLimit } from "@/lib/ratelimit";
 import { captureError } from "@/lib/monitoring";
 import { checkVoter } from "@/services/votes.service";
-import { notify } from "@/services/notifications.service";
 
 /**
  * Domaine avis + commentaires — mêmes disciplines que les votes :
  * auth requise, compte < 1 h refusé (checkVoter), rate-limits, Zod
- * serveur, compteurs par RECOMPTE en transaction (jamais d'incrément),
- * soft delete auteur, suppression staff avec audit.
+ * serveur, soft delete auteur, suppression staff avec audit.
  * - Avis : 1/user/produit (`UNIQUE`), note 1-5 + texte REQUIS (10-2000),
  *   modifiable ; réponse maker UNIQUE et officielle (pas de thread).
  * - Commentaires : thread 1 NIVEAU (reply de reply refusé), votes +1/-1
  *   toggle (`UNIQUE(user,comment)`), tri score puis récence.
+ * EFFETS DE BORD (0055) : compteurs (ratings_sum/ratings_count/
+ * comments_count/score) et notifications sont posés par les TRIGGERS
+ * du pont (bridge_*) — le service n'écrit PLUS ces effets (aucun
+ * double-compte, comportement identique web/mobile).
  */
-
 const reviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
   body: z.string().trim().min(10).max(2000),
@@ -91,7 +92,7 @@ export async function upsertReview(input: {
     throw new ProfileError("VALIDATION", "Avis : 10 caractères minimum (2000 max).");
   }
   await checkVoter(input.viewerId);
-  const product = await requirePublishedProduct(input.productId);
+  await requirePublishedProduct(input.productId);
   await assertNotCurated(input.productId);
   await assertFeedbackLimit(input.viewerId, "review");
   const result = await db.transaction(async (tx) => {
@@ -107,17 +108,11 @@ export async function upsertReview(input: {
       )
       .limit(1);
     if (existing) {
-      const delta = parsed.data.rating - existing.rating;
+      // Compteurs : trigger bridge_reviews_write (0055) — delta à l'édit.
       await tx
         .update(reviews)
         .set({ rating: parsed.data.rating, body: parsed.data.body, updatedAt: new Date() })
         .where(eq(reviews.id, existing.id));
-      if (delta !== 0) {
-        await tx
-          .update(products)
-          .set({ ratingsSum: sql`${products.ratingsSum} + ${delta}` })
-          .where(eq(products.id, input.productId));
-      }
       return { id: existing.id, rating: parsed.data.rating, created: false };
     }
     // createdAt = updatedAt (même objet) : jamais de faux « modifié ».
@@ -133,29 +128,8 @@ export async function upsertReview(input: {
         updatedAt: now,
       })
       .returning({ id: reviews.id });
-    await tx
-      .update(products)
-      .set({
-        ratingsSum: sql`${products.ratingsSum} + ${parsed.data.rating}`,
-        ratingsCount: sql`${products.ratingsCount} + 1`,
-      })
-      .where(eq(products.id, input.productId));
     return { id: created.id, rating: parsed.data.rating, created: true };
   });
-  if (result.created && product.makerId !== input.viewerId) {
-    const [named] = await db
-      .select({ name: products.name })
-      .from(products)
-      .where(eq(products.id, input.productId))
-      .limit(1);
-    await notify({
-      userId: product.makerId,
-      kind: "review_received",
-      title: `Nouvel avis sur ${named?.name ?? "votre produit"} (${parsed.data.rating}/5)`,
-      productId: input.productId,
-      actorId: input.viewerId,
-    });
-  }
   return result;
 }
 
@@ -176,16 +150,9 @@ export async function deleteOwnReview(input: {
     .limit(1);
   if (!row) throw new ProfileError("NOT_FOUND", "Avis introuvable.");
   if (row.userId !== input.viewerId) throw new ProfileError("FORBIDDEN", "Avis d'autrui.");
-  await db.transaction(async (tx) => {
-    await tx.update(reviews).set({ deletedAt: new Date() }).where(eq(reviews.id, row.id));
-    await tx
-      .update(products)
-      .set({
-        ratingsSum: sql`${products.ratingsSum} - ${row.rating}`,
-        ratingsCount: sql`GREATEST(${products.ratingsCount} - 1, 0)`,
-      })
-      .where(eq(products.id, row.productId));
-  });
+  // Le compteur (ratings_sum/-rating, GREATEST sur le décompte) vit dans
+  // le trigger bridge_reviews_write (0055) — jamais deux écrivains.
+  await db.update(reviews).set({ deletedAt: new Date() }).where(eq(reviews.id, row.id));
 }
 
 /** Réponse maker (UNIQUE, officielle) — seul le maker de la fiche. */
@@ -227,16 +194,8 @@ export async function deleteReviewAsStaff(input: {
     .where(and(eq(reviews.id, input.reviewId), isNull(reviews.deletedAt)))
     .limit(1);
   if (!row) throw new ProfileError("NOT_FOUND", "Avis introuvable.");
-  await db.transaction(async (tx) => {
-    await tx.update(reviews).set({ deletedAt: new Date() }).where(eq(reviews.id, row.id));
-    await tx
-      .update(products)
-      .set({
-        ratingsSum: sql`${products.ratingsSum} - ${row.rating}`,
-        ratingsCount: sql`GREATEST(${products.ratingsCount} - 1, 0)`,
-      })
-      .where(eq(products.id, row.productId));
-  });
+  // Compteur : trigger bridge_reviews_write (0055) — le retrait y vit.
+  await db.update(reviews).set({ deletedAt: new Date() }).where(eq(reviews.id, row.id));
   return { productId: row.productId };
 }
 
@@ -324,9 +283,8 @@ export async function addComment(input: {
   const parsed = commentSchema.safeParse({ body: input.body });
   if (!parsed.success) throw new ProfileError("VALIDATION", "Commentaire : 1 à 1000 caractères.");
   await checkVoter(input.viewerId);
-  const product = await requirePublishedProduct(input.productId);
+  await requirePublishedProduct(input.productId);
   await assertFeedbackLimit(input.viewerId, "comment");
-  let parentAuthorId: string | null = null;
   if (input.parentId) {
     const [parent] = await db
       .select({
@@ -344,7 +302,6 @@ export async function addComment(input: {
     if (parent.parentId !== null) {
       throw new ProfileError("VALIDATION", "Un niveau de réponse uniquement.");
     }
-    parentAuthorId = parent.userId;
   }
   const created = await db.transaction(async (tx) => {
     // createdAt = updatedAt (même objet) : jamais de faux « modifié ».
@@ -360,39 +317,10 @@ export async function addComment(input: {
         updatedAt: now,
       })
       .returning({ id: comments.id });
-    await tx
-      .update(products)
-      .set({ commentsCount: sql`${products.commentsCount} + 1` })
-      .where(eq(products.id, input.productId));
+    // Compteurs + notifs (maker + parent) : triggers bridge_comments_write
+    // et bridge_comments_notify (0055) — jamais deux écrivains.
     return { id: row.id };
   });
-  // Notifs : maker (sauf son propre commentaire) + auteur du parent
-  // (sauf soi-même et sauf maker déjà notifié).
-  const [named] = await db
-    .select({ name: products.name })
-    .from(products)
-    .where(eq(products.id, input.productId))
-    .limit(1);
-  const productName = named?.name ?? "votre produit";
-  const targets = new Set<string>();
-  if (product.makerId !== input.viewerId) targets.add(product.makerId);
-  if (parentAuthorId && parentAuthorId !== input.viewerId && parentAuthorId !== product.makerId) {
-    targets.add(parentAuthorId);
-  }
-  await Promise.all(
-    [...targets].map((userId) =>
-      notify({
-        userId,
-        kind: parentAuthorId && userId === parentAuthorId ? "comment_replied" : "comment_received",
-        title:
-          parentAuthorId && userId === parentAuthorId
-            ? `Réponse à votre commentaire sur ${productName}`
-            : `Nouveau commentaire sur ${productName}`,
-        productId: input.productId,
-        actorId: input.viewerId,
-      }),
-    ),
-  );
   return created;
 }
 
@@ -408,13 +336,9 @@ export async function deleteOwnComment(input: {
     .limit(1);
   if (!row) throw new ProfileError("NOT_FOUND", "Commentaire introuvable.");
   if (row.userId !== input.viewerId) throw new ProfileError("FORBIDDEN", "Commentaire d'autrui.");
-  await db.transaction(async (tx) => {
-    await tx.update(comments).set({ deletedAt: new Date() }).where(eq(comments.id, row.id));
-    await tx
-      .update(products)
-      .set({ commentsCount: sql`GREATEST(${products.commentsCount} - 1, 0)` })
-      .where(eq(products.id, row.productId));
-  });
+  // Compteur : trigger bridge_comments_write (0055) — le GREATEST décompte
+  // y vit désormais.
+  await db.update(comments).set({ deletedAt: new Date() }).where(eq(comments.id, row.id));
 }
 
 /**
@@ -478,15 +402,16 @@ export async function toggleCommentVote(input: {
         .insert(commentVotes)
         .values({ userId: input.viewerId, commentId: input.commentId, value: input.value });
     }
+    // Score : RECOMPTE exact (sémantique TS conservée pour la réponse) —
+    // l'écriture comments.score est posée par le trigger
+    // bridge_comment_votes_write (0055), le service ne l'écrit plus.
     const [counts] = await tx
       .select({
         score: sql<number>`coalesce(sum(case when ${commentVotes.value} = 'up' then 1 else -1 end), 0)::int`,
       })
       .from(commentVotes)
       .where(eq(commentVotes.commentId, input.commentId));
-    const score = counts?.score ?? 0;
-    await tx.update(comments).set({ score }).where(eq(comments.id, input.commentId));
-    return { voted, score };
+    return { voted, score: counts?.score ?? 0 };
   });
 }
 

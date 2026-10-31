@@ -36,8 +36,8 @@ async function main(): Promise<void> {
       const r = await sweepR2Orphans();
       console.log(`jobs: R2 scannǸs ${r.scanned}, orphelins purgǸs ${r.deleted}`);
       const { abortStaleMultipartUploads } = await import("@/lib/r2");
-      const m = await abortStaleMultipartUploads().catch(() => ({ aborted: 0 }));
-      console.log(`jobs: multipart abandonnés (> 24 h) : ${m.aborted}`);
+      const m = await abortStaleMultipartUploads().catch(() => ({ aborted: 0, failed: 0 }));
+      console.log(`jobs: multipart abandonnés (> 24 h) : ${m.aborted} (échecs ${m.failed})`);
     }
   }
   if (which === "all" || which === "notifs") {
@@ -52,7 +52,11 @@ async function main(): Promise<void> {
   }
   if (which === "digest") {
     const dry = process.argv.includes("--dry-run");
-    const r = await sendWeeklyDigest({ dryRun: dry });
+    // `--force` efface le verrou de la semaine (rattrapage après un
+    // envoi avorté — lot B). Jamais en cron de nuit : le verrou hebdo
+    // est là pour ça.
+    const force = process.argv.includes("--force");
+    const r = await sendWeeklyDigest({ dryRun: dry, force });
     console.log(`jobs: digest ${dry ? "(dry-run) " : ""}éligibles=${r.eligible} envoyés=${r.sent}`);
   }
   if (which === "audience") {

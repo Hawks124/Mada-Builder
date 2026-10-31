@@ -68,6 +68,14 @@ export const productBuilds = pgTable(
     uniqueIndex("product_builds_product_version_uidx")
       .on(t.productId, t.versionCode)
       .where(sql`status in ('pending', 'approved')`),
+    // Index PARTIEL (migration 0057) : un seul build PENDING par produit.
+    // Ferme la course du pré-check `stillPending` du service (TOCTOU :
+    // deux envois simultanés lisaient tous deux « rien en revue » et
+    // inséraient tous deux) — la base reste l'arbitre, le service gère le
+    // refus 23505 par statut de contrainte.
+    uniqueIndex("product_builds_one_pending_uidx")
+      .on(t.productId)
+      .where(sql`status = 'pending'`),
     index("product_builds_product_created_idx").on(t.productId, t.createdAt),
   ],
 );

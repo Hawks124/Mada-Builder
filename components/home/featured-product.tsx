@@ -167,7 +167,9 @@ export function FeaturedProduct({
             {/* Divider */}
             <div className="w-px bg-border/60 self-stretch" />
 
-            {/* Comment */}
+            {/* Discussions — count = comments_count (dénorm, réel). Le
+                libellé suit la fiche produit (« Commentaires ») : « avis »
+                est réservé aux ratings (V1.5, jamais de faux « sur 5 »). */}
             {preview ? (
               <span className="flex flex-col items-center gap-1">
                 <ChatCircleTextIcon weight="fill" className="w-7 h-7 text-muted-foreground" />
@@ -175,13 +177,13 @@ export function FeaturedProduct({
                   {product.comments}
                 </span>
                 <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
-                  avis
+                  commentaires
                 </span>
               </span>
             ) : (
               <Link
                 href={`/products/${product.id}#comments`}
-                aria-label={`${product.comments} avis`}
+                aria-label={`${product.comments} commentaires`}
                 className="flex flex-col items-center gap-1 group cursor-pointer"
               >
                 <ChatCircleTextIcon
@@ -192,7 +194,7 @@ export function FeaturedProduct({
                   {product.comments}
                 </span>
                 <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
-                  avis
+                  commentaires
                 </span>
               </Link>
             )}

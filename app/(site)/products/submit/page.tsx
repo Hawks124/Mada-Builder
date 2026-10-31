@@ -40,7 +40,7 @@ export default async function SubmitProductPage({
         hasTrack =
           (await getProductsBuildStatus([found.id]).catch(() => null))?.[found.id]?.hasBuilds ??
           false;
-        pendingRevisionAt = found.pendingAt ?? null;
+        pendingRevisionAt = found.revisionAt ?? null;
       }
     }
   }

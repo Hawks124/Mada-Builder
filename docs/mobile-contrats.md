@@ -48,8 +48,11 @@ incluses, enveloppe stable). Règles directes :
   maker via `GET /makers/[username]` (rend `isCuration` + clause en bio).
 - Produits d'un maker : `id` depuis `GET /makers/[username]` puis
   `products?maker_id=eq.{id}&status=eq.published&order=published_at.desc`.
-- `votes`, compteurs, `users`, écritures : voir §2 et docs data
-  (jamais en direct).
+- Écritures **avis / commentaires / votes de commentaires** : en DIRECT
+  (migration 0055 — `docs/mobile-ecritures-directes.md` : surface par
+  colonne, codes d'erreur, raisons de la garde). Le reste (`votes`
+  produits, compteurs, `users`, fiche) : API v1 et docs data (jamais en
+  direct).
 
 ## 1-ter. Les liens d'un produit (`products.links`)
 
@@ -134,10 +137,56 @@ sont bien dans le jsonb :
 
 - `privacy` · `changelog` · `tos` · `kidsafety`
 
-À l'écriture, l'API v1 est en mode **merge** : un champ lien absent
-de la payload est **conservé**, un champ envoyé vide **efface** le
-lien. (Le formulaire web, lui, envoie tous les champs : son
-résultat est un remplacement complet — même sortie.)
+### Écrire les liens : 31 champs, PAS un objet `links`
+
+L'écriture ne prend **pas** un objet `links`. Le contrat est le même
+que le formulaire web : **un champ multipart par clé**, le nom du champ
+= l'id de la clé (`website`, `source`, `demo`, `docs`, `download`,
+`video`, `appstore`, `playstore`, `registry`, `privacy`, `changelog`…).
+
+Envoyer `links` en JSON est **ignoré silencieusement** (le champ n'est
+pas lu) : la fiche garde ses liens, et le mobile croit les avoir
+changés.
+
+| Ce que le mobile envoie       | Effet                                     |
+| ----------------------------- | ----------------------------------------- |
+| un champ lien **absent**      | **conservé** (mode merge)                 |
+| un champ lien **vide**        | **effacé**                                |
+| `changelogUrl` (champ séparé) | écrit le lien `changelog`                 |
+| `links` (objet JSON)          | **ignoré** — n'existe pas dans le contrat |
+
+> ⚠️ Ne pas envoyer `changelogUrl` **seul** sans les champs liens : le
+> mode merge est explicite côté serveur, mais une PATCH qui ne porte
+> que `changelogUrl` ne touche qu'au changelog (les autres liens sont
+> conservés). C'est le comportement voulu — mais si tu veux changer
+> plusieurs liens, envoie les champs correspondants (absent = conservé).
+
+## 1-quater. Les révisions en attente (fiche publiée modifiée)
+
+Quand le maker modifie le **contenu sensible** d'une fiche DÉJÀ en
+ligne (nom, tagline, description, liens, tags, requirements, commande
+d'installation, orientation de la galerie) ou ses **médias** (logo,
+captures), la modification **n'est pas appliquée** : la fiche reste en
+ligne avec son contenu validé, et la modification attend un regard
+admin (la règle des stores — les changements ne filent pas).
+
+| Où                             | Ce que tu vois                                              |
+| ------------------------------ | ----------------------------------------------------------- |
+| La fiche publique              | le contenu **validé** (jamais le contenu en attente)        |
+| `GET /me/products`             | le contenu **validé** + la fiche telle qu'elle est en base  |
+| Le tableau de bord maker (web) | le contenu **proposé** + un bandeau « en attente de revue » |
+| `/preview/{id}` (aperçu)       | le contenu **proposé** (c'est son rôle)                     |
+| L'admin                        | une ligne dans « Révisions » avec le diff                   |
+
+**La table `product_revisions` est en deny-all** (RLS + `REVOKE` pour
+`anon` et `authenticated`) : elle n'est **pas** lisible en direct. Ne
+la mets pas dans une requête PostgREST → `permission denied`. La liste
+des révisions passe par l'admin (staff) ou par le tableau de bord
+maker (qui passe par le service).
+
+Conséquence pour le mobile : **rien de special à faire** — lis
+`products` comme avant (les colonnes `pending_*` n'existent plus, donc
+un `select=*` reste valide et ne ramène plus de contenu non validé).
 
 ## 2. Enveloppe & erreurs (le `switch` Dart s'appuie sur `code`)
 
@@ -175,6 +224,7 @@ résultat est un remplacement complet — même sortie.)
 | `PATCH /me`                                   | Bearer            | JSON partiel (clés inconnues ignorées ; `timeZone` = IANA réel, jamais bloquant)                                                                                                                                                                                                                                                                                          | profil frais complet                                                                                                                                                                                                                                                                                   |
 | `PATCH /me/preferences`                       | Bearer            | `{ digestOptOut: boolean }` (préférences notif, extensible ; même service que le switch web)                                                                                                                                                                                                                                                                              | `{ digestOptOut }` frais (pas de refetch)                                                                                                                                                                                                                                                              |
 | `POST /me/avatar`                             | Bearer            | multipart `avatar`                                                                                                                                                                                                                                                                                                                                                        | `{ avatarUrl }`                                                                                                                                                                                                                                                                                        |
+| `GET /me/export`                              | Bearer            | Export RGPD complet (JSON : profil, produits, avis, commentaires, votes)                                                                                                                                                                                                                                                                                                  |
 | `DELETE /me`                                  | Bearer (banni OK) | `{"confirm":true}` exigé                                                                                                                                                                                                                                                                                                                                                  | `{ deleted: true }` → purger les tokens côté client                                                                                                                                                                                                                                                    |
 | `GET /onboarding`                             | Bearer (banni OK) | —                                                                                                                                                                                                                                                                                                                                                                         | `{ done, missing, form }` (`form.email` vide si placeholder)                                                                                                                                                                                                                                           |
 | `POST /onboarding`                            | Bearer (banni OK) | `{ displayName?, email?, occupation?, timeZone? }` (`timeZone` = IANA réel du device, validé serveur, best-effort)                                                                                                                                                                                                                                                        | `{ username, done, missing }` (`done` = aller au home)                                                                                                                                                                                                                                                 |
@@ -190,7 +240,7 @@ résultat est un remplacement complet — même sortie.)
 | `PATCH /me/notifications`                     | Bearer (banni OK) | `{ ids?: string[] }` (absent = tout-lu)                                                                                                                                                                                                                                                                                                                                   | `{ updated }` (tout-marquer-lu ou par ids)                                                                                                                                                                                                                                                             |
 | `GET /products`                               | non               | `?limit` (1–50, défaut 20) + `?cursor` opaque ; `?q` + `?page` (défaut 1) ; filtres répétés (`types`, `platforms`, `pricing`, `lifecycle`, `ages`, `cat`)                                                                                                                                                                                                                 | sans `q` : `{ items, nextCursor }` (nouveautés, `null` = fin ; items portent `curated` → badge Veille) ; avec `q` : `{ items, nextCursor: null, page, total }` (pertinence — le rang n'est pas keyset)                                                                                                 |
 | `GET /products/[id\|slug]`                    | optionnel         | —                                                                                                                                                                                                                                                                                                                                                                         | fiche complète (screenshots, maker, `voted` si Bearer valide, `false` sinon) ; 404 si inconnu/dépublié                                                                                                                                                                                                 |
-| `POST /products`                              | Bearer            | multipart : champs texte + `logo` + `screenshots` ×0–6 (`intent=publish` exige logo + ≥1 capture ; défaut brouillon)                                                                                                                                                                                                                                                      | 201 `{ id, slug, status }` (fiche complète en Phase 4 via `GET /[slug]`)                                                                                                                                                                                                                               |
+| `POST /products`                              | Bearer            | multipart : champs texte + `logo` + `screenshots` ×0–8 (`intent=publish` exige logo + ≥1 capture ; défaut brouillon)                                                                                                                                                                                                                                                      | 201 `{ id, slug, status }` (fiche complète en Phase 4 via `GET /[slug]`)                                                                                                                                                                                                                               |
 | `PATCH /products/[id]`                        | Bearer            | multipart partiel (absent = conservé ; fichiers = remplacement total)                                                                                                                                                                                                                                                                                                     | `{ slug, status, rereview }` (nom/liens d'une fiche published → `pending`)                                                                                                                                                                                                                             |
 | `POST /products/[id]/vote`                    | Bearer            | —                                                                                                                                                                                                                                                                                                                                                                         | toggle `{ voted, upvoteCount, counted }` (`counted=false` = shadow-weighting : affiché, hors classement) ; 422 + `data.reason: "account_too_young"` (< 1 h) → dialogue explicatif + lien conditions (textes ci-dessous, jamais de match sur le message FR)                                             |
 | `GET /products/[id]/reviews`                  | optionnel         | `?limit` (1–50, défaut 20)                                                                                                                                                                                                                                                                                                                                                | `{ items, distribution }` (moyenne + par-étoile ; `own` si Bearer ; `author{username,displayName,avatarUrl,occupation}` — occupation = id brut, label via `GET /meta`, jamais d'email) — cache court                                                                                                   |
@@ -202,8 +252,8 @@ résultat est un remplacement complet — même sortie.)
 | `POST /uploads/presign` (apk)                 | Bearer            | `{ kind: "apk", productId, contentLength }` (≤300 Mo, APK universel ; type imposé)                                                                                                                                                                                                                                                                                        | 200 `{ url, key, expiresIn }` — PUT direct R2 (15 min) puis `POST /products/[id]/builds`                                                                                                                                                                                                               |
 | `POST /uploads/presign` (apk-multipart)       | Bearer            | `{ kind: "apk-multipart", action, ... }` — `create {productId, contentLength}` → `{uploadId, key}` ; `part {productId, key, uploadId, partNumber}` → `{url}` ; `parts {productId, key, uploadId}` → `{parts:[{n, etag}]}` (reprise) ; `complete {productId, key, uploadId, parts:[{n, etag}]}` ; `abort {...}` — parts 8 Mo conseillées, record inchangé après `complete` | Multipart resumable (D6) : retry par part, reprise via `parts`, abandons purgés > 24 h ; < 16 Mo = single-shot                                                                                                                                                                                         |
 | `POST /products/[id]/builds`                  | Bearer            | `{ r2Key, sha256, sizeBytes, versionCode?, versionName? }` (clé confinée vérifiée, HEAD prouvé)                                                                                                                                                                                                                                                                           | 201 `{ buildId }` (statut `pending`, revue bloquante D4) — détail : `docs/data/product_builds.md`                                                                                                                                                                                                      |
-| `GET /products/[id]/revenue`                  | non               | —                                                                                                                                                                                                                                                                                                                                                                         | `{ provider, displayMode, mrrCents, currency, activeSubscribers, lastSyncedAt, history[90] }` (cache court) — 404 sans connexion ; jamais la clé, jamais de PII (BÊTA)                                                                                                                                 |
-| `GET /products/[id]/revenue-connections`      | Bearer (maker)    | — (fiche à soi, sinon 404)                                                                                                                                                                                                                                                                                                                                                | `{ provider, displayMode, status, lastSyncedAt, lastError }` (sans clé)                                                                                                                                                                                                                                |
+| `GET /products/[id]/revenue`                  | non               | `{ mrrCents, arrCents, activeSubscribers, currency, lastSyncedLabel, displayMode }` (arrCents = mrrCents × 12)                                                                                                                                                                                                                                                            |
+| `GET /products/[id]/revenue-connections`      | Bearer (maker)    | `{ provider, keyHint, displayMode, status, lastError?, failedCount }` (fiche à soi, sinon 404)                                                                                                                                                                                                                                                                            |
 | `POST /products/[id]/revenue-connections`     | Bearer (maker)    | `{ provider, key, config?, displayMode? }` (5/h ; probe live + chiffrement)                                                                                                                                                                                                                                                                                               | 201 `{ connectionId, provider, keyHint }` — 422 si probe refusée (clé/permissions/config)                                                                                                                                                                                                              |
 | `DELETE /products/[id]/revenue-connections`   | Bearer (maker)    | — (1 connexion/fiche)                                                                                                                                                                                                                                                                                                                                                     | `{ revoked: true }` (clé purgée, snapshots conservés) — guides : `content/guides/revenus-verifies-*.md`                                                                                                                                                                                                |
 | `GET /api/products/[id]/download`             | aucun             | —                                                                                                                                                                                                                                                                                                                                                                         | 302 vers URL GET signée courte (dernier build approuvé ; 404 si fiche non publiée ou sans binaire) — **vérifier le SHA-256** (`latestBuild.sha256` de la fiche) après téléchargement, avant install (contrat install D4 : un tap, jamais silencieux)                                                   |
@@ -243,7 +293,7 @@ d'orientation **purge** les captures de l'orientation abandonnée (le web
 le demande avant, l'API doit le faire) ; tagline 1–220 ; logo ≥ 256 px ;
 captures ≥ 400 px — **côté LONG pour un GIF** (un export d'animation
 fait 240×480 : la règle du côté court le refusait à tort) —
-ratio hors 1:3…3:1 refusé ; quota 6 ;
+ratio hors 1:3…3:1 refusé ; quota 8 ;
 **compresser côté Flutter (< 2 Mo)** comme §4 (le serveur plafonne à 10 Mo
 mais tronque serverless vers ~4,5 Mo) ; `requirements` = **tableau JSON**
 de strings (config requise, game/desktop/os — max 8 × 80, jamais du texte
@@ -255,6 +305,20 @@ max) ; elles sont affichées publiquement sur la fiche, sous le bouton
 « Installer l'APK ». Compteur de téléchargements : `products.download_count`
 (`downloadCount` dans l'API, déjà exposé) — cumulé par produit,
 reconstruit par le job ; il est désormais affiché sur la fiche publique.
+
+**CHANGEMENT DE CONTRAT (option B, 2026-10-27 ; migration 0054)** :
+l'écriture PostgREST directe sur `product_downloads` est **FERMÉE**
+(policy anon supprimée + `REVOKE INSERT`) — **ne plus jamais insérer
+depuis l'app**. La route serveur (`GET /api/v1/products/[id]/download`
+puis legacy `/api/products/[id]`) est seule comptable des événements (elle-même et la route legacy
+`/api/products/[id]/download`) ; le compteur reste lu en base et
+exposé, sans autre action côté mobile.
+(Ne PAS replier sur l'ancien `supabase_patch.sql` d'histoire : il
+recréerait la policy — la doctrine actuelle est « migrations web
+versionnées ».) L'INSERT anon sur `product_page_views` (journalisation
+des vues) reste VALIDE, avec un anti-burst : au-delà de ~60
+événements/min/produit, l'événement est stocké sans incrémenter
+`view_count` — aucun impact pour un client légitime.
 
 Règles produit à réimplémenter à l'identique : nom ≥ 2 caractères ;
 occupation = `GET /meta` (vocabulaire fermé servi par le backend — jamais

@@ -1,7 +1,10 @@
 # Table `comment_votes`
 
 Votes +1/−1 sur commentaires, toggle (même valeur = retrait), `UNIQUE`
-par couple. Score du commentaire = recompte exact en transaction.
+par couple. Score du commentaire = recompte par trigger
+(`bridge_comment_votes_write`). **Corollaire d'ingénierie du pont
+0055, jamais demandé par la squad** (la demande portait avis +
+commentaires) — assumé pour livrer un fil complet.
 
 ## Colonnes
 
@@ -19,13 +22,16 @@ Contrainte : `UNIQUE(user_id, comment_id)`.
 
 - `comment_votes_select_own` : `authenticated`, `auth.uid() = user_id`
   (afficher « mes votes » en direct).
-- **AUCUNE écriture directe** : toggle + recompte en transaction.
+- Pont 0055 : policies identités-only (`insert/update/delete_own`) +
+  grants PAR COLONNE ; score du commentaire par TRIGGER.
+- **Écriture directe OUVERTE** : la surface exacte fait foi dans
+  `docs/mobile-ecritures-directes.md` (migration 0055).
 
-## Règles métier miroir (serveur, jamais client)
+## Règles métier (la base arbitre — garde 0055)
 
 - Commentaire existant, non supprimé, fiche publiée.
-- Compte < 1 h refusé (même règle que les votes).
-- Score = `SUM(+1/−1)` exact, jamais d'incrément.
+- Compte < 1 h refusé par la garde (`account_too_young`).
+- Score = `SUM(+1/−1)` exact par recompte, jamais d'incrément.
 
 ## Realtime
 
@@ -34,5 +40,6 @@ Contrainte : `UNIQUE(user_id, comment_id)`.
 ## Usage mobile
 
 - **Lecture directe OK** (mes votes : `WHERE user_id = moi`).
-- **Écriture** : `POST /comments/[id]/vote` (`{ value }`, idempotent
-  par clé) → `{ voted, score }`.
+- **Écriture en direct (pont 0055)** : INSERT + UPDATE `value` (toggle)
+  / DELETE (retrait) PostgREST — `docs/mobile-ecritures-directes.md`
+  fait foi.

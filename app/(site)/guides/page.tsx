@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BookOpenIcon, KeyIcon, SealCheckIcon } from "@phosphor-icons/react/dist/ssr";
+import {
+  BookOpenIcon,
+  KeyIcon,
+  RocketLaunchIcon,
+  SealCheckIcon,
+} from "@phosphor-icons/react/dist/ssr";
 
 export const metadata: Metadata = {
   title: "Guides makers | Mada-Made",
@@ -29,6 +34,27 @@ export default function GuidesPage() {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Link
+            href="/guides/publier"
+            className="group flex gap-4 rounded-2xl border border-border/40 bg-muted/30 p-6 hover:bg-muted/60 transition-colors"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/25">
+              <RocketLaunchIcon
+                weight="fill"
+                className="h-5 w-5 text-emerald-600 dark:text-emerald-400"
+              />
+            </span>
+            <span className="flex flex-col gap-1 min-w-0">
+              <span className="text-[17px] font-extrabold tracking-tight text-foreground group-hover:text-primary transition-colors">
+                Publier son produit
+              </span>
+              <span className="text-[14px] font-medium text-muted-foreground leading-relaxed">
+                Pourquoi publier, checklist de lancement, le formulaire champ par champ et la revue
+                humaine (fiche + binaire) — le mode d&apos;emploi complet.
+              </span>
+            </span>
+          </Link>
+
           <Link
             href="/guides/signature-apk"
             className="group flex gap-4 rounded-2xl border border-border/40 bg-muted/30 p-6 hover:bg-muted/60 transition-colors"
@@ -77,7 +103,7 @@ export default function GuidesPage() {
                 Plus de guides à venir
               </span>
               <span className="text-[14px] font-medium text-muted-foreground leading-relaxed">
-                Publier, classements, distribution : la bibliothèque grandit avec vos questions.
+                Classement, distribution, analytics : la bibliothèque grandit avec vos questions.
               </span>
             </span>
           </div>

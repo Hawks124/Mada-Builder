@@ -133,8 +133,13 @@ export function UpdateClient({
     pending.manifest.versionCode <= latestVersionCode;
   const notesRequired = hasTrack;
   const notesEmpty = notes.trim() === "";
-  // Un seul pending à la fois (garde serveur miroir) : tant qu'une
-  // version est en revue, pas de nouvel envoi (le serveur refuse aussi).
+  // Un seul build en revue a la fois (garde serveur miroir) : tant qu'une
+  // version est en revue, pas de nouvel envoi. Ce n'est pas un caprice :
+  // sans cette garde, un envoi REMPLACERAIT le build que l'admin est en
+  // train de regarder (il approuverait un autre binaire), et le maker
+  // pourrait re-envoyer en boucle. La sortie de secours est le VERDICT :
+  // si l'admin refuse, le maker renvoie (le meme versionCode est
+  // reutilisable - l'index unique est partiel).
   const hasPendingBuild = history.some((b) => b.status === "pending");
   const pendingVersion = history.find((b) => b.status === "pending");
   const canSend =
