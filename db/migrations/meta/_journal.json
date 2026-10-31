@@ -339,14 +339,14 @@
       "breakpoints": true
     },
     {
-      "idx": 47,
+      "idx": 50,
       "version": "7",
       "when": 1792749600000,
       "tag": "0050_product_revisions",
       "breakpoints": true
     },
     {
-      "idx": 48,
+      "idx": 51,
       "version": "7",
       "when": 1792836000000,
       "tag": "0051_featured_priority_rule",
@@ -362,50 +362,64 @@
     {
       "idx": 50,
       "version": "7",
-      "when": 1793400000000,
+      "when": 1793347263936,
       "tag": "0053_sync_mobile_shared_schema",
       "breakpoints": true
     },
     {
       "idx": 51,
       "version": "7",
-      "when": 1793409600000,
+      "when": 1793347264036,
       "tag": "0054_jobs_anti_abuse",
       "breakpoints": true
     },
     {
       "idx": 52,
       "version": "7",
-      "when": 1793496000003,
+      "when": 1793347264436,
       "tag": "0055_mobile_direct_writes_bridge",
       "breakpoints": true
     },
     {
       "idx": 53,
       "version": "7",
-      "when": 1793582400003,
+      "when": 1793347264536,
       "tag": "0056_fix_rls_user_devices_and_revisions",
       "breakpoints": true
     },
     {
       "idx": 54,
       "version": "7",
-      "when": 1796025600003,
+      "when": 1793347264636,
       "tag": "0057_builds_one_pending_uidx",
       "breakpoints": true
     },
     {
       "idx": 55,
       "version": "7",
-      "when": 1796112000003,
+      "when": 1793347264736,
       "tag": "0058_gdpr_purge_retries",
       "breakpoints": true
     },
     {
       "idx": 56,
       "version": "7",
-      "when": 1796198400003,
+      "when": 1793347264836,
       "tag": "0059_notifications_read_at_pont",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1793347350000,
+      "tag": "0060_page_views_created_at_server",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793347351000,
+      "tag": "0061_comments_parent_guard",
       "breakpoints": true
     }
   ]
