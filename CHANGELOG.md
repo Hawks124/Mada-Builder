@@ -558,10 +558,13 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   déjà `productMaxBytes`, l'app mobile hérite). Le verify prouve le
   plafond : les 8 passent entièrement, le 9e est rejeté avant tout insert.
 - **Le branding de la nav et du footer est un wordmark** (typographie
-  définitive) ; les compteurs du hero sont réaffichés (totaux réels,
-  même faibles — décision opérateur, 2026-10-28 ; plus de mock
-  `400+`/`2 900+` quand le backend répond) ; le toggle thème est
-  corrigé pour les lecteurs d'écran (aria-pressed, libellé stable).
+  définitive), retaillé à une taille unique `h-8` (`sizes="144px"`) et
+  posé en cachet sur la photo de `/signin` (bas-droite, `on-dark`,
+  décoratif — la navigation porte sur la marque seule) ; les compteurs
+  du hero sont réaffichés (totaux réels, même faibles — décision
+  opérateur, 2026-10-28 ; plus de mock `400+`/`2 900+` quand le backend
+  répond) ; le toggle thème est corrigé pour les lecteurs d'écran
+  (aria-pressed, libellé stable).
 
 ### Corrigé
 

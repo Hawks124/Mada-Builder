@@ -8,10 +8,31 @@ import { cn } from "@/lib/utils";
  * 44 % de mot utile) ; les originaux non recadrés restent pour /about.
  * Les deux tracés n'ayant pas les mêmes proportions, chaque variante est
  * recadrée à SA propre encre, normalisée à 85 % de la boîte : le mot garde
- * la même taille affichée dans les deux thèmes. Jamais de fond, d'ombre
- * ou de bordure — l'air restant autour du trait fait partie du dessin.
+ * la même taille affichée dans les deux thèmes. `tone="on-dark"` force la
+ * variante blanche : fonds sombres garantis (panneau photo), quel que soit
+ * le thème. Jamais de fond, d'ombre ou de bordure — l'air restant autour
+ * du trait fait partie du dessin.
  */
-export function Wordmark({ className }: { className?: string }) {
+export function Wordmark({
+  className,
+  tone = "auto",
+}: {
+  className?: string;
+  tone?: "auto" | "on-dark";
+}) {
+  if (tone === "on-dark") {
+    return (
+      <Image
+        src="/branding/mm_logo_nav_dark.webp"
+        alt="Mada-Made"
+        width={1736}
+        height={523}
+        priority
+        sizes="144px"
+        className={cn("h-8 w-auto", className)}
+      />
+    );
+  }
   return (
     <>
       <Image
@@ -20,8 +41,8 @@ export function Wordmark({ className }: { className?: string }) {
         width={1595}
         height={458}
         priority
-        sizes="(min-width: 1024px) 168px, 152px"
-        className={cn("h-11 w-auto lg:h-12 dark:hidden", className)}
+        sizes="144px"
+        className={cn("h-8 w-auto dark:hidden", className)}
       />
       <Image
         src="/branding/mm_logo_nav_dark.webp"
@@ -29,8 +50,8 @@ export function Wordmark({ className }: { className?: string }) {
         width={1736}
         height={523}
         priority
-        sizes="(min-width: 1024px) 168px, 152px"
-        className={cn("hidden h-11 w-auto lg:h-12 dark:block", className)}
+        sizes="144px"
+        className={cn("hidden h-8 w-auto dark:block", className)}
       />
     </>
   );
