@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, notInArray, sql } from "drizzle-orm";
 import type { SQL, SQLWrapper } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -1005,7 +1005,18 @@ async function computeFeatured(now: Date): Promise<ComputedFeatured | null> {
     db
       .select({ productId: productPageViews.productId, n: sql<number>`count(*)::int` })
       .from(productPageViews)
-      .where(and(inArray(productPageViews.productId, ids), gte(productPageViews.createdAt, since)))
+      .where(
+        and(
+          inArray(productPageViews.productId, ids),
+          gte(productPageViews.createdAt, since),
+          // Borne haute (0060, CodeRabbit) : le client ne fixe plus
+          // created_at (trigger BEFORE INSERT côté base) — la borne
+          // miroir ci-dessous ferme la parité avec la rotation SQL (0052
+          // re-crée avec la même règle) et neutralise toute ligne
+          // historique encore future.
+          lte(productPageViews.createdAt, now),
+        ),
+      )
       .groupBy(productPageViews.productId),
     db
       .select({ productId: productLinkClicks.productId, n: sql<number>`count(*)::int` })
