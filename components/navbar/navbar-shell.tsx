@@ -20,6 +20,7 @@ import {
   ShieldCheckIcon,
   FacebookLogoIcon,
   LifebuoyIcon,
+  MagnifyingGlassIcon,
 } from "@phosphor-icons/react";
 
 export type NavbarUser = {
@@ -88,15 +89,18 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
 
   return (
     <header className="sticky top-0 z-50 w-full bg-background/30 backdrop-blur-xl border-b border-transparent">
-      <div className="container mx-auto px-4 md:px-8 h-18 flex items-center justify-between">
-        {/* Left: Logo & Nav Links */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
+        {/* Left: Logo & Nav Links — la nav desktop ne se montre qu'à partir
+            de lg : c'est le seul point où logo + liens + recherche + actions
+            tiennent sans comprimer la signature (à md il manque ~50 px). */}
         <div className="flex items-center gap-10">
           <Link href="/" className="flex items-center group">
             <Wordmark className="transition-transform duration-300 group-hover:scale-[1.04] group-hover:-translate-y-px group-hover:-rotate-3 motion-reduce:transition-none" />
           </Link>
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-2">
+          {/* Desktop Nav — ≥ lg : le drawer porte la navigation en dessous
+              (à md il manque ~50 px et la signature se comprime). */}
+          <nav className="hidden lg:flex items-center gap-2">
             <Link
               href="/discover"
               className="flex items-center gap-2.5 px-3.5 py-2 text-[15px] font-medium text-muted-foreground hover:bg-muted/70 hover:text-foreground rounded-xl transition-all group"
@@ -114,25 +118,40 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-3 sm:gap-4">
-          <SearchInput
-            variant="nav"
-            placeholder="Rechercher des produits"
-            value={navQuery}
-            onChange={(e) => setNavQuery(e.target.value)}
-            onFocus={() => {
-              // Le champ nav est un déclencheur, pas un champ : le focus
-              // ouvre la palette (résultats live sur place).
-              setOverlayQuery(navQuery);
-              setOverlayOpen(true);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submitNavSearch();
-            }}
-          />
+          {/* Recherche — en lg, déclencheur icône : l'input 256 px dépassait
+              la place (demande 1055 px vs 960 utiles à 1024, la signature se
+              comprimait à 15×32). Le champ n'est de toute façon qu'un
+              déclencheur de palette ; l'input complet revient ≥ xl. Sous lg,
+              le drawer porte la recherche. */}
+          <button
+            type="button"
+            aria-label="Rechercher"
+            onClick={() => setOverlayOpen(true)}
+            className="hidden lg:flex xl:hidden h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors"
+          >
+            <MagnifyingGlassIcon weight="bold" className="h-5 w-5" />
+          </button>
+          <div className="hidden xl:block">
+            <SearchInput
+              variant="nav"
+              placeholder="Rechercher des produits"
+              value={navQuery}
+              onChange={(e) => setNavQuery(e.target.value)}
+              onFocus={() => {
+                // Le champ nav est un déclencheur, pas un champ : le focus
+                // ouvre la palette (résultats live sur place).
+                setOverlayQuery(navQuery);
+                setOverlayOpen(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitNavSearch();
+              }}
+            />
+          </div>
 
-          {/* Desktop : même breakpoint que la nav (`md`) — en dessous,
+          {/* Desktop : même breakpoint que la nav (`lg`) — en dessous,
               seul le bloc mobile (toggle + avatar + burger) s'affiche. */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-3">
             <ThemeToggle />
             {user ? (
               <UserMenu size="lg" user={user} submitHref="/products/submit" />
@@ -146,7 +165,7 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
             )}
           </div>
 
-          <div className="md:hidden flex items-center gap-1.5">
+          <div className="lg:hidden flex items-center gap-1.5">
             {/* Toggle dans la barre seulement ≥ sm : à 320 px la barre
                 (wordmark 111 + connexion 117 + burger 40) déborde des
                 288 px utiles — sous sm il vit dans le menu mobile. */}
@@ -183,7 +202,7 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
 
       {/* Mobile Nav overlay */}
       {isMobileMenuOpen && (
-        <div className="md:hidden absolute top-18 left-0 w-full h-[calc(100vh-72px)] bg-background/95 backdrop-blur-xl p-6 flex flex-col gap-6 z-40 border-t border-border/40 overflow-y-auto">
+        <div className="lg:hidden absolute top-18 left-0 w-full h-[calc(100vh-72px)] bg-background/95 backdrop-blur-xl p-6 flex flex-col gap-6 z-40 border-t border-border/40 overflow-y-auto">
           <div className="w-full mb-2">
             <SearchInput
               variant="page"
@@ -261,9 +280,12 @@ export function NavbarShell({ user }: { user: NavbarUser }) {
             />
           </div>
 
-          {/* Thème : descendu ici sous sm (la barre 320 px déborde avec
-              lui) — même bouton, même animation, en bas du menu. */}
-          <div className="mt-auto pt-3 border-t border-border/40">
+          {/* Thème : invisible dès sm — le toggle de la BARRE prend le
+              relais ≥ sm (hidden sm:block) ; sans ce masquage, un menu
+              ouvert ≥ sm affiche le même bouton deux fois. Sous sm, il
+              ne vit ici que parce que la barre 320 px déborde avec lui —
+              même bouton, même animation, en bas du menu. */}
+          <div className="mt-auto pt-3 border-t border-border/40 sm:hidden">
             <ThemeToggle />
           </div>
         </div>
