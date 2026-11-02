@@ -39,7 +39,6 @@ function check(name: string, ok: boolean, detail?: unknown): void {
 }
 
 type PgErr = { code?: string };
-type Countable = { count?: number };
 
 /** Colonne listée dans le GRANT SELECT de la migration 0062 */
 const GRANTED_COLS = [
