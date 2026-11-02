@@ -320,6 +320,14 @@ des vues) reste VALIDE, avec un anti-burst : au-delà de ~60
 événements/min/produit, l'événement est stocké sans incrémenter
 `view_count` — aucun impact pour un client légitime.
 
+**Canal PostgREST `product_builds` (T6 — migration 0062)** : le select
+de lecture ne demande que les dix colonnes grantées (`id`, `product_id`,
+`version_code`, `version_name`, `package`, `size_bytes`, `whatsnew`,
+`status`, `sha256_file`, `created_at`). `r2_key` n'est plus lisible :
+une requête qui la cible (ou un `select=*`) est refusée en franche 42501. Le flux natif (D5) passe par
+`GET /api/v1/products/[id]/download` qui fournit tout le nécessaire —
+jamais une clé de stockage.
+
 Règles produit à réimplémenter à l'identique : nom ≥ 2 caractères ;
 occupation = `GET /meta` (vocabulaire fermé servi par le backend — jamais
 hardcodé côté Dart) ; **fuseau** : envoyer `Intl…resolvedOptions().timeZone`
