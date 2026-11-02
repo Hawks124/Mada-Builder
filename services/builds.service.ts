@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { products, productBuilds, productDownloads, users } from "@/db/schema";
 import { ProfileError, assertNotBanned } from "@/services/users.service";
@@ -797,6 +797,15 @@ export async function listProductBuilds(productId: string): Promise<BuildListIte
  * Revue binaire (staff) : pending → approved | rejected (+ motif
  * obligatoire au rejet, emailé). Symétrique à la revue fiche — deux
  * axes indépendants (matrice 2×2).
+ *
+ * T3 — invariant « un package = un produit vivant » : l'APPROBATION
+ * refuse (422 `VALIDATION`) quand un build APPROUVÉ du même package
+ * existe déjà sur un AUTRE produit vivant (`deleted_at IS NULL`). Vérif
+ * sous verrou consultatif par package (`pg_advisory_xact_lock`, libéré
+ * avec la transaction) pour fermer la course de deux revues simultanées
+ * — pas d'index UNIQUE possible : un même produit peut légitimement
+ * porter plusieurs builds (versions) d'un même package. Le rejet ne
+ * change jamais rien à cette règle.
  */
 export async function reviewBuild(input: {
   buildId: string;
@@ -811,6 +820,7 @@ export async function reviewBuild(input: {
       status: productBuilds.status,
       versionCode: productBuilds.versionCode,
       versionName: productBuilds.versionName,
+      package: productBuilds.package,
     })
     .from(productBuilds)
     .where(eq(productBuilds.id, input.buildId))
@@ -823,15 +833,54 @@ export async function reviewBuild(input: {
   if (input.decision === "rejected" && reason === "") {
     throw new ProfileError("VALIDATION", "Motif requis (emailé au maker).");
   }
-  await db
-    .update(productBuilds)
-    .set({
-      status: input.decision === "approved" ? "approved" : "rejected",
-      rejectionReason: input.decision === "rejected" ? reason : null,
-      reviewedAt: new Date(),
-      reviewedBy: input.staffId,
-    })
-    .where(eq(productBuilds.id, input.buildId));
+  const pkg = build.package;
+  if (input.decision === "approved" && pkg) {
+    // Approbation : verrou consultatif sur le package PUIS contrôle
+    // contra (autre produit vivant) PUIS bascule — tout dans la même
+    // transaction (le verrou et le refus meurent avec elle, pas de
+    // résidu, pas d'attente morte).
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${pkg}))`);
+      const [contra] = await tx
+        .select({ productId: productBuilds.productId })
+        .from(productBuilds)
+        .innerJoin(products, eq(productBuilds.productId, products.id))
+        .where(
+          and(
+            eq(productBuilds.status, "approved"),
+            eq(productBuilds.package, pkg),
+            ne(productBuilds.productId, build.productId),
+            isNull(products.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (contra) {
+        throw new ProfileError(
+          "VALIDATION",
+          "Un build de ce package est déjà approuvé sur un autre produit vivant.",
+        );
+      }
+      await tx
+        .update(productBuilds)
+        .set({
+          status: "approved",
+          rejectionReason: null,
+          reviewedAt: new Date(),
+          reviewedBy: input.staffId,
+        })
+        .where(eq(productBuilds.id, build.id));
+    });
+  } else {
+    await db
+      .update(productBuilds)
+      .set({
+        status: input.decision === "approved" ? "approved" : "rejected",
+        rejectionReason: input.decision === "rejected" ? reason : null,
+        reviewedAt: new Date(),
+        reviewedBy: input.staffId,
+      })
+      .where(eq(productBuilds.id, build.id));
+  }
   return {
     productId: build.productId,
     versionCode: build.versionCode,
