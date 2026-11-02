@@ -15,6 +15,7 @@ import { products } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { getApprovedBuilds, recordDownload } from "@/services/builds.service";
 import { presignBuildDownload } from "@/lib/r2";
+import { resolveDownloadCountMode } from "@/lib/api/download-count";
 
 export const OPTIONS = async () => corsPreflight();
 export const POST = async () => methodNotAllowed(["GET"]);
@@ -74,7 +75,16 @@ export async function GET(
     // l'écriture survit à la fin de l'invocation sans jamais retarder la
     // réponse — et la réponse reste en `no-store`, une URL signée étant
     // par nature par requête.
-    after(() => recordDownload(product.id));
+    // T1 : ré-acquisition de reprise (`?count=0` + Range N>0) = +0 ; le
+    // même GET en comptage = +1. La garde est fail-closed : count=0 sans
+    // Range valide → 422 franche (anti-abuse, doc §3).
+    const countMode = resolveDownloadCountMode(
+      new URL(req.url).searchParams.get("count"),
+      req.headers.get("range"),
+    );
+    if (countMode === "record") {
+      after(() => recordDownload(product.id));
+    }
     const url = await presignBuildDownload(latest.r2Key);
     return withCache(
       apiOk({
