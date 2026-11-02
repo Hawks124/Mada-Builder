@@ -328,6 +328,27 @@ une requête qui la cible (ou un `select=*`) est refusée en franche 42501. Le f
 `GET /api/v1/products/[id]/download` qui fournit tout le nécessaire —
 jamais une clé de stockage.
 
+**T1/T2 — compteur et reprise `Range` sur la route download
+(2026-11-02)** : chaque résolution compte +1 (défaut) ; le marqueur de
+reprise du worker natif, `?count=0`, n'est accepté QU'avec un header
+`Range: bytes=N-` et N strictement positif (des octets déjà acquis) —
+il compte alors +0 ; tout autre appel `count=0` (sans Range,
+`bytes=0-`, segment borné, multi-ranges, mauvaise unité) est refusé en
+franche 422 `VALIDATION`, message figé : « count=0 exige un Range de
+reprise valide (bytes=N- avec N > 0). » (le mapper natif switch sur le
+code, jamais sur le texte). La reprise d'octets, elle, se joue contre
+l'URL signée renvoyée (T2 — prouvé E2E sur R2 réel par
+`scripts/verify-download-range.ts`, 5/5) : `Range: bytes=N-` avec
+N < `sizeBytes` → `206` + `Content-Range` exact (`bytes N-(size-1)/size`)
+; **l'ETag de l'objet est stable** entre deux GET signés consécutifs —
+c'est lui qui fait foi avant de reprendre (deux présignatures à la
+même seconde produisent la même URL : détail SigV4, pas un contrat) ;
+sans Range → `200` complet ; Range non satisfiable (N ≥ `sizeBytes`,
+typiquement un objet remplacé entre deux runs) → `416` : reprise
+ANNULÉE (l'en-tête `Content-Range` n'est pas garanti sur R2, ne jamais
+s'y fier) → nouveau run : URL fraîche à la résolution, octets repartis
+de 0, **un seul rewind** avant abandon de la reprise (contrat natif).
+
 Règles produit à réimplémenter à l'identique : nom ≥ 2 caractères ;
 occupation = `GET /meta` (vocabulaire fermé servi par le backend — jamais
 hardcodé côté Dart) ; **fuseau** : envoyer `Intl…resolvedOptions().timeZone`
