@@ -42,14 +42,13 @@ async function refuse(fn: () => Promise<unknown>): Promise<{
   ok: boolean;
   code?: string;
   message?: string;
-  status?: number;
 }> {
   try {
     await fn();
     return { ok: false };
   } catch (e) {
     if (e instanceof ProfileError) {
-      return { ok: e.code === "VALIDATION", code: e.code, message: e.message, status: e.status };
+      return { ok: e.code === "VALIDATION", code: e.code, message: e.message };
     }
     return { ok: false, message: String(e) };
   }
