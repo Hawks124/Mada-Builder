@@ -6,6 +6,20 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **Le premier vote / avis / commentaire est immédiat (migration 0063)** :
+  la barre « compte < 1 h » est levée sur les trois canaux — le web
+  (`checkVoter` ne refuse plus l'âge), la base (le pont 0055/0061 perd
+  son bloc d'âge : aucune raison machine `account_too_young` n'est plus
+  produite) et les textes (conditions, `/regles`, dialogues natifs
+  réécrits autour d'un seul principe : ce qui protège le classement
+  n'est pas ce qu'on interdit au clic, c'est ce que la voix pèse). Le
+  bouclier réel du classement reste le shadow-weighting : un vote posé
+  par un compte de moins de 24 h s'affiche mais pèse 0, promu 0 → 1 par
+  le sweep des scores passé 24 h. Flood 20/60 s, bannissement, produit
+  publié obligatoire, veille (avis hors fiche en veille) et règles de
+  parent restent inchangés ; un verify dédié (`verify-0063`) rejoue la
+  fonction du pont en SQL : le tout frais pose trois canaux, les
+  gardes restantes répondent leurs raisons exactes.
 - **Le pont d'écriture directe (migration 0055)** : avis, commentaires et
   votes de commentaires sont écrits par l'app mobile en direct PostgREST —
   la base devient l'arbitre unique (CHECK, RLS own-row, garde trigger,

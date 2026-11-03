@@ -22,7 +22,7 @@ const DID_YOU_KNOW = [
   },
   {
     title: "Les votes sont protégés des faux comptes",
-    text: "Les comptes tout neufs votent après une petite heure, et leurs votes pèsent au classement après 24 h — pour un jeu équitable.",
+    text: "Dès l'inscription : le premier vote s'affiche. Il pèse au classement après 24 h — rien à attendre pour participer, rien à ruser pour peser.",
   },
   {
     title: "Chaque fiche est relue par un humain",

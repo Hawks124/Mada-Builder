@@ -30,8 +30,9 @@ import {
 // ── Erreurs typées ───────────────────────────────────────────────────────────
 export class ProfileError extends Error {
   code: "FORBIDDEN" | "NOT_FOUND" | "VALIDATION" | "CONFLICT" | "FILE_REJECTED";
-  /** Détail machine-readable (ex. `{ reason: "account_too_young" }`) :
-   * jamais affiché brut — web et mobile matchent le code, pas le texte. */
+  /** Détail machine-readable (objet plat : codes et flags que le client
+   * matche, jamais de texte) : jamais affiché brut — web et mobile
+   * matchent le code, pas le texte. */
   details?: unknown;
   constructor(code: ProfileError["code"], message: string, details?: unknown) {
     super(message);

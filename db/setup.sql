@@ -238,7 +238,7 @@ GRANT UPDATE (read_at) ON public.notifications TO authenticated;
 -- sont posés par les triggers SECURITY DEFINER ci-dessous (le service TS
 -- n'écrit plus jamais ces effets — aucun double-compte).
 --   - Policies identités only (user_id = auth.uid()) ; le business (fiche
---     publiée, parent un niveau, ban, âge < 1 h, flood 20/60 s) vit dans
+--     publiée, parent un niveau, ban, flood 20/60 s) vit dans
 --     bridge_writer_guard.
 --   - Grants PAR COLONNE : le client ne touche ni created_at, ni
 --     maker_response, ni le user_id d'autrui. Lecture publique (anon)
@@ -375,10 +375,12 @@ COMMENT ON FUNCTION public.bridge_uuidv7() IS
   'UUIDv7 (48 bits de temps, triable) pour les écritures posées par les triggers du pont 0055.';
 
 -- Garde écrivain (sessions JWT uniquement — auth.uid() présent) : compte
--- existant/banni/supprimé, âge < 1 h refusé, flood 20/60 s (filet global,
+-- existant/banni/supprimé, flood 20/60 s (filet global,
 -- toutes ops de la table confondues ; le per-op contractuel reste côté
 -- web/Upstash), produit publié, avis sur produit curaté refusé, parent
 -- même produit + non supprimé + un seul niveau de réponse.
+-- 0063 : âge < 1 h levé — premier engagement immédiat, le
+-- shadow-weighting 24 h reste le bouclier du classement.
 CREATE OR REPLACE FUNCTION public.bridge_writer_guard() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = ''
@@ -386,7 +388,6 @@ AS $$
 DECLARE
   v_banned timestamptz;
   v_deleted timestamptz;
-  v_created timestamptz;
   v_flood int;
 BEGIN
   -- Gare de rôle : sessions service (auth.uid() NULL) passent. Le web
@@ -396,8 +397,8 @@ BEGIN
     RETURN COALESCE(NEW, OLD);
   END IF;
 
-  SELECT u.banned_at, u.deleted_at, u.created_at
-    INTO v_banned, v_deleted, v_created
+  SELECT u.banned_at, u.deleted_at
+    INTO v_banned, v_deleted
   FROM public.users u
   WHERE u.id = COALESCE(NEW.user_id, OLD.user_id);
   IF NOT FOUND THEN
@@ -411,10 +412,6 @@ BEGIN
   IF v_banned IS NOT NULL THEN
     RAISE EXCEPTION 'Compte suspendu.'
       USING DETAIL = 'reason=account_banned';
-  END IF;
-  IF now() - v_created < interval '1 hour' THEN
-    RAISE EXCEPTION 'Compte trop récent (réessayez dans une heure).'
-      USING DETAIL = 'reason=account_too_young';
   END IF;
 
   -- Flood 20/60 s (miroir approximatif d'Upstash `feedback:*`) : filet
@@ -502,7 +499,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.bridge_writer_guard() IS
-  'Garde 0055 : identité (JWT seulement), ban/suppression, âge 1 h, flood 20/60 s, avis/commentaires hors règles.';
+  'Garde 0055 : identité (JWT seulement), ban/suppression, flood 20/60 s, avis/commentaires hors règles. 0061 : parent de réponse EXIGÉ. 0063 : âge < 1 h levé (premier engagement immédiat, shadow-weighting 24 h maintenu).';
 
 DROP TRIGGER IF EXISTS bridge_reviews_guard ON public.reviews;
 CREATE TRIGGER bridge_reviews_guard

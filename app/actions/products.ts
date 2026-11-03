@@ -617,8 +617,6 @@ export type VoteActionState = {
   /** Poids > 0 ? Faux = shadow-weighting (affiché, hors classement). */
   counted: boolean;
   message: string | null;
-  /** Code machine (ex. "account_too_young") — le client matche ça, pas le texte. */
-  reason?: string;
 };
 
 /** IP best-effort (anti-burst, jamais bloquante si illisible — c.f. makers). */
@@ -656,15 +654,14 @@ export async function toggleVoteAction(input: { productId: string }): Promise<Vo
     return { ok: true, ...res, message: null };
   } catch (e) {
     if (e instanceof ProfileError) {
-      const details = e.details as { reason?: unknown } | undefined;
-      const reason = typeof details?.reason === "string" ? details.reason : undefined;
+      // Messages métier (ban, introuvable) traversent tels quels —
+      // aucun code machine depuis 0063 (l'âge « < 1 h » est levé).
       return {
         ok: false,
         voted: false,
         upvoteCount: 0,
         counted: false,
         message: e.message,
-        ...(reason ? { reason } : {}),
       };
     }
     captureError(e instanceof Error ? e : new Error(String(e)), { op: "products.vote" });

@@ -26,7 +26,7 @@ public est `username` (immuable) — **jamais l'id dans les URLs**.
 | `banned_at`            | `timestamptz` NULL                    | Non nul = suspendu                                                                              |
 | `appeals_count`        | `integer` NOT NULL DEFAULT `0`        | Compteur d'affichage (incrémenté au dépôt)                                                      |
 | `digest_opt_out`       | `boolean` NOT NULL DEFAULT `false`    | Opt-out digest hebdo                                                                            |
-| `created_at`           | `timestamptz` NOT NULL                | **Sert au poids des votes** (< 1 h refusé, < 24 h poids 0)                                      |
+| `created_at`           | `timestamptz` NOT NULL                | **Sert au poids des votes** (< 24 h poids 0, shadow-weighting ; 0063 : plus de refus d'âge)     |
 | `updated_at`           | `timestamptz` NOT NULL                | Auto (`$onUpdate`)                                                                              |
 | `deleted_at`           | `timestamptz` NULL                    | Soft-delete ; suppression RGPD = hard delete + cascade                                          |
 

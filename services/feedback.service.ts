@@ -9,7 +9,8 @@ import { checkVoter } from "@/services/votes.service";
 
 /**
  * Domaine avis + commentaires — mêmes disciplines que les votes :
- * auth requise, compte < 1 h refusé (checkVoter), rate-limits, Zod
+ * auth requise, premier engagement IMMÉDIAT (0063 : checkVoter ne
+ * filtre plus l'âge, la pondération < 24 h reste), rate-limits, Zod
  * serveur, soft delete auteur, suppression staff avec audit.
  * - Avis : 1/user/produit (`UNIQUE`), note 1-5 + texte REQUIS (10-2000),
  *   modifiable ; réponse maker UNIQUE et officielle (pas de thread).
