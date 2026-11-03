@@ -23,7 +23,7 @@ Contraintes : `UNIQUE(user_id, product_id)` ; index `product_id`.
 
 ## Règles métier miroir (serveur, jamais client)
 
-- Compte < 1 h : refusé (`account_too_young`, dialogue + conditions).
+- Premier vote IMMÉDIAT (0063 : la fenêtre d'âge < 1 h est levée).
 - Compte < 24 h : poids 0 (affiché, `counted: false`).
 - Banni : refusé. Veille (`curated`) : refusé. Self-vote : autorisé.
 - Rate-limits compte (30/min) + IP (300/min), fail-open ; idempotence
@@ -38,6 +38,5 @@ Contraintes : `UNIQUE(user_id, product_id)` ; index `product_id`.
 ## Usage mobile
 
 - **Ne jamais lire/écrire `votes`** : `POST /products/[id]/vote` →
-  `{ voted, upvoteCount, counted }` ; cas `< 1 h` (422 +
-  `data.reason`) et `counted === false` → dialogue + lien conditions
-  (contrats §9, mêmes textes que le web).
+  `{ voted, upvoteCount, counted }` ; `counted === false` → dialogue +
+  lien conditions (contrats §9, mêmes textes que le web).

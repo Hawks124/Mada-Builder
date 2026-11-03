@@ -58,7 +58,7 @@ export function VoteButton({
     }),
   );
   const [pending, setPending] = useState(false);
-  const [gate, setGate] = useState<"too_young" | "shadowed" | null>(null);
+  const [gate, setGate] = useState<"shadowed" | null>(null);
   const guardedVote = useVoteWall(productId);
 
   const handleClick = () => {
@@ -114,10 +114,6 @@ export function VoteButton({
                 );
               }
             }
-          } else if (res.reason === "account_too_young") {
-            // Refus < 1 h : dialogue (pas un toast sec) — le POURQUOI compte.
-            setConfirmed((prev) => ({ ...prev }));
-            setGate("too_young");
           } else {
             // Retour à l'état confirmé + message (pas de vote fantôme).
             setConfirmed((prev) => ({ ...prev }));
@@ -147,12 +143,12 @@ export function VoteButton({
   const gateNotice = (
     <ConfirmDialog
       open={gate !== null}
-      title={gate === "too_young" ? "Bienvenue ! Encore une petite heure" : "Merci pour ton vote !"}
+      title="Merci pour ton vote !"
       description={
         <span>
-          {gate === "too_young"
-            ? "Ton compte vient de naître — laisse-lui une petite heure, et ton vote comptera. En attendant, explore les fiches !"
-            : "Il s'affiche déjà ! Il pèsera au classement quand ton compte aura 24 h — c'est comme ça qu'on garde le jeu équitable pour les makers."}{" "}
+          {
+            "Il s'affiche déjà ! Il pèsera au classement quand ton compte aura 24 h — c'est comme ça qu'on garde le jeu équitable pour les makers."
+          }{" "}
           <Link href="/regles" className="font-bold text-foreground underline underline-offset-4">
             Voir les règles du jeu
           </Link>

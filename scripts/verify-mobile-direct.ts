@@ -11,12 +11,13 @@
  * dans les deux issues (refus OU passage à tort).
  *
  * Ce que ça prouve :
- * - les PASSAGES : review/comment/vote de l'auteur légitime, compteurs
+ * - les PASSAGES : review/comment/vote de l'auteur légitime, le compte
+ *   tout FRAIS écrit (0063 : la garde d'âge < 1 h est levée), compteurs
  *   (delta + GREATEST au décompte), notifications (kind + titres
  *   exacts, jamais soi-même, pas d'édit), flood jusqu'au seuil 20/60 s ;
  * - la VISIBILITÉ : l'auteur voit ses propres lignes soft-supprimées
  *   (policies SELECT own-row — condition de la reprise) ;
- * - les REFUS : anon, compte jeune/banni, produit draft/curaté, parent
+ * - les REFUS : anon, compte banni, produit draft/curaté, parent
  *   fantôme/cross-produit/supprimé/reply-de-reply, note 1–5,
  *   corps < 10, unicité avis 1/user/produit + vote 1/user/commentaire,
  *   écriture notifications (JAMAIS), UPDATE produits (jamais),
@@ -235,15 +236,7 @@ async function main(): Promise<void> {
         stat4[0],
       );
 
-      // ── 6. compte jeune / banni ────────────────────────────────────────
-      await asUser(young);
-      await hasDetail(
-        () =>
-          tx`INSERT INTO public.reviews (id, user_id, product_id, rating, body)
-             VALUES (${uuidv7()}, ${young}, ${productA}, 5, 'Avis d''un compte trop jeune pour l''auteur.')`,
-        "account_too_young",
-        "review jeune : refusé account_too_young",
-      );
+      // ── 6. compte banni / tout frais (0063 : l'âge est levé) ───────────
       await asUser(banned);
       await hasDetail(
         () =>
@@ -251,6 +244,20 @@ async function main(): Promise<void> {
              VALUES (${uuidv7()}, ${banned}, ${productA}, 5, 'Avis d''un compte suspendu.')`,
         "account_banned",
         "review banni : refusé account_banned",
+      );
+      // 0063 : « compte < 1 h » n'est plus une garde — le tout frais
+      // POSE son avis (compteurs + notif par les triggers du pont) ;
+      // le seul âge qui reste est la pondération 24 h des votes,
+      // posée par checkVoter côté web (jamais ici : canal direct).
+      await asUser(young);
+      await tx`INSERT INTO public.reviews (id, user_id, product_id, rating, body)
+               VALUES (${uuidv7()}, ${young}, ${productA}, 5, 'Avis d''un compte tout frais, à l''aise au-dessus de dix.')`;
+      const statYoung =
+        await tx`SELECT ratings_sum, ratings_count FROM public.products WHERE id = ${productA}`;
+      check(
+        "review jeune : passe (0063) + effet compteurs (sum 9, count 2)",
+        Number(statYoung[0].ratings_sum) === 9 && Number(statYoung[0].ratings_count) === 2,
+        statYoung[0],
       );
 
       // ── 7. bornes CHECK (note, corps) ──────────────────────────────────

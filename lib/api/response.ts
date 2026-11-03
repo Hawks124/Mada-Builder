@@ -86,8 +86,8 @@ export function apiError(
 }
 
 /**
- * Détail machine-readable d'une erreur (ex. `{ reason: "account_too_young" }`) :
- * objet simple uniquement, jamais de PII, jamais de stack. Le client matche
+ * Détail machine-readable d'une erreur (objet plat : codes et flags que
+ * le client matche) : jamais de PII, jamais de stack. Le client matche
  * le code, pas le texte (textes FR modifiables sans casser le mobile).
  */
 function toErrorData(details: unknown): Record<string, unknown> | undefined {

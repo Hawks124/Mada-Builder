@@ -242,7 +242,7 @@ un `select=*` reste valide et ne ramène plus de contenu non validé).
 | `GET /products/[id\|slug]`                    | optionnel         | —                                                                                                                                                                                                                                                                                                                                                                         | fiche complète (screenshots, maker, `voted` si Bearer valide, `false` sinon) ; 404 si inconnu/dépublié                                                                                                                                                                                                                               |
 | `POST /products`                              | Bearer            | multipart : champs texte + `logo` + `screenshots` ×0–8 (`intent=publish` exige logo + ≥1 capture ; défaut brouillon)                                                                                                                                                                                                                                                      | 201 `{ id, slug, status }` (fiche complète en Phase 4 via `GET /[slug]`)                                                                                                                                                                                                                                                             |
 | `PATCH /products/[id]`                        | Bearer            | multipart partiel (absent = conservé ; fichiers = remplacement total)                                                                                                                                                                                                                                                                                                     | `{ slug, status, rereview }` (nom/liens d'une fiche published → `pending`)                                                                                                                                                                                                                                                           |
-| `POST /products/[id]/vote`                    | Bearer            | —                                                                                                                                                                                                                                                                                                                                                                         | toggle `{ voted, upvoteCount, counted }` (`counted=false` = shadow-weighting : affiché, hors classement) ; 422 + `data.reason: "account_too_young"` (< 1 h) → dialogue explicatif + lien conditions (textes ci-dessous, jamais de match sur le message FR)                                                                           |
+| `POST /products/[id]/vote`                    | Bearer            | —                                                                                                                                                                                                                                                                                                                                                                         | toggle `{ voted, upvoteCount, counted }` (`counted=false` = shadow-weighting : affiché, hors classement) ; premier vote IMMÉDIAT (0063 — la raison `account_too_young` n'est plus produite) ; `counted === false` (compte < 24 h) → dialogue explicatif + lien conditions (textes ci-dessous, jamais de match sur le message FR)     |
 | `GET /products/[id]/reviews`                  | optionnel         | `?limit` (1–50, défaut 20)                                                                                                                                                                                                                                                                                                                                                | `{ items, distribution }` (moyenne + par-étoile ; `own` si Bearer ; `author{username,displayName,avatarUrl,occupation}` — occupation = id brut, label via `GET /meta`, jamais d'email) — cache court                                                                                                                                 |
 | `POST /products/[id]/reviews`                 | Bearer            | `{ rating: 1-5, body: 10-2000 }`                                                                                                                                                                                                                                                                                                                                          | 201 `{ id, rating }` (1/user/produit : renvoie = mise à jour)                                                                                                                                                                                                                                                                        |
 | `GET /products/[id]/comments`                 | optionnel         | `?limit` (1–100, défaut 30)                                                                                                                                                                                                                                                                                                                                               | `{ items }` (thread 1 niveau, `myVote` si Bearer ; `author{…,occupation}` id brut comme avis, jamais d'email) — cache court                                                                                                                                                                                                          |
@@ -418,21 +418,20 @@ boucle). Les verrous métier (appel pending, 24 h) s'ajoutent par-dessus.
 Admin (`/admin/*`), liaison provider sans `sync`, digest email.
 Votes/leaderboard/fiche publique (`GET /products`, `GET /[slug]`,
 `POST /[id]/vote`) : Phase 3/4 (même pattern : portes minces sur services).
-`POST /[id]/vote` livré Phase 3 ; anti-abus : compte < 1 h refusé,
+`POST /[id]/vote` livré Phase 3 ; anti-abus : premier vote IMMÉDIAT
+(0063 lève la barre < 1 h — le shadow-weighting reste le bouclier),
 poids 0 si < 24 h (`counted=false`).
 
-## 9. Dialogue anti-triche (vote refusé / poids 0)
+## 9. Dialogue anti-triche (poids 0)
 
-Quand le critère d'âge n'est pas rempli, le mobile affiche un DIALOGUE
-expliqué (jamais un toast sec, jamais de boîte noire) + lien `/regles`
-(la charte renvoie aux conditions — guideline d'abord, terms ensuite).
-Textes FR : COURTS et chaleureux, jamais le texte des conditions
-(matchez `data.reason` / `counted`, jamais le message serveur) :
+Le serveur ne refuse PLUS sur l'âge (0063 : la raison
+`account_too_young` n'est plus produite ni attendue) ; la seule mesure
+d'âge qui reste est la **pondération 24 h**, affichée comme un
+DIALOGUE expliqué (jamais un toast sec, jamais de boîte noire) + lien
+`/regles` (la charte renvoie aux conditions — guideline d'abord, terms
+ensuite). Textes FR : COURTS et chaleureux, jamais le texte des
+conditions (matchez `counted`, jamais le message serveur) :
 
-- **422 + `data.reason === "account_too_young"`** (compte < 1 h, vote
-  refusé) — titre : « Bienvenue ! Encore une petite heure ». Corps :
-  « Ton compte vient de naître — laisse-lui une petite heure, et ton
-  vote comptera. En attendant, explore les fiches ! »
 - **200 + `counted === false`, 1ère fois** (compte < 24 h, vote accepté
   poids 0) — titre : « Merci pour ton vote ! ». Corps : « Il s'affiche
   déjà ! Il pèsera au classement quand ton compte aura 24 h — c'est

@@ -1,7 +1,7 @@
 import "./_env";
 import { db } from "@/db";
 import { products, users } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { deleteAccount } from "@/services/users.service";
 import { ProfileError } from "@/services/users.service";
@@ -71,7 +71,9 @@ async function makeUser(email: string): Promise<string> {
 async function main(): Promise<void> {
   const author = await makeUser(EMAIL);
   const other = await makeUser(EMAIL_2);
-  // Compte < 1 h : refusé (même règle que les votes) — on backdate après.
+  // Comptes tout frais (created_at = now) : ils RECOIVENT leur premier
+  // avis immédiatement — 0063 lève l'interdiction d'âge < 1 h ; la
+  // pondération 24 h (shadow-weighting) reste du côté votes.
   const [prod] = await db
     .insert(products)
     .values({
@@ -89,24 +91,15 @@ async function main(): Promise<void> {
     })
     .returning({ id: products.id });
 
-  let tooYoung = false;
-  try {
-    await upsertReview({
-      viewerId: other,
-      productId: prod.id,
-      rating: 5,
-      body: "Super produit, vraiment utile.",
-    });
-  } catch (e) {
-    tooYoung = e instanceof ProfileError && e.code === "VALIDATION";
-  }
-  check("compte jeune refusé", tooYoung);
-  // Backdate 2 h (comme verify-votes) : autorisé.
-  await db.execute(
-    sql`UPDATE users SET created_at = NOW() - INTERVAL '2 hours' WHERE id = ${author}`,
-  );
-  await db.execute(
-    sql`UPDATE users SET created_at = NOW() - INTERVAL '2 hours' WHERE id = ${other}`,
+  const firstFreshAttempt = await upsertReview({
+    viewerId: other,
+    productId: prod.id,
+    rating: 5,
+    body: "Super produit, vraiment utile.",
+  });
+  check(
+    "compte tout frais : premier avis immédiat (0063)",
+    Boolean(firstFreshAttempt.id) && firstFreshAttempt.rating === 5,
   );
 
   // 1. Avis : création + unicité + moyenne + distribution.

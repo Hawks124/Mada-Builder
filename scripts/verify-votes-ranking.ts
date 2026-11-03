@@ -1,6 +1,6 @@
 // Votes + classement + produit du jour : toggle, poids, rescore, paliers
 // featured, fenêtres leaderboard, discover, jobs. Makers dédiés (quotas),
-// comptes antidatés en SQL brut (paliers d'âge 1h/24h), nettoyage total.
+// comptes antidatés en SQL brut (pondération d'âge 24 h), nettoyage total.
 // Usage: npx tsx scripts/verify-votes-ranking.ts
 import "./_env";
 import { db } from "@/db";
@@ -172,22 +172,21 @@ async function main(): Promise<void> {
   check("poids promu à 1 après 24 h", promotedRow.weight === 1);
   await toggleVote({ viewerId: young, productId: owned });
 
-  // 4. Compte < 1 h refusé.
-  let freshRefused = false;
-  let freshReason: unknown = null;
-  try {
-    await toggleVote({ viewerId: fresh, productId: owned });
-  } catch (e) {
-    freshRefused = e instanceof ProfileError && e.code === "VALIDATION";
-    freshReason = e instanceof ProfileError ? e.details : null;
-  }
-  check("compte < 1 h refusé", freshRefused);
+  // 4. Premier vote immédiat (0063 : l'interdiction d'âge < 1 h est
+  // levée). Le compte est tout frais (< 24 h) : le vote s'affiche
+  // MAIS reste hors rang — poids 0 shadow (posé à l'écriture).
+  const freshV = await toggleVote({ viewerId: fresh, productId: owned });
   check(
-    "reason machine (pas de match texte)",
-    typeof freshReason === "object" &&
-      freshReason !== null &&
-      (freshReason as { reason?: unknown }).reason === "account_too_young",
+    "compte tout jeune : vote immédiat, poids 0 (shadow)",
+    freshV.voted === true && freshV.counted === false,
   );
+  const [freshWeight] = await db
+    .select({ weight: votes.weight })
+    .from(votes)
+    .where(and(eq(votes.userId, fresh), eq(votes.productId, owned)))
+    .limit(1);
+  check("poids stocké 0 (shadow posé à l'écriture)", freshWeight.weight === 0);
+  await toggleVote({ viewerId: fresh, productId: owned });
 
   // 5. Banni refusé.
   await db.execute(sql`UPDATE users SET banned_at = NOW() WHERE id = ${voter}`);

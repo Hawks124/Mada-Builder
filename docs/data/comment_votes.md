@@ -30,7 +30,8 @@ Contrainte : `UNIQUE(user_id, comment_id)`.
 ## Règles métier (la base arbitre — garde 0055)
 
 - Commentaire existant, non supprimé, fiche publiée.
-- Compte < 1 h refusé par la garde (`account_too_young`).
+- Premier vote de commentaire IMMÉDIAT (0063 : la garde d'âge < 1 h
+  est levée, `account_too_young` n'est plus produite).
 - Score = `SUM(+1/−1)` exact par recompte, jamais d'incrément.
 
 ## Realtime

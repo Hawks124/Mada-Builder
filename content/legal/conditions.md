@@ -70,18 +70,17 @@ Nous ne publions pas d'annuaire avec une file de censure automatique : c'est le 
 
 ## Les votes
 
-Un vote par utilisateur et par produit, réversible à tout moment.
+Un vote par utilisateur et par produit, réversible à tout moment. Le premier vote, le premier avis, le premier commentaire : **immédiats** — un compte qui vient de s'inscrire peut tout écrire, sans délai d'attente.
 
-Pour empêcher les anneaux de vote, nous appliquons des mesures qui ne sont pas secrètes dans leur principe : **âge minimum du compte d'une heure** avant le premier vote, **unicité** du vote par couple compte-produit, **limitation de débit** par compte et par adresse IP, et **pondération** des comptes de moins de 24 heures — dont le poids est nul dans le classement, tout en restant affiché.
+Pour rendre le classement impossible à truquer, nous appliquons des mesures qui ne sont pas secrètes dans leur principe : **unicité** du vote par couple compte-produit, **limitation de débit** par compte et par adresse IP, et **pondération** des comptes de moins de 24 heures — dont le poids est nul dans le classement, tout en restant affiché.
 
 Ce qui reste confidentiel, ce sont les **seuils chiffrés** de ces mesures, pas leur nature. Un maker doit pouvoir comprendre _pourquoi_ son vote ne compte pas dans le classement, sans avoir droit au détail des réglages.
 
-**Si votre vote est refusé ou ne compte pas, ce n'est ni une punition ni une suspicion.** Ces règles ne visent personne en particulier : elles s'appliquent à tous les comptes, sans exception, justement pour que personne n'ait besoin de nous croire sur parole. Concrètement :
+**Si votre vote ne compte pas encore dans le classement, ce n'est ni une punition ni une suspicion.** Ces règles s'appliquent à tous les comptes, sans exception, justement pour que personne n'ait besoin de nous croire sur parole :
 
-- **Compte de moins d'une heure** : le vote est refusé, temporairement. Revenez dans une heure — votre compte n'est ni banni, ni signalé, ni surveillé. C'est un délai, pas un jugement.
-- **Compte de moins de 24 heures** : votre vote **s'affiche normalement** (le compteur bouge, le bouton passe à « voté »), mais il pèse **zéro dans le classement**. On vous le dit ici plutôt que de vous le cacher : c'est transparent, et c'est provisoire — passé 24 heures, vos votes comptent pleinement.
+- **Compte de moins de 24 heures** : votre vote s'affiche normalement (le compteur bouge, le bouton passe à « voté »), mais il pèse **zéro dans le classement**. On vous le dit ici plutôt que de vous le cacher : c'est transparent, et c'est provisoire — passé 24 heures, vos votes comptent pleinement.
 
-Pourquoi c'est comme ça et pas autrement : sans ces délais, il suffirait de créer des dizaines de comptes en quelques minutes pour propulser un produit en tête du jour — et le classement, qui est tout le produit, ne voudrait plus rien dire. Ces règles protègent **vos** votes, et ceux des makers honnêtes, contre ceux qui tricheraient. Elles ne sont pas négociables au cas par cas, précisément parce qu'elles sont identiques pour tout le monde.
+Pourquoi la pondération plutôt qu'un verrou d'attente : ce qui protège le classement n'est pas ce qu'on interdit au clic, c'est ce que la voix pèse. Créer cent comptes à la chaîne ne rapporte donc rien — leurs voix s'affichent mais ne pèsent pas, exactement comme un vote qui s'affiche sans compter. Ces règles protègent **vos** votes, et ceux des makers honnêtes, contre ceux qui tricheraient. Elles ne sont pas négociables au cas par cas, précisément parce qu'elles sont identiques pour tout le monde.
 
 Un vote acheté, un compte créé pour voter, ou un anneau détecté entraînent une modération selon l'échelle ci-dessous.
 

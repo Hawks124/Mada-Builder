@@ -9,8 +9,11 @@ import { checkMilestones } from "@/services/notifications.service";
 
 /**
  * Domaine votes — boucle centrale (§11) : 1/user/produit, réversible,
- * optimiste côté UI. Anti-abus : compte < 1 h refusé, < 24 h poids 0
- * (shadow-weighting : affiché, ignoré au classement), rate-limit compte
+ * optimiste côté UI. Premier vote IMMÉDIAT (0063 : l'interdiction
+ * « compte < 1 h » est levée — c'était le prix du nouveau venu légitime,
+ * redondant avec le shadow-weighting) ; le seul âge qui compte est la
+ * pondération : < 24 h poids 0 (shadow-weighting : affiché, ignoré au
+ * classement, promu par le sweep des scores), rate-limit compte
  * (30/min) + IP large (300/min — NAT mutualisé MG, anti-burst pas
  * anti-humain), fail-open documenté. Self-vote autorisé (décision :
  * vanity-positive, 1 vote visible).
@@ -20,8 +23,9 @@ import { checkMilestones } from "@/services/notifications.service";
  * groupés) — la latence MG→UE domine, chaque roundtrip compte.
  */
 
-/** Garde auteur en UNE requête (ban + âge → poids). Exportée : avis et
- * commentaires appliquent la même règle (compte < 1 h refusé). */
+/** Garde auteur en UNE requête (ban → poids). Exportée : avis et
+ * commentaires suivent la même règle — premier engagement immédiat
+ * (0063), l'unique mesure d'âge restante est la pondération 24 h. */
 export async function checkVoter(userId: string): Promise<{ weight: 0 | 1 }> {
   const [row] = await db
     .select({ bannedAt: users.bannedAt, createdAt: users.createdAt })
@@ -30,15 +34,11 @@ export async function checkVoter(userId: string): Promise<{ weight: 0 | 1 }> {
     .limit(1);
   if (!row) throw new ProfileError("NOT_FOUND", "Compte introuvable.");
   if (row.bannedAt) throw new ProfileError("FORBIDDEN", "Compte suspendu.");
-  const ageMs = Date.now() - row.createdAt.getTime();
-  if (ageMs < 3_600_000) {
-    throw new ProfileError(
-      "VALIDATION",
-      "Compte trop récent pour voter — réessayez dans une heure.",
-      { reason: "account_too_young" },
-    );
-  }
-  return { weight: ageMs < 86_400_000 ? 0 : 1 };
+  // Shadow-weighting : compte < 24 h → poids 0, posé à l'écriture,
+  // promu 0 → 1 par le sweep des scores (ranking.service / cron).
+  return {
+    weight: Date.now() - row.createdAt.getTime() < 86_400_000 ? 0 : 1,
+  };
 }
 
 async function assertVoteLimit(userId: string, ip: string | null): Promise<void> {
