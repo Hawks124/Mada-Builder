@@ -459,10 +459,14 @@ BEGIN
         USING DETAIL = 'reason=product_not_published';
     END IF;
     IF NEW.parent_id IS NOT NULL THEN
-      IF EXISTS (
+      -- Positif : le parent DOIT exister (CodeRabbit, 0061) — inexistant,
+      -- supprimé ou d'un autre produit, c'est le même refus
+      -- `parent_not_found` que le contrat promet.
+      IF NOT EXISTS (
         SELECT 1 FROM public.comments c
         WHERE c.id = NEW.parent_id
-          AND (c.deleted_at IS NOT NULL OR c.product_id <> NEW.product_id)
+          AND c.product_id = NEW.product_id
+          AND c.deleted_at IS NULL
       ) THEN
         RAISE EXCEPTION 'Commentaire parent introuvable (même produit, non supprimé).'
           USING DETAIL = 'reason=parent_not_found';
