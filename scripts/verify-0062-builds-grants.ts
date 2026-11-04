@@ -7,9 +7,13 @@
  * anon / authenticated. Les erreurs attendues s'exécutent dans un
  * SAVEPOINT isolé (une erreur Postgres aborte sinon toute la transaction).
  *
- * Ce que ça prouve (après application de la migration 0062) :
- * - le GRANT pleine ligne de 0053 est remplacé par des grants colonne
- *   (r2_key absente) : tighten information_schema comme base de vérité ;
+ * Ce que ça prouve (après la migration 0062 — et restant vrai après la
+ * 0064 T6-bis) :
+ * - le GRANT pleine ligne de 0053 est remplacé par des grants colonne :
+ *   les dix colonnes de 0062 CHACUNE encore grantée (sémantique de
+ *   sous-ensemble — depuis 0064 la surface exacte passe à 13 colonnes
+ *   et c'est `verify-0064` qui en détient l'autorité) ; `r2_key` absente
+ *   des grants des deux rôles, information_schema comme base de vérité ;
  * - anon : `select=r2_key` → 42501 franche ; `select=*` → 42501 (une
  *   colonne non grantée bloque la requête entière) ;
  * - anon : les dix colonnes grantées restent lisibles sur les
@@ -40,7 +44,11 @@ function check(name: string, ok: boolean, detail?: unknown): void {
 
 type PgErr = { code?: string };
 
-/** Colonne listée dans le GRANT SELECT de la migration 0062 */
+/** Les dix colonnes du GRANT SELECT de la migration 0062 — base du
+ * SOUS-ENSEMBLE vérifié ici : 0064 (T6-bis) a ajouté `cert_sha256`,
+ * `min_sdk`, `target_sdk` à la surface et `verify-0064` verrouille la
+ * liste exacte des 13 ; ce verify prouve que ces dix-là restent
+ * grantées et que `r2_key` n'y figure jamais. */
 const GRANTED_COLS = [
   "id",
   "product_id",
@@ -117,7 +125,10 @@ async function main(): Promise<void> {
       );
 
       // 2. La surface du GRANT (information_schema = vérité) : les dix
-      //    colonnes grantées à anon ET authenticated, r2_key absente.
+      //    colonnes de 0062 CONTINUENT d'être grantées à anon ET
+      //    authenticated (sémantique de SOUS-ENSEMBLE — 0064 T6-bis a
+      //    élargi la surface à 13, la liste exacte est l'affaire du
+      //    verify-0064) et `r2_key` reste absente quel que soit le rôle.
       for (const role of ["anon", "authenticated"]) {
         const cols = await tx`
           SELECT column_name FROM information_schema.column_privileges
@@ -125,9 +136,9 @@ async function main(): Promise<void> {
             AND grantee = ${role}`;
         const got = cols.map((c) => c.column_name).sort();
         check(
-          `grant ${role} : exactement les dix colonnes, r2_key absente`,
-          got.length === GRANTED_COLS.length &&
-            got.every((c) => (GRANTED_COLS as readonly string[]).includes(c)),
+          `grant ${role} : les dix de 0062 toujours grantées (sous-ensemble), r2_key absente`,
+          (GRANTED_COLS as readonly string[]).every((c) => got.includes(c)) &&
+            !got.includes("r2_key"),
           got,
         );
       }
@@ -167,7 +178,7 @@ async function main(): Promise<void> {
       check("anon select * → 42501 (colonne non grantée dans le *)", anonStarDenied);
 
       // 5. anon : les dix colonnes grantées passent — et la policy 0053
-      //    sigue arbitrant : seul l'APPROVÉ est visible (le pending ne
+      //    continue d'arbitrer : seul l'APPROVÉ est visible (le pending ne
       //    l'est pas — pas d'oracle).
       const anonRows = await tx`
         SELECT id, version_code, version_name, package, size_bytes, whatsnew,
