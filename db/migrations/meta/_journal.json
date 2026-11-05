@@ -435,6 +435,13 @@
       "when": 1793347353000,
       "tag": "0063_lift_account_age_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793347354000,
+      "tag": "0064_builds_public_cert_sdk_columns",
+      "breakpoints": true
     }
   ]
 }

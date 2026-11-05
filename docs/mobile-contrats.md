@@ -320,13 +320,19 @@ des vues) reste VALIDE, avec un anti-burst : au-delà de ~60
 événements/min/produit, l'événement est stocké sans incrémenter
 `view_count` — aucun impact pour un client légitime.
 
-**Canal PostgREST `product_builds` (T6 — migration 0062)** : le select
-de lecture ne demande que les dix colonnes grantées (`id`, `product_id`,
-`version_code`, `version_name`, `package`, `size_bytes`, `whatsnew`,
-`status`, `sha256_file`, `created_at`). `r2_key` n'est plus lisible :
+**Canal PostgREST `product_builds` (T6/0062 + T6-bis/0064)** : le
+select de lecture ne demande que les treize colonnes grantées (`id`,
+`product_id`, `version_code`, `version_name`, `package`, `size_bytes`,
+`whatsnew`, `status`, `sha256_file`, `created_at` + **`cert_sha256`,
+`min_sdk`, `target_sdk`** — les 3 colonnes T6-bis, publique par nature,
+liste verrouillée des deux côtés : services natifs et `verify-0064` en
+littéral dur). `r2_key` n'est plus lisible :
 une requête qui la cible (ou un `select=*`) est refusée en franche 42501. Le flux natif (D5) passe par
 `GET /api/v1/products/[id]/download` qui fournit tout le nécessaire —
-jamais une clé de stockage.
+jamais une clé de stockage. Depuis l'épure T6-bis côté natif
+(`fetchProductDetail` supprimée), la fiche produit mobile ne lit plus
+`GET /api/v1/products/[id]` — son embed `product_builds` couvre le
+besoin entièrement.
 
 **T1/T2 — compteur et reprise `Range` sur la route download
 (2026-11-02)** : chaque résolution compte +1 (défaut) ; le marqueur de
@@ -368,6 +374,17 @@ de 0, **un seul rewind** avant abandon de la reprise (contrat natif).
 4. Invariant SHA : tout build APPROUVÉ porte un `sha256` non nul (exigé
    au record) ; une réponse fiche/approved sans sha = BUG SERVEUR à
    reporter — jamais un état à tolérer côté client.
+5. **Robustesse réseau du check (fait canal 2026-11-04 — aucun
+   changement de contrat)** : côté natif, un échec HTTP **transitoire**
+   (5xx, 408, 425, 429) → retry WorkManager backoff ×5 (~15 min), JAMAIS
+   lu comme « pas de MAJ » ; un `200` dont l'enveloppe n'est pas
+   canonique → retry (une régression serveur se voit au lieu de
+   masquer) ; **non-transitoire** (401/403, 4xx de forme) → abandon
+   immédiat tracé (`apk_update_check_gave_up`, release-only, zéro PII).
+   Invariant serveur qui en découle : `200 + updates: []` reste
+   **l'unique « pas de MAJ » légitime** — le serveur ne masque jamais
+   une erreur par une liste vide. Notifications off → aucun POST du
+   tout (le check au resume de l'écran Mes apps reste maître).
 
 Règles produit à réimplémenter à l'identique : nom ≥ 2 caractères ;
 occupation = `GET /meta` (vocabulaire fermé servi par le backend — jamais
