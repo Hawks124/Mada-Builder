@@ -21,7 +21,16 @@ async function main(): Promise<void> {
   const seedProducts = await db
     .select({ id: products.id, slug: products.slug, status: products.status })
     .from(products)
-    .where(or(ilike(products.slug, "seed-%"), ilike(products.slug, "verify-%")));
+    .where(
+      or(
+        ilike(products.slug, "seed-%"),
+        ilike(products.slug, "verify-%"),
+        // Fiches de verify-api-hardening créées avant son ménage robuste
+        // (nom « Produit Vérif X » → slug `produit-verif-x`, manqué par
+        // les deux préfixes ci-dessus) : vu en prod (crash du 02/11).
+        ilike(products.slug, "produit-verif-%"),
+      ),
+    );
   console.log(`produits factices: ${seedProducts.length}`);
   for (const p of seedProducts.slice(0, 20)) console.log(`  - ${p.slug} [${p.status}]`);
   if (seedProducts.length > 20) console.log(`  … +${seedProducts.length - 20} autres`);

@@ -585,6 +585,20 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Corrigé
 
+- **Les scripts de verify ne laissent plus jamais de fantômes en prod** :
+  un run cassé en milieu de `verify-api-hardening` (852 lignes d'appels
+  réels avant le ménage) avait abandonné un compte « Vérif Hardening » +
+  une fiche draft en prod le 02/11 — visibles dans le hero et une page
+  `/makers/*` indexable. Trois couches : (1) le ménage passe **en
+  `finally`** et purge **par maker** (ses produits inclus) au lieu d'un
+  nettoyage fin de fin de script ; (2) le verify exige désormais
+  `VERIFY_ALLOW_PROD=1` comme les autres verifies qui mutent en prod ;
+  (3) `purge-seed` couvre la famille de slugs `produit-verif-%` (la
+  fiche fantôme était manquée par les patterns `seed-`/`verify-`).
+  Nettoyage réel appliqué en prod le 05/11 : 1 compte + 1 fiche purgés
+  via la voie RGPD (`purge-seed --apply` → `deleteAccount` cascade),
+  10 objets R2 orphelins sweepés.
+
 - **La navbar débordait à 320 px** : wordmark + connexion + toggle +
   burger = 320 px pour 288 utiles — le burger sortait de l'écran (scroll
   horizontal). Le ThemeToggle quitte la barre sous `sm` et vit en bas du
