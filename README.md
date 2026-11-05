@@ -11,6 +11,7 @@
   <a href="https://github.com/Hawks124/Mada-Builder/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Hawks124/Mada-Builder/actions/workflows/ci.yml/badge.svg"></a>
   <a href="./LICENSE"><img alt="License MIT" src="https://img.shields.io/github/license/Hawks124/Mada-Builder"></a>
   <a href="https://coderabbit.ai"><img alt="CodeRabbit Pull Request Reviews" src="https://img.shields.io/coderabbit/prs/github/Hawks124/Mada-Builder?utm_source=oss&utm_medium=github&utm_campaign=Hawks124%2FMada-Builder&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews"></a>
+  <a href="https://hub.xerj.org/contributors/Hawks124"><img alt="XERJ Corpus Hub contributor" src="https://hub.xerj.org/contributors/Hawks124/badge.svg"></a>
   <a href="./CONTRIBUTING.md"><img alt="PRs welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg"></a>
 </p>
 
@@ -33,9 +34,10 @@
   <img alt="Upstash" src="https://img.shields.io/badge/Upstash-00E9A1?logo=upstash&logoColor=black">
   <img alt="Vercel" src="https://img.shields.io/badge/Vercel-000000?logo=vercel&logoColor=white">
   <img alt="Sentry" src="https://img.shields.io/badge/Sentry-362D59?logo=sentry&logoColor=white">
+  <img alt="Umami" src="https://img.shields.io/badge/Umami_analytics-1F2937?logo=umami&logoColor=white">
 </p>
 
-Jobs : `pg_cron` (SQL — score 15 min, produit du jour, purge brouillons, recomptage téléchargements quotidien) · GitHub Actions (CI — digest hebdo, sync revenus horaire, maintenance hebdo : sweep R2/purges/dead man switch). Déploiement Vercel, opéré avec [`docs/` + `STACK.md`](./STACK.md).
+Jobs : `pg_cron` (SQL — score 15 min, produit du jour, purge brouillons, recomptage téléchargements quotidien) · GitHub Actions (CI — digest hebdo, sync revenus horaire, maintenance hebdo : sweep R2/purges/dead man switch). Analytique : Umami (cloud gratuit, sans cookies ni tracking tiers). Déploiement Vercel, opéré avec [`docs/` + `STACK.md`](./STACK.md).
 
 ## Démarrage
 
