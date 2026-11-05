@@ -19,7 +19,10 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   publié obligatoire, veille (avis hors fiche en veille) et règles de
   parent restent inchangés ; un verify dédié (`verify-0063`) rejoue la
   fonction du pont en SQL : le tout frais pose trois canaux, les
-  gardes restantes répondent leurs raisons exactes.
+  gardes restantes répondent leurs raisons exactes — et son miroir
+  `db/setup.sql` est réaligné sur 0061 (le garde de reconstruction
+  refusait un parent de réponse orphelin depuis la 0055 ; deux checks
+  anti-dérive le verrouillent).
 - **Le pont d'écriture directe (migration 0055)** : avis, commentaires et
   votes de commentaires sont écrits par l'app mobile en direct PostgREST —
   la base devient l'arbitre unique (CHECK, RLS own-row, garde trigger,

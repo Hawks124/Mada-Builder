@@ -20,7 +20,12 @@
  *   réponse comme de vote de commentaire (`parent_not_found`) ;
  * - le flood 20/60 s s'applique à un compte tout frais aussi : les
  *   20 premières écritures passent, la 21e meurt (`flood`) — le filet
- *   global reste le seul plafond instantané.
+ *   global reste le seul plafond instantané ;
+ * - ANTI-DÉRIVE MIROIR : le garde de `db/setup.sql` (reconstruit lors
+ *   des db:setup) refuse lui aussi le parent fantôme — la forme
+ *   périmée 0055 (« existe MAIS supprimé/cross-produit ») qui laissait
+ *   passer un parent_id orphelin a disparu du miroir, la forme
+ *   positive 0061/0063 y est présente.
  *
  * Relance : `VERIFY_ALLOW_PROD=1 npx tsx scripts/verify-0063-lift-account-age-guard.ts`
  */
@@ -231,6 +236,32 @@ async function main(): Promise<void> {
         "flood : 20 passées puis la 21e refuse (compte tout frais)",
         floodRefused === true && gotDetail !== null && gotDetail.includes("flood"),
         { floodRefused, gotDetail },
+      );
+
+      // ── 5. Miroir db/setup.sql — anti-dérive du garde lors des
+      // RECONSTRUCTIONS (le miroir ne se déploie pas ; quiconque
+      // reconstruit depuis db:setup reçoit SA version du garde). La
+      // divergence 0055 : parent testé en forme négative — un
+      // parent_id ORPHELIN (pas de FK) passait — 0061/0063 le refusent,
+      // le miroir doit refuser aussi.
+      const { readFile } = await import("node:fs/promises");
+      const setupSql = await readFile("db/setup.sql", "utf8");
+      const zone = setupSql.slice(
+        setupSql.indexOf("TG_TABLE_NAME = 'comments'"),
+        setupSql.indexOf("TG_TABLE_NAME = 'comment_votes'"),
+      );
+      check(
+        "miroir : la forme périmée 0055 (parent orphelin ADMIS) est absente",
+        !setupSql.includes("c.deleted_at IS NOT NULL OR c.product_id <> NEW.product_id"),
+        setupSql.includes("c.deleted_at IS NOT NULL OR c.product_id <> NEW.product_id"),
+      );
+      check(
+        "miroir : parent fantôme refusé (forme positive 0061/0063 présente)",
+        zone.includes("IF NEW.parent_id IS NOT NULL THEN") &&
+          zone.includes("IF NOT EXISTS") &&
+          zone.includes("WHERE c.id = NEW.parent_id") &&
+          zone.includes("AND c.product_id = NEW.product_id") &&
+          zone.includes("AND c.deleted_at IS NULL"),
       );
 
       // Fin : abort volontaire → ROLLBACK total (aucun résidu, base
