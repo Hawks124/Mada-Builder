@@ -567,8 +567,16 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   (hub + 5 fiches 2026 + deep-links), legal (clés 5 providers, clause bêta,
   fraude), mobile (`GET revenue`, `revenue-connections` ×3).
 
-### Modifié
+## Modifié
 
+- **La carte « Produit du jour » n'a plus de repli fantôme (no mock,
+  jamais)** : la prop `product` de `FeaturedProduct` est obligatoire et le
+  mock `getFeatured()` (Avotra HR, 2026-09) disparaît de
+  `services/home.service.ts` — tout rendu sans données réelles est un bug
+  visible (page absente), jamais un faux produit à la place. La vitrine
+  featured reste strictement réservée aux produits publiés actifs :
+  jamais de `curated` (garde du calcul, recalcul paresseux, refus de
+  l'épinglage admin — 404 indistinct).
 - **La surface PostgREST de `product_builds` passe à 13 colonnes
   publiques (T6-bis, migration 0064)** : `cert_sha256`, `min_sdk`,
   `target_sdk` rejoignent les dix de 0062 pour `anon` et

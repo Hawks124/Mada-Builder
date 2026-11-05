@@ -14,11 +14,13 @@ import { getPlatformById } from "@/config/platforms";
 import { AgeBadge } from "@/components/ui/age-badge";
 import { VoteButton } from "@/components/votes/vote-button";
 import { RevenueBadge } from "@/components/revenue/verified-revenue-badge";
-import { getFeatured, type FeaturedProductData } from "@/services/home.service";
+import type { FeaturedProductData } from "@/services/home.service";
 
 interface FeaturedProductProps {
-  /** Défaut = produit du jour (home inchangée). */
-  product?: FeaturedProductData;
+  /** Produit du jour — fourni POUR CHAQUE rendu (aucun repli fantôme :
+   * un rendu sans données réelles est un bug visible, jamais un faux
+   * produit à la place). */
+  product: FeaturedProductData;
   /** Version resserrée (page /leaderboard). Même contenu, moins d'air. */
   dense?: boolean;
   /**
@@ -31,14 +33,11 @@ interface FeaturedProductProps {
 
 /**
  * Hero produit du jour — spotlight éditorial standalone (PRD §11).
- * Data-driven via props ; la home utilise le défaut, /leaderboard en dense,
- * l'admin en `preview`.
+ * Data-driven via props — la prop `product` est OBLIGATOIRE (aucun mock
+ * de repli : home, /leaderboard en dense, l'admin en `preview` atteignent
+ * tous les trois le même contrat : données réelles ou rien).
  */
-export function FeaturedProduct({
-  product = getFeatured(),
-  dense = false,
-  preview = false,
-}: FeaturedProductProps) {
+export function FeaturedProduct({ product, dense = false, preview = false }: FeaturedProductProps) {
   const category = getCategoryById(product.categoryId);
   const makerSlug = product.makerUsername ?? slugifyName(product.maker);
   return (
