@@ -1,7 +1,10 @@
 // API hardening Phase 6 : idempotence, garde 413, curseurs, presign,
 // JWT local. Hermétique (makers dédiés, nettoyage total). R2-gated pour
 // le presign (PUT réel + submit) ; le reste est offline pur.
-// Usage: npx tsx scripts/verify-api-hardening.ts
+// Usage: VERIFY_ALLOW_PROD=1 npx tsx scripts/verify-api-hardening.ts
+// Hygiène fixtures : purge PAR MAKER en `finally` — un crash en milieu
+// de script (auth, R2, submit…) ne laisse plus jamais un fantôme en
+// prod (vu le 02/11 : user « Vérif Hardening » + fiche draft laissés).
 import "./_env";
 import { SignJWT } from "jose";
 import { db } from "@/db";
@@ -79,7 +82,58 @@ async function makeUser(email: string): Promise<string> {
   return created.data.user.id;
 }
 
+/** Purge PAR MAKER (pas par id suivi) : tous ses produits + le compte
+ * public + l'utilisateur Auth. Idempotent, sans exception levée : peut
+ * tourner `finally` même après un crash très tôt (aucun maker créé). */
+async function purgeVerifyMaker(): Promise<void> {
+  const [row] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, EMAIL))
+    .limit(1);
+  if (row) {
+    await db.delete(products).where(eq(products.makerId, row.id));
+    try {
+      await deleteAccount(row.id, row.id);
+    } catch {
+      // Ligne déjà purgée par la cascade : l'auth reste à faire.
+    }
+  }
+  try {
+    const admin = createAdminClient();
+    const listed = await admin.auth.admin.listUsers({ perPage: 100 });
+    const ghost = listed.data.users.find((u) => u.email?.toLowerCase() === EMAIL);
+    if (ghost) await admin.auth.admin.deleteUser(ghost.id);
+  } catch {
+    // best-effort
+  }
+}
+
 async function main(): Promise<void> {
+  if (process.env.VERIFY_ALLOW_PROD !== "1") {
+    console.error(
+      "  Base de production possible. Relance avec VERIFY_ALLOW_PROD=1 si c'est intentionnel.",
+    );
+    process.exit(1);
+  }
+  try {
+    await runVerify();
+  } finally {
+    // Réseau du filet : LE ménage s'exécute quoi qu'il arrive.
+    await purgeVerifyMaker();
+  }
+  // Preuve (après le finally) : plus aucune trace du maker de verify.
+  const [gone] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, EMAIL))
+    .limit(1);
+  check("nettoyage maker (finally)", !gone);
+  console.log(`api-hardening: ${pass} OK, ${fail} KO`);
+  process.exit(fail === 0 ? 0 : 1);
+}
+
+async function runVerify(): Promise<void> {
   const maker = await makeUser(EMAIL);
   const baseData = {
     name: "Produit Vérif Hardening",
@@ -819,31 +873,6 @@ async function main(): Promise<void> {
     console.log("SKIP: download v1 200 sans stockage");
   }
   await db.delete(products).where(eq(products.id, readProduct.id));
-
-  // 6. Nettoyage maker.
-  const [stale] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, EMAIL))
-    .limit(1);
-  if (stale) await deleteAccount(stale.id, stale.id);
-  try {
-    const admin = createAdminClient();
-    const listed = await admin.auth.admin.listUsers({ perPage: 100 });
-    const ghost = listed.data.users.find((u) => u.email?.toLowerCase() === EMAIL);
-    if (ghost) await admin.auth.admin.deleteUser(ghost.id);
-  } catch {
-    // best-effort
-  }
-  const [gone] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, EMAIL))
-    .limit(1);
-  check("nettoyage maker", !gone);
-
-  console.log(`api-hardening: ${pass} OK, ${fail} KO`);
-  process.exit(fail === 0 ? 0 : 1);
 }
 
 main().catch((e) => {
