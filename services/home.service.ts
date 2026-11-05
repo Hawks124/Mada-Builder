@@ -105,32 +105,6 @@ export type FeaturedProductData = {
   } | null;
 };
 
-const MOCK_FEATURED: FeaturedProductData = {
-  id: "avotra-hr",
-  name: "Avotra HR",
-  tagline: "Le SIRH et système de paie automatisé certifié 100% droit du travail malgache.",
-  categoryId: "employment",
-  maker: "Kaliana R.",
-  makerAvatar: "https://i.pravatar.cc/150?u=kaliana",
-  votes: 342,
-  comments: 58,
-  initials: "AV",
-  iconUrl: null,
-  dateLabel: "Ven. 19 Sept. 2026",
-  platforms: ["web", "ios", "android"],
-  pricingLabel: "Freemium",
-  pricingDetail: "Dès 15.000Ar/mois",
-  ageRating: "4+",
-  ageLabel: "Grand public",
-  rating: "4.9",
-  reviewsCount: 120,
-};
-
-/** Produit du jour — #1 de la veille ou pick admin (PRD §11). Standalone, hors classement live. */
-export function getFeatured(): FeaturedProductData {
-  return MOCK_FEATURED;
-}
-
 /**
  * Copies déterministes pour que la pagination ait plusieurs pages à
  * afficher. Backend : le volume réel viendra de la requête, la logique de

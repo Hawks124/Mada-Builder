@@ -569,6 +569,14 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Modifié
 
+- **La carte « Produit du jour » n'a plus de repli fantôme (no mock,
+  jamais)** : la prop `product` de `FeaturedProduct` est obligatoire et le
+  mock `getFeatured()` (Avotra HR, 2026-09) disparaît de
+  `services/home.service.ts` — tout rendu sans données réelles est un bug
+  visible (page absente), jamais un faux produit à la place. La vitrine
+  featured reste strictement réservée aux produits publiés actifs :
+  jamais de `curated` (garde du calcul, recalcul paresseux, refus de
+  l'épinglage admin — 404 indistinct).
 - **Le quota de captures passe de 6 à 8** (source de vérité au service, le
   composant de soumission suit) — Google Play plafonne à 8 screenshots ;
   le budget multipart monte à 92 Mo en proportion (`/api/v1/meta` expose
