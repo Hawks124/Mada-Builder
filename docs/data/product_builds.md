@@ -26,13 +26,19 @@ Statut : `pending` → revu (D4, bloquant) → `approved` téléchargeable.
 
 Index : UNIQUE `(product_id, version_code)`, `(product_id, created_at)`.
 
-## Accès (migration 0062 — T6)
+## Accès (migrations 0062 T6 + 0064 T6-bis)
 
 Le RLS arbitre les **lignes** (policy 0053 inchangée : approuvés publics +
-les builds du maker), le GRANT arbitre les **colonnes** : seule la dizaine
+les builds du maker), le GRANT arbitre les **colonnes** : la treizaine
 que le canal natif consomme est grantée à `anon`/`authenticated` —
 `id, product_id, version_code, version_name, package, size_bytes,
-whatsnew, status, sha256_file, created_at`. `r2_key` est **hors de la
+whatsnew, status, sha256_file, created_at` + **`cert_sha256`,
+`min_sdk`, `target_sdk`** (0064 — T6-bis : la doctrine « consommés par
+l'API v1 » est déchue, le natif lit désormais tout son fiche en direct
+PostgREST ; les 3 colonnes sont publiques par nature — `cert_sha256`
+extractible par quiconque tient l'APK, SDK exposables publiquement par
+Play. Liste verrouillée des deux côtés : services natifs L27-40/L19-32
+et `verify-0064` en littéral dur). `r2_key` est **hors de la
 liste** : toute requête qui la cible (et a fortiori un `select=*`) tombe
 sur un `42501` franche — c'est le correctif du trou T6 (le GRANT
 full-row de 0053 expose toutes les colonnes dès que la ligne est
@@ -55,7 +61,8 @@ pipeline D1→D6 n'est pas touché.
   `CERT_FAILED` : blob X.509 non parsé. Fail-closed dans tous les cas.
 - Écritures : service seul (`createBuild`), jamais de direct PostgREST.
   Lectures PostgREST : approuvés publics + own (policy 0053), sur les
-  dix colonnes grantées uniquement (0062 — `r2_key` jamais exposée).
+  treize colonnes grantées uniquement (0062 + 0064 — `r2_key` jamais
+  exposée).
 
 ## Usage mobile
 

@@ -567,7 +567,7 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   (hub + 5 fiches 2026 + deep-links), legal (clés 5 providers, clause bêta,
   fraude), mobile (`GET revenue`, `revenue-connections` ×3).
 
-### Modifié
+## Modifié
 
 - **La carte « Produit du jour » n'a plus de repli fantôme (no mock,
   jamais)** : la prop `product` de `FeaturedProduct` est obligatoire et le
@@ -577,6 +577,18 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
   featured reste strictement réservée aux produits publiés actifs :
   jamais de `curated` (garde du calcul, recalcul paresseux, refus de
   l'épinglage admin — 404 indistinct).
+- **La surface PostgREST de `product_builds` passe à 13 colonnes
+  publiques (T6-bis, migration 0064)** : `cert_sha256`, `min_sdk`,
+  `target_sdk` rejoignent les dix de 0062 pour `anon` et
+  `authenticated` (grants de colonne additives — le RLS et la policy
+  0053 restent strictement identiques, `r2_key` toujours hors liste,
+  `42501` franche quiconque la vise). Motivation : l'épure côté natif
+  supprime la dernière lecture API v1 (`fetchProductDetail`) — la fiche
+  mobile lit son direct en PostgREST (1 requête par vue au lieu de 2) ;
+  les 3 colonnes sont publiques par nature (cert extractible par
+  apksigner, SDK exposables par Play). Liste verrouillée des deux
+  côtés : le `verify-0064` la code en littéral dur, les services
+  natifs la listent explicitement.
 - **Le quota de captures passe de 6 à 8** (source de vérité au service, le
   composant de soumission suit) — Google Play plafonne à 8 screenshots ;
   le budget multipart monte à 92 Mo en proportion (`/api/v1/meta` expose
