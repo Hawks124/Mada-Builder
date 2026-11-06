@@ -6,6 +6,25 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **La parité push web — le lot FCM avec la squad mobile (migration 0065)** : la table `user_devices` entre dans le schéma Drizzle (miroir
+  du contrat mobile arbitré 12/12 : 11 colonnes, token unique, CHECK
+  plateforme, index partiel) et les durcissements arbitrés sont posés :
+  policy UPDATE corrigée (fin du `USING (true)` — cibler autre chose que
+  ses lignes ou les lignes anonymes est mort, et le CHECK refuse
+  possédé → NULL), grants normalisés (anon → INSERT/UPDATE + SELECT
+  colonnes `(id, user_id)` ; les tokens FCM restent jamais lisibles,
+  `SELECT fcm_token` = 42501), prototype pg_net tombé (le dispatch
+  passe par le Database Webhook natif vers l'Edge Function `send-push`,
+  idempotence `fcm_dispatched_at`), index dupliqué tombé, cron
+  `purge-anon-devices` à 04:40 (30 j de silence) et la SECURITY DEFINER
+  n'est plus appelable par les clients (`REVOKE EXECUTE` — owner et
+  service_role conservés). Le journal Drizzle est rentré dans le
+  millésime du lot (l'ancien `when` futur aurait pu skipper les
+  migrations générées après). Verify dédié (`verify-0065`) : 35 OK /
+  0 KO en prod — catalogue + comportements RLS en transaction annulée
+  (usurpation de rattachement 42501, UPDATE d'autrui 0 rows sur les deux
+  rôles, dissociation possédé 42501, claim direct vers l'EF
+  `service_role`, tokens jamais lisibles).
 - **Le premier vote / avis / commentaire est immédiat (migration 0063)** :
   la barre « compte < 1 h » est levée sur les trois canaux — le web
   (`checkVoter` ne refuse plus l'âge), la base (le pont 0055/0061 perd
