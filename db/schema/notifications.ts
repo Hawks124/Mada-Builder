@@ -1,5 +1,5 @@
 import { v7 as uuidv7 } from "uuid";
-import { index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { products } from "./products";
 
@@ -51,6 +51,14 @@ export const notifications = pgTable(
     body: text("body"),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    // Contrat mobile FCM (0065) : `meta` porte le contexte push (milestone,
+    // product_*...) ; `fcm_dispatched_at` est le verrou d'idempotence du
+    // pipeline push (l'EF `send-push` stamp après envoi — cooldown_skipped
+    // et no_devices SONT des terminaisons définitives, aucun retry différé).
+    // Ces colonnes sont écrites par la squad mobile côté Edge Function ;
+    // le web les lit et ne les stampait jamais.
+    meta: jsonb("meta").notNull().default({}),
+    fcmDispatchedAt: timestamp("fcm_dispatched_at", { withTimezone: true }),
   },
   (t) => [
     index("notifications_user_created_idx").on(t.userId, t.createdAt),
