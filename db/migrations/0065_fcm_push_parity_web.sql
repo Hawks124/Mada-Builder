@@ -264,6 +264,14 @@ CREATE OR REPLACE FUNCTION public.purge_anon_devices()
   END;
   $$;
 --> statement-breakpoint
+-- 7b. Revoke EXECUTE sur la SECURITY DEFINER (defaut postgres = EXECUTE a
+--     PUBLIC, plus les default-privileges Supabase anon/authenticated —
+--     PostgREST exposerait /rpc/purge_anon_devices et tout client
+--     declencherait la purge hors-RLS). Le job pg_cron tourne sous le
+--     role du job (postgres) : aucun besoin des grants.
+REVOKE ALL ON FUNCTION public.purge_anon_devices()
+  FROM PUBLIC, anon, authenticated;
+--> statement-breakpoint
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN

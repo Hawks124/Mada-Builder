@@ -49,6 +49,8 @@ import { v7 as uuidv7 } from "uuid";
 
 let pass = 0;
 let fail = 0;
+/** Enregistre une assertion : incrémente `pass`/`fail` et journalise le
+ * résultat (console : `ok:` en vert, `KO:` + détail JSON en erreur). */
 function check(name: string, ok: boolean, detail?: unknown): void {
   if (ok) {
     pass += 1;
@@ -62,6 +64,12 @@ function check(name: string, ok: boolean, detail?: unknown): void {
 /** Erreurs attendues : Postgres expose le SQLSTATE dans `code`. */
 type PgErr = { code?: string };
 
+/**
+ * Point d'entrée du verify 0065 : sonde HTTP du canal (section 0),
+ * lectures de catalogue (section 1), comportements RLS dans une
+ * transaction annulée (section 2), état du cron de purge (section 3).
+ * Sortie : code 0 si toutes les assertions passent, 1 sinon.
+ */
 async function main(): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL manquante.");
@@ -130,7 +138,7 @@ async function main(): Promise<void> {
   );
 
   const notifRows = await sql`
-    SELECT column_name, data_type, column_default
+    SELECT column_name, data_type, column_default, is_nullable
     FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'notifications'
       AND column_name IN ('meta', 'fcm_dispatched_at')`;
@@ -140,9 +148,11 @@ async function main(): Promise<void> {
     "notifications : meta jsonb NOT NULL DEFAULT '{}' + fcm_dispatched_at timestamptz",
     !!meta &&
       String(meta.data_type) === "jsonb" &&
+      String(meta.is_nullable) === "NO" &&
       String(meta.column_default) === "'{}'::jsonb" &&
       !!disp &&
-      String(disp.data_type) === "timestamp with time zone",
+      String(disp.data_type) === "timestamp with time zone" &&
+      String(disp.is_nullable) === "YES",
     notifRows,
   );
 
@@ -187,7 +197,9 @@ async function main(): Promise<void> {
     FROM pg_policy p
     WHERE p.polrelid = 'public.user_devices'::regclass
     ORDER BY p.polname`;
+  /** Trouve une policy par son nom dans les rows lues de `pg_policy`. */
   const byName = (n: string) => polRows.find((p) => String(p.polname) === n);
+  /** Extrait la liste des rôles d'une row policy (`polroles` → noms). */
   const rolesOf = (r: { roles: unknown }) =>
     Array.isArray(r.roles) ? r.roles.map((x) => String(x)) : [];
 
@@ -292,6 +304,18 @@ async function main(): Promise<void> {
     { c: 0 },
   ]);
   check("purge_anon_devices() : posée", Number(purgeFn?.c ?? 0) === 1);
+
+  const [purgeAcl] = await sql`
+    SELECT proacl FROM pg_proc WHERE proname = 'purge_anon_devices'`;
+  const aclItems = Array.isArray(purgeAcl?.proacl) ? purgeAcl.proacl.map((a) => String(a)) : [];
+  check(
+    "purge_anon_devices() : EXECUTE révoqué à PUBLIC/anon/authenticated (owner + service_role conservés)",
+    aclItems.length > 0 &&
+      !aclItems.some((a) => /^(=|anon=|authenticated=)/.test(a)) &&
+      aclItems.some((a) => /^postgres=X/i.test(a)) &&
+      aclItems.some((a) => /^service_role=X/i.test(a)),
+    aclItems,
+  );
 
   const [uidx] = await sql`
     SELECT count(*)::int AS c FROM pg_indexes
