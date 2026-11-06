@@ -271,4 +271,6 @@ npx tsx scripts/verify-*.ts  # garde-fous (OTP, toasts, emails, API v1… — ne
 
 Auth Bearer (Supabase Auth native côté Flutter, OAuth only MVP), enveloppe
 `{ok, code}`, rate-limits Upstash, 404 JSON. Référence complète :
-`docs/mobile-contrats.md`. L'email/OTP custom reste web-only.
+`docs/mobile-contrats.md`. L'email/OTP custom n'est pas web-only : les 2
+routes `/api/v1/auth/otp/request` + `/verify` existent (réutilisent
+`services/otp.service.ts`) et sont consommées par le mobile.
