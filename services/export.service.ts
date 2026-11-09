@@ -22,7 +22,8 @@ const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
 /**
  * Export RGPD/portabilité (légal §Mes droits) : TOUTES les données du
  * maker, binaires inclus (logos, captures, APKs, preuves d'appel — sa
- * propriété, `confidentialite.md`). ZIP streamé, zéro buffering :
+ * propriété, `confidentialite.md`). ZIP construit intégralement en
+ * tmpfile avant de toucher à la réponse : jamais un ZIP partiel.
  * data.json + MANIFEST.txt + /media + /builds + /appeals.
  * Best-effort par fichier (objet manquant = noté, jamais bloquant).
  */
@@ -299,50 +300,65 @@ async function appendMedia(archive: Archiver, ref: MediaRef, skipped: string[]):
   }
 }
 
+import { createWriteStream } from "node:fs";
+import { mkdtemp, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 /**
- * Archive ZIP streamée (pipe R2/HTTP → ZIP → réponse, zéro buffering
- * fichier : même 300 Mo ne tiennent jamais en RAM). Toujours servie en
- * direct — pas de file, pas d'email (l'email ne peut de toute façon pas
- * porter des binaires ; le jour d'un vrai timeout constaté, ajouter une
- * file async avec lien signé, pas une pièce jointe).
+ * Archive ZIP construire complete dans un fichier temp avant tout envoi :
+ * jamais une réponse partielle (revue E2E : mid-stream 4,9 min → archive
+ * corrompue). Si un media est illisible, l'archive est notée « skipped »
+ * dans le manifeste mais l'export est servi tel quel.
+ * Retourne apres écriture, avec le chemin temporaire — la route caller
+ * le streamera via createReadStream et déliera à la fin (unlink après
+ * res.close).
  */
-export async function streamUserExport(
-  userId: string,
-): Promise<{ filename: string; stream: ReadableStream<Uint8Array> }> {
+export interface BuildResult {
+  filename: string;
+  tempPath: string;
+  size: number;
+  skipped: string[];
+}
+
+export async function buildUserExport(userId: string): Promise<BuildResult> {
   const { data, media, counts } = await collectExportBundle(userId);
   const username = (data.profil as { username: string }).username;
   const archive = new ZipArchive({ zlib: { level: 1 } });
   const skipped: string[] = [];
-  // Les erreurs d'append sont des events, jamais des throws : sans ce
-  // listener, un fichier illisible ferait crasher le worker.
-  archive.on("error", () => {
-    try {
-      archive.abort();
-    } catch {
-      /* déjà terminé */
-    }
+  // tmpdir sous /tmp (Vercel) ou scratch dir local — jamais en RAM.
+  const tmp = await mkdtemp(join(tmpdir(), "mada-export-"));
+  const tmpPath = join(tmp, "rollout.zip");
+  const out = createWriteStream(tmpPath);
+  const written = new Promise<void>((resolve, rejectOut) => {
+    archive.on("error", rejectOut);
+    out.on("error", rejectOut);
+    out.on("finish", () => resolve());
+    archive.pipe(out);
   });
-  // Finalize en tâche de fond : les erreurs média sont notées, jamais
-  // bloquantes (le manifeste reste exact sur les données).
-  void (async () => {
-    try {
-      archive.append(JSON.stringify(data, null, 2), { name: "data.json" });
-      for (const ref of media) {
-        await appendMedia(archive, ref, skipped);
-      }
-      archive.append(manifestTxt(username, counts, skipped), { name: "MANIFEST.txt" });
-      await archive.finalize();
-    } catch {
-      try {
-        archive.abort();
-      } catch {
-        /* déjà terminé */
-      }
+  try {
+    archive.append(JSON.stringify(data, null, 2), { name: "data.json" });
+    for (const ref of media) {
+      await appendMedia(archive, ref, skipped);
     }
-  })();
+    archive.append(manifestTxt(username, counts, skipped), { name: "MANIFEST.txt" });
+    await archive.finalize();
+    await written;
+  } catch (err) {
+    try {
+      out.destroy();
+    } catch {
+      /* ignore */
+    }
+    await rm(tmp, { recursive: true, force: true }).catch(() => {});
+    throw err;
+  }
+  const s = await stat(tmpPath);
   const safe = username.replace(/[^a-z0-9-]+/gi, "-").toLowerCase() || "export";
   return {
     filename: `mada-made-export-${safe}.zip`,
-    stream: Readable.toWeb(archive) as ReadableStream<Uint8Array>,
+    tempPath: tmpPath,
+    size: s.size,
+    skipped,
   };
 }
