@@ -336,6 +336,8 @@ export async function buildUserExport(userId: string): Promise<BuildResult> {
     out.on("finish", () => resolve());
     archive.pipe(out);
   });
+  // Évite un unhandledRejection si l'erreur survient avant `await written`.
+  written.catch(() => {});
   try {
     archive.append(JSON.stringify(data, null, 2), { name: "data.json" });
     for (const ref of media) {
@@ -346,6 +348,11 @@ export async function buildUserExport(userId: string): Promise<BuildResult> {
     await written;
   } catch (err) {
     try {
+      archive.abort();
+    } catch {
+      /* déjà terminé */
+    }
+    try {
       out.destroy();
     } catch {
       /* ignore */
@@ -353,7 +360,13 @@ export async function buildUserExport(userId: string): Promise<BuildResult> {
     await rm(tmp, { recursive: true, force: true }).catch(() => {});
     throw err;
   }
-  const s = await stat(tmpPath);
+  let s: Awaited<ReturnType<typeof stat>>;
+  try {
+    s = await stat(tmpPath);
+  } catch (err) {
+    await rm(tmp, { recursive: true, force: true }).catch(() => {});
+    throw err;
+  }
   const safe = username.replace(/[^a-z0-9-]+/gi, "-").toLowerCase() || "export";
   return {
     filename: `mada-made-export-${safe}.zip`,

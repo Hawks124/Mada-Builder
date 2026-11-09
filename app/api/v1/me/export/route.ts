@@ -18,10 +18,22 @@ export async function GET(req: Request): Promise<Response> {
     await apiLimit("api:me:export", user.id, { window: "60 m", max: 3 });
     const { filename, tempPath, size } = await buildUserExport(user.id);
     const stream = createReadStream(tempPath);
+    // Cleanup best-effort : stream → close, plus signal d'aborde si client déconnecte.
     const cleanup = () => rm(dirname(tempPath), { recursive: true, force: true }).catch(() => {});
-    const nodeStream = stream as unknown as { on: (event: string, fn: () => void) => void };
-    nodeStream.on?.("end", cleanup);
-    nodeStream.on?.("close", cleanup);
+    stream.once("close", cleanup);
+    const abort = () => {
+      try {
+        stream.destroy();
+      } catch {
+        /* déjà fermé */
+      }
+    };
+    if (req.signal.aborted) {
+      abort();
+    } else {
+      req.signal.addEventListener("abort", abort, { once: true });
+      stream.once("close", () => req.signal.removeEventListener("abort", abort));
+    }
     return new Response(Readable.toWeb(stream) as unknown as BodyInit, {
       status: 200,
       headers: {

@@ -12,7 +12,7 @@ import { Readable } from "node:stream";
  * Export RGPD web : ZIP complet en tmpfile puis streamed avec
  * Content-Length exact — jamais une archive partielle côté client.
  */
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   try {
     const sessionUser = await getSessionUser();
     if (!sessionUser) throw new ApiError("UNAUTHORIZED", 401, "Connexion requise.");
@@ -25,11 +25,22 @@ export async function GET(): Promise<Response> {
       throw new ApiError("FORBIDDEN", 429, "Trop de demandes. Réessayez dans une heure.");
     const { filename, tempPath, size } = await buildUserExport(sessionUser.id);
     const stream = createReadStream(tempPath);
-    // Cleanup best-effort côté serveur — jamais d'exception sur res.close.
+    // Cleanup best-effort : stream → close, plus signal d'aborde si client déconnecte.
     const cleanup = () => rm(dirname(tempPath), { recursive: true, force: true }).catch(() => {});
-    const nodeStream = stream as unknown as { on: (event: string, fn: () => void) => void };
-    nodeStream.on?.("end", cleanup);
-    nodeStream.on?.("close", cleanup);
+    stream.once("close", cleanup);
+    const abort = () => {
+      try {
+        stream.destroy();
+      } catch {
+        /* déjà fermé */
+      }
+    };
+    if (request.signal.aborted) {
+      abort();
+    } else {
+      request.signal.addEventListener("abort", abort, { once: true });
+      stream.once("close", () => request.signal.removeEventListener("abort", abort));
+    }
     return new Response(Readable.toWeb(stream) as unknown as BodyInit, {
       status: 200,
       headers: {

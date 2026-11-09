@@ -4,7 +4,7 @@
  * Ce que ça prouve :
  * - `buildUserExport(userId)` produit un fichier ZIP READABLE (PK magic) ;
  * - `data.json` et `MANIFEST.txt` y sont bien présents ;
- * - après lecture, le tmpfile est bien nettoyé (unlink côté script).
+ * - le répertoire temporaire parent est bien nettoyé.
  *
  * Préalables : env Supabase admin + DATABASE_URL. Nettoie ses résidus.
  * Relance : `npx tsx scripts/verify-export.ts`
@@ -16,6 +16,7 @@ import { users } from "../db/schema";
 import { db } from "../db";
 import { createReadStream } from "node:fs";
 import { rm, stat } from "node:fs/promises";
+import { dirname } from "node:path";
 import * as yauzl from "yauzl";
 
 let pass = 0;
@@ -81,7 +82,8 @@ async function main(): Promise<void> {
     check("data.json présent", names.has("data.json"));
     check("MANIFEST.txt présent", names.has("MANIFEST.txt"));
   } finally {
-    if (tempPath) await rm(tempPath, { recursive: true, force: true }).catch(() => {});
+    // cleanup du dossier temporaire complet (#CodeRabbit minor)
+    if (tempPath) await rm(dirname(tempPath), { recursive: true, force: true }).catch(() => {});
     await admin.auth.admin.deleteUser(userId).catch(() => {});
     await db.delete(users).where(eq(users.id, userId));
   }
