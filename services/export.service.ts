@@ -12,7 +12,7 @@ import {
   users,
   votes,
 } from "@/db/schema";
-import { PRODUCT_BUILDS_BUCKET, getR2ObjectStream } from "@/lib/r2";
+import { PRODUCT_BUILDS_BUCKET, getR2ObjectStream, presignBuildDownload } from "@/lib/r2";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { APPEALS_BUCKET } from "@/lib/supabase/storage";
 import { ProfileError } from "@/services/users.service";
@@ -29,9 +29,22 @@ const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
  */
 
 type MediaRef =
-  | { kind: "url"; url: string; zipPath: string; label: string }
-  | { kind: "r2"; bucket: string; key: string; zipPath: string; label: string }
-  | { kind: "appeals"; path: string; zipPath: string; label: string };
+  | { kind: "url"; url: string; zipPath: string; label: string; sizeBytes?: null }
+  | {
+      kind: "r2";
+      bucket: string;
+      key: string;
+      zipPath: string;
+      label: string;
+      sizeBytes?: number | null;
+    }
+  | {
+      kind: "appeals";
+      path: string;
+      zipPath: string;
+      label: string;
+      sizeBytes?: null;
+    };
 
 function safeSlug(slug: string): string {
   return slug.replace(/[^a-z0-9-]+/gi, "-").slice(0, 60) || "produit";
@@ -195,6 +208,7 @@ export async function collectExportBundle(userId: string): Promise<{
         key: b.r2Key,
         zipPath: `builds/${slug}-${v}.apk`,
         label: `binaire ${slug} ${v} (${b.status})`,
+        sizeBytes: b.sizeBytes,
       });
     });
     return {
@@ -373,5 +387,91 @@ export async function buildUserExport(userId: string): Promise<BuildResult> {
     tempPath: tmpPath,
     size: s.size,
     skipped,
+  };
+}
+
+// ── Assemblage client (desktop) : manifest + instructions de fetch ───────────
+
+export interface ResolvedMediaRef {
+  zipPath: string;
+  label: string;
+  sizeBytes: number | null;
+  fetch: { method: "GET"; url: string; headers?: Record<string, string> };
+}
+
+export interface ExportManifest {
+  /** Horodatage serveur — data.exporteLe y est déjà aligné. */
+  serverTime: string;
+  data: Record<string, unknown>;
+  counts: {
+    products: number;
+    votes: number;
+    reviews: number;
+    comments: number;
+    builds: number;
+    files: number;
+  };
+  /** Médias non résolubles (presign KO, URL malformée) — à noter dans MANIFEST, jamais à tenter. */
+  skipped: string[];
+  media: ResolvedMediaRef[];
+}
+
+/** Manifest d'assemblage pour le desktop : jamais un ZIP, toujours <2 s. */
+export async function buildExportManifest(userId: string): Promise<ExportManifest> {
+  const { data, media, counts } = await collectExportBundle(userId);
+  const admin = createAdminClient();
+  const skipped: string[] = [];
+  const resolved: ResolvedMediaRef[] = [];
+
+  for (const ref of media) {
+    if (ref.kind === "url") {
+      if (!/^https?:\/\//i.test(ref.url)) {
+        skipped.push(ref.label);
+        continue;
+      }
+      resolved.push({
+        zipPath: ref.zipPath,
+        label: ref.label,
+        sizeBytes: null,
+        fetch: { method: "GET", url: ref.url },
+      });
+      continue;
+    }
+    if (ref.kind === "r2") {
+      try {
+        const url = await presignBuildDownload(ref.key);
+        resolved.push({
+          zipPath: ref.zipPath,
+          label: ref.label,
+          sizeBytes: ref.sizeBytes ?? null,
+          fetch: { method: "GET", url },
+        });
+      } catch {
+        skipped.push(ref.label);
+      }
+      continue;
+    }
+    // appeals — Supabase Storage privé, URL signée 15 min (admin client).
+    const { data: signed, error } = await admin.storage
+      .from(APPEALS_BUCKET)
+      .createSignedUrl(ref.path, 900);
+    if (error || !signed?.signedUrl) {
+      skipped.push(ref.label);
+      continue;
+    }
+    resolved.push({
+      zipPath: ref.zipPath,
+      label: ref.label,
+      sizeBytes: null,
+      fetch: { method: "GET", url: signed.signedUrl },
+    });
+  }
+
+  return {
+    serverTime: new Date().toISOString(),
+    data,
+    counts,
+    skipped,
+    media: resolved,
   };
 }
