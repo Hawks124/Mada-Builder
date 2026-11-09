@@ -1,8 +1,10 @@
-import { apiCatch, apiOk, withCache, CACHE_PRIVATE } from "@/lib/api/response";
+import { apiCatch, apiOk, corsPreflight, withCache, CACHE_PRIVATE } from "@/lib/api/response";
 import { apiLimit } from "@/lib/api/ratelimit";
 import { requireApiUser } from "@/lib/api/auth";
 import { getMakerChartSeries } from "@/services/dashboard.service";
 import { getMakerRevenueDaily } from "@/services/revenue/views";
+
+export const OPTIONS = async () => corsPreflight();
 
 /**
  * Vue d'ensemble maker — séries journalières (30/90 j) + MRR quotidien.
