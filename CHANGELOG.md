@@ -6,6 +6,15 @@ Tous les changements notables du projet, en français. Format [Keep a Changelog]
 
 ### Ajouté
 
+- **Le manifest d'assemblage client pour le desktop (F9)** : nouveau point
+  d'entrée `GET /api/v1/me/export/manifest` (Bearer, `allowBanned`, 6/h,
+  `private, no-store`) qui sert `{ serverTime, data, counts, skipped, media }` —
+  URL nue pour les médias publics, presign R2 (300 s) pour les builds,
+  `createSignedUrl` Supabase (900 s) pour les preuves d'appel ; chaque média
+  porte `sizeBytes` quand la DB le connaît. **Aucun ZIP construit** : le
+  desktop assemble le ZIP localement (octets → disque → `.part` atomique,
+  contrat `docs/export-format.md` ; verify dédié `verify-export-manifest` :
+  9 OK / 0 KO). Le web garde `buildUserExport` inchangé (6/6).
 - **La parité push web — le lot FCM avec la squad mobile (migration 0065)** : la table `user_devices` entre dans le schéma Drizzle (miroir
   du contrat mobile arbitré 12/12 : 11 colonnes, token unique, CHECK
   plateforme, index partiel) et les durcissements arbitrés sont posés :
